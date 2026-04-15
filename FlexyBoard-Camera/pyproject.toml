@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flexyboard-camera"
+version = "0.1.0"
+description = "Raspberry Pi camera/CV control stack for FlexyBoard"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "opencv-python>=4.9",
+  "pyserial>=3.5",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+yolo = ["ultralytics>=8.2"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "-q"

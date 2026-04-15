@@ -1,0 +1,81 @@
+# FlexyBoard-Motor-Control
+Uses the STM32 to control motors and receive motion commands from Raspberry Pi.
+
+## Teammate Firmware (CubeIDE project) from Pi Terminal
+
+This repo includes a CubeIDE project, but the generated `Debug/makefile` is tied to a Windows path.
+Use the scripts below instead for reliable CLI builds on Pi.
+
+### 1) Install build/flash tools on Pi
+
+```bash
+sudo apt update
+sudo apt install -y gcc-arm-none-eabi binutils-arm-none-eabi openocd
+```
+
+### 2) Build firmware on Pi
+
+```bash
+cd ~/FlexyBoard-Motor-Control
+./scripts/build_firmware.sh
+```
+
+Build outputs:
+- `build/FlexyBoard_MotorControl.elf`
+- `build/FlexyBoard_MotorControl.bin`
+- `build/FlexyBoard_MotorControl.map`
+
+### 3) Flash STM32 from Pi
+
+```bash
+./scripts/flash_firmware.sh
+```
+
+Or flash a specific ELF:
+
+```bash
+./scripts/flash_firmware.sh Debug/FlexyBoard_MotorControl.elf
+```
+
+### One-command flow (recommended)
+
+Build latest source + flash:
+
+```bash
+./scripts/build_and_flash.sh
+```
+
+Flash existing IDE-built debug ELF without rebuild:
+
+```bash
+./scripts/build_and_flash.sh --debug-elf
+```
+
+### 4) Verify ST-LINK is visible on Pi
+
+```bash
+lsusb | grep -i -E "ST-LINK|STMicro"
+```
+
+If programming ends with `Verified OK`, flash succeeded.
+
+## UART Command Mode (Pi -> STM32)
+
+Current firmware in `Src/main.c` now waits for UART commands on NUCLEO VCP (`USART2`, `PA2/PA3`).
+
+Supported commands:
+- `PING` -> `PONG`
+- `ZERO` -> `OK ZERO` (resets internal step tracker to machine origin)
+- `MOVE sx sy dx dy` -> `OK MOVE` (moves to board source square, then destination square)
+- `STATUS` -> `STATUS cur_x=... cur_y=...`
+
+### Board calibration constants you must set
+
+Edit `Inc/main.h` corner constants:
+- `CORNER_00_X_STEPS`, `CORNER_00_Y_STEPS`
+- `CORNER_70_X_STEPS`, `CORNER_70_Y_STEPS`
+- `CORNER_07_X_STEPS`, `CORNER_07_Y_STEPS`
+- `CORNER_77_X_STEPS`, `CORNER_77_Y_STEPS`
+
+These are measured step coordinates from machine `(0,0)` to the chessboard corners.
+All intermediate squares are computed by interpolation.

@@ -1,0 +1,55 @@
+app:
+  game: checkers
+  confidence_threshold: 0.55
+  allow_low_confidence_override: false
+
+camera:
+  index: 0
+  width: 1920
+  height: 1080
+  retries: 3
+  retry_delay_sec: 0.2
+  pre_capture_flush_frames: 10      # discard stale buffered frames before each capture
+  pre_capture_flush_delay_sec: 0.02 # short delay between flush grabs
+
+vision:
+  board_size: [8, 8]
+  roi: [200, 100, 1400, 900]  # x, y, w, h in raw frame pixels
+  auto_detect_board: true
+  warp_square_px: 96
+  outer_sheet_hsv_lower: [8, 20, 50]   # tune for your brown board sheet
+  outer_sheet_hsv_upper: [35, 255, 255]
+  outer_sheet_min_area_ratio: 0.1
+  outer_sheet_max_area_to_chessboard_ratio: 3.5
+  fallback_outer_margins_squares: [3.2, 3.2, 1.4, 2.4]  # left, right, top, bottom (in chess-square units)
+  blur_kernel: 5
+  diff_threshold: 28
+  min_changed_squares: 2
+  changed_square_pixel_ratio: 0.08
+
+classifier:
+  enabled: false
+  backend: yolo
+  model_path: null  # e.g. models/chess_pieces_topdown.pt
+  confidence_threshold: 0.35
+  input_size: 640
+  device: null  # e.g. cpu, cuda:0, mps
+
+board:
+  square_size_mm: 50.0
+  origin_offset_mm: [0.0, 0.0]
+
+comms:
+  port: mock://stm32  # set to /dev/ttyACM0 (or similar) on Pi for real STM32 over USB
+  baudrate: 115200
+  timeout_sec: 0.35
+  retries: 3
+
+paths:
+  calibration_file: configs/calibration.json
+  logs_dir: logs
+  debug_dir: debug_output
+
+safety:
+  auto_home_before_move: true
+  fail_on_low_confidence: true

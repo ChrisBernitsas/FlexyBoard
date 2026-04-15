@@ -1,0 +1,15 @@
+FlexyBoard Analysis Summary
+
+changed_square_count: 0
+changed_squares:
+  - none
+
+inferred_move:
+  - game: checkers
+  - source: None
+  - destination: None
+  - moved_piece_type: None
+  - capture: None
+  - confidence: 0.0000
+  - timestamp: 2026-04-13T15:50:19.468538+00:00
+  - metadata: {"reason": "insufficient_changed_squares", "changed_count": 0}

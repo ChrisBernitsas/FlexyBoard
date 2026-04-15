@@ -1,0 +1,12 @@
+{
+  "player2_software_move_sequence": [
+    {
+      "source": {"x": 2, "y": 2},
+      "dest": {"x": 3, "y": 3}
+    },
+    {
+      "source": {"x": 4, "y": 4},
+      "dest": {"x": 5, "y": 5}
+    }
+  ]
+}

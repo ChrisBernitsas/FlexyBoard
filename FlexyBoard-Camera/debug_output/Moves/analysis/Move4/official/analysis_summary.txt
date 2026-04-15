@@ -1,0 +1,17 @@
+FlexyBoard Analysis Summary
+
+changed_square_count: 3
+changed_squares:
+  - index=2 coord=(2,0) label=c1 pixel_ratio=0.6156 delta=75.646
+  - index=20 coord=(4,2) label=e3 pixel_ratio=0.6092 delta=-77.950
+  - index=11 coord=(3,1) label=d2 pixel_ratio=0.4229 delta=18.963
+
+inferred_move:
+  - game: checkers
+  - source: (2,0)
+  - destination: (4,2)
+  - moved_piece_type: None
+  - capture: True
+  - confidence: 1.0000
+  - timestamp: 2026-04-13T15:50:17.830940+00:00
+  - metadata: {"changed_count": 3, "classifier_confidence": 0.0, "source_score": -75.64561631944443, "dest_score": 77.95030381944446}
