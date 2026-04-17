@@ -12,6 +12,7 @@ dependencies = [
   "opencv-python>=4.9",
   "pyserial>=3.5",
   "PyYAML>=6.0",
+  "python-chess>=1.999",
 ]
 
 [project.optional-dependencies]

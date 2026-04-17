@@ -43,6 +43,19 @@ class VisionConfig:
 
 
 @dataclass(slots=True)
+class AnalysisConfig:
+    label_mode: str
+    inner_shrink: float
+    diff_threshold: int
+    min_changed_ratio: float
+    outer_candidate_mode: str
+    disable_tape_projection: bool
+    board_lock_source: str
+    geometry_reference: str
+    disable_geometry_reference: bool
+
+
+@dataclass(slots=True)
 class BoardConfig:
     square_size_mm: float
     origin_offset_mm: tuple[float, float]
@@ -84,6 +97,7 @@ class Config:
     app: AppConfig
     camera: CameraConfig
     vision: VisionConfig
+    analysis: AnalysisConfig
     board: BoardConfig
     comms: CommsConfig
     paths: PathsConfig
@@ -94,6 +108,7 @@ class Config:
     def from_dict(cls, data: dict[str, Any]) -> "Config":
         camera_raw = data["camera"]
         classifier_raw = data.get("classifier", {})
+        analysis_raw = data.get("analysis", {})
         return cls(
             app=AppConfig(**data["app"]),
             camera=CameraConfig(
@@ -123,6 +138,19 @@ class Config:
                 fallback_outer_margins_squares=tuple(
                     data["vision"].get("fallback_outer_margins_squares", [3.2, 3.2, 1.4, 2.4])
                 ),
+            ),
+            analysis=AnalysisConfig(
+                label_mode=str(analysis_raw.get("label_mode", "index")),
+                inner_shrink=float(analysis_raw.get("inner_shrink", 0.02)),
+                diff_threshold=int(analysis_raw.get("diff_threshold", 45)),
+                min_changed_ratio=float(analysis_raw.get("min_changed_ratio", 0.28)),
+                outer_candidate_mode=str(analysis_raw.get("outer_candidate_mode", "auto")),
+                disable_tape_projection=bool(analysis_raw.get("disable_tape_projection", True)),
+                board_lock_source=str(analysis_raw.get("board_lock_source", "before")),
+                geometry_reference=str(
+                    analysis_raw.get("geometry_reference", "configs/before_geometry_reference.json")
+                ),
+                disable_geometry_reference=bool(analysis_raw.get("disable_geometry_reference", False)),
             ),
             board=BoardConfig(
                 square_size_mm=float(data["board"]["square_size_mm"]),

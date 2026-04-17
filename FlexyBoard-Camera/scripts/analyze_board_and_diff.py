@@ -69,11 +69,21 @@ def _save_detector_debug_images(
     prefix: str,
     out_dir: Path,
     outputs: dict[str, str],
+    skip_image_keys: set[str] | None = None,
 ) -> dict[str, object]:
     metadata: dict[str, object] = {}
+    skip_image_keys = skip_image_keys or set()
+    # Always clear skipped debug image names up front so stale files do not linger
+    # when output dir is reused across runs.
+    for key in skip_image_keys:
+        stale_path = out_dir / f"{prefix}_{key}.png"
+        if stale_path.exists():
+            stale_path.unlink()
     for key, value in debug_data.items():
         out_key = f"{prefix}_{key}"
         if isinstance(value, np.ndarray):
+            if key in skip_image_keys:
+                continue
             path = out_dir / f"{out_key}.png"
             cv2.imwrite(str(path), value)
             outputs[out_key] = str(path)
@@ -401,6 +411,47 @@ def _load_reference_geometry(
     return chess, outer, "ok"
 
 
+def _load_inner_from_outer_reference(
+    *,
+    reference_path: Path,
+    board_size: tuple[int, int],
+) -> tuple[tuple[float, float, float, float] | None, str]:
+    if not reference_path.exists():
+        return None, "missing_file"
+
+    try:
+        payload = json.loads(reference_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None, "invalid_json"
+
+    raw_board_size = payload.get("board_size")
+    if isinstance(raw_board_size, list) and len(raw_board_size) == 2:
+        try:
+            ref_cols = int(raw_board_size[0])
+            ref_rows = int(raw_board_size[1])
+        except Exception:  # noqa: BLE001
+            return None, "invalid_board_size"
+        if (ref_cols, ref_rows) != (int(board_size[0]), int(board_size[1])):
+            return None, "board_size_mismatch"
+
+    raw_margins = payload.get("margins_squares")
+    if not isinstance(raw_margins, list) or len(raw_margins) != 4:
+        return None, "missing_margins_squares"
+
+    try:
+        left, right, top, bottom = [float(x) for x in raw_margins]
+    except Exception:  # noqa: BLE001
+        return None, "invalid_margins_squares"
+
+    margins = (
+        max(0.0, left),
+        max(0.0, right),
+        max(0.0, top),
+        max(0.0, bottom),
+    )
+    return margins, "ok"
+
+
 def _draw_changed_overlay_on_raw(
     frame_bgr: np.ndarray,
     squares_by_coord: dict[tuple[int, int], dict[str, object]],
@@ -673,6 +724,19 @@ def main() -> int:
         action="store_true",
         help="Disable use of persisted board geometry reference and rely only on live detection.",
     )
+    parser.add_argument(
+        "--inner-from-outer-reference",
+        default=str(ROOT / "configs" / "inner_from_outer_reference.json"),
+        help=(
+            "Optional path to persisted relation between outer sheet (green) and chessboard (yellow) "
+            "as margins in square units. Used for chess/checkers algorithm_live grid generation."
+        ),
+    )
+    parser.add_argument(
+        "--disable-inner-from-outer-reference",
+        action="store_true",
+        help="Disable persisted inner-from-outer relation for algorithm_live yellow grid.",
+    )
     parser.add_argument("--board-cols", type=int, default=8)
     parser.add_argument("--board-rows", type=int, default=8)
     parser.add_argument("--hsv-lower", default="8,20,50", help="Outer-sheet HSV lower H,S,V")
@@ -688,6 +752,7 @@ def main() -> int:
     parser.add_argument(
         "--enable-tape-projection",
         action="store_true",
+        default=False,
         help="Enable tape-projection outer refinement (disabled by default).",
     )
     parser.add_argument(
@@ -763,6 +828,18 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Keep algorithm_live output focused on images that are useful for iteration.
+    # Detection still uses these internal buffers; we only skip writing selected debug PNGs.
+    detector_debug_skip_image_keys: set[str] = {
+        # Center-projection artifacts/diagnostics that are noisy for routine runs.
+        "center_projection_overlay",
+        "center_projection_dark_mask",
+        "center_projection_dark_mask_search",
+        # Keep only the raw dark mask; skip post-processed masks that add clutter.
+        "dark_mask",
+        "dark_mask_candidates",
+    }
+
     before_path = Path(args.before)
     after_path = Path(args.after)
 
@@ -799,6 +876,29 @@ def main() -> int:
     hsv_upper = _parse_triplet(args.hsv_upper)
     fallback_margins = _parse_quad(args.fallback_margins)
     tape_projection_enabled = bool(args.enable_tape_projection) and not bool(args.disable_tape_projection)
+    inner_from_outer_reference_path = Path(args.inner_from_outer_reference)
+    game_lower = str(args.game).strip().lower()
+    supports_inner_from_outer = game_lower in {"chess", "checkers"}
+    inner_from_outer_reference_status = "unsupported_game"
+    inner_from_outer_reference_margins: tuple[float, float, float, float] | None = None
+    if supports_inner_from_outer:
+        if bool(args.disable_inner_from_outer_reference):
+            inner_from_outer_reference_status = "disabled"
+        else:
+            (
+                inner_from_outer_reference_margins,
+                inner_from_outer_reference_status,
+            ) = _load_inner_from_outer_reference(
+                reference_path=inner_from_outer_reference_path,
+                board_size=board_size,
+            )
+    else:
+        inner_from_outer_reference_status = "unsupported_game"
+    effective_outer_inner_margins = (
+        inner_from_outer_reference_margins
+        if inner_from_outer_reference_margins is not None
+        else fallback_margins
+    )
 
     before_debug: dict[str, object] = {}
     before_detection = detect_board_regions(
@@ -1039,13 +1139,13 @@ def main() -> int:
         locked_outer_raw = estimate_outer_sheet_from_chessboard(
             chessboard_corners=locked_board_raw,
             board_size=board_size,
-            margins_squares=fallback_margins,
+            margins_squares=effective_outer_inner_margins,
         )
     if locked_board_raw is None and locked_outer_raw is not None:
         locked_board_raw = estimate_chessboard_from_outer_sheet(
             outer_sheet_corners=locked_outer_raw,
             board_size=board_size,
-            margins_squares=fallback_margins,
+            margins_squares=effective_outer_inner_margins,
         )
     if locked_board_raw is None:
         raise SystemExit("Unable to build locked board geometry.")
@@ -1186,13 +1286,33 @@ def main() -> int:
             must_enclose_quad=after_detection.chessboard_corners,
         )
 
+    live_inner_source_before = "detected"
+    live_inner_source_after = "detected"
+    before_live_board = before_detection.chessboard_corners
+    after_live_board = after_detection.chessboard_corners
+    if inner_from_outer_reference_margins is not None:
+        if before_live_outer is not None:
+            before_live_board = estimate_chessboard_from_outer_sheet(
+                outer_sheet_corners=before_live_outer,
+                board_size=board_size,
+                margins_squares=inner_from_outer_reference_margins,
+            )
+            live_inner_source_before = "outer_relative_reference"
+        if after_live_outer is not None:
+            after_live_board = estimate_chessboard_from_outer_sheet(
+                outer_sheet_corners=after_live_outer,
+                board_size=board_size,
+                margins_squares=inner_from_outer_reference_margins,
+            )
+            live_inner_source_after = "outer_relative_reference"
+
     before_live_detection = BoardDetection(
         outer_sheet_corners=before_live_outer,
-        chessboard_corners=before_detection.chessboard_corners,
+        chessboard_corners=before_live_board,
     )
     after_live_detection = BoardDetection(
         outer_sheet_corners=after_live_outer,
-        chessboard_corners=after_detection.chessboard_corners,
+        chessboard_corners=after_live_board,
     )
 
     before_live_regions_overlay, before_live_grid_overlay = _draw_live_regions_and_grid(
@@ -1329,12 +1449,14 @@ def main() -> int:
         prefix="before_detector",
         out_dir=algorithm_live_dir,
         outputs=outputs,
+        skip_image_keys=detector_debug_skip_image_keys,
     )
     after_debug_meta = _save_detector_debug_images(
         debug_data=after_debug,
         prefix="after_detector",
         out_dir=algorithm_live_dir,
         outputs=outputs,
+        skip_image_keys=detector_debug_skip_image_keys,
     )
 
     payload = {
@@ -1360,6 +1482,24 @@ def main() -> int:
         "algorithm_live_green_source": "raw_detector_candidate_outer",
         "algorithm_live_outer_source_before": live_outer_source_before,
         "algorithm_live_outer_source_after": live_outer_source_after,
+        "algorithm_live_inner_source_before": live_inner_source_before,
+        "algorithm_live_inner_source_after": live_inner_source_after,
+        "inner_from_outer_reference": {
+            "enabled": supports_inner_from_outer and not bool(args.disable_inner_from_outer_reference),
+            "path": str(inner_from_outer_reference_path),
+            "status": inner_from_outer_reference_status,
+            "used": inner_from_outer_reference_margins is not None,
+            "margins_squares": (
+                [
+                    float(inner_from_outer_reference_margins[0]),
+                    float(inner_from_outer_reference_margins[1]),
+                    float(inner_from_outer_reference_margins[2]),
+                    float(inner_from_outer_reference_margins[3]),
+                ]
+                if inner_from_outer_reference_margins is not None
+                else None
+            ),
+        },
         "outer_candidate_mode": args.outer_candidate_mode,
         "tape_projection_enabled": tape_projection_enabled,
         "warp_alignment_requested": args.warp_alignment_mode,

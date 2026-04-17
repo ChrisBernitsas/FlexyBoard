@@ -14,5 +14,5 @@ inferred_move:
   - moved_piece_type: None
   - capture: True
   - confidence: 1.0000
-  - timestamp: 2026-04-13T15:50:20.356171+00:00
-  - metadata: {"changed_count": 4, "classifier_confidence": 0.0, "source_score": -86.02365451388889, "dest_score": 75.22873263888886}
+  - timestamp: 2026-04-15T16:09:11.009236+00:00
+  - metadata: {"changed_count": 4, "classifier_confidence": 0.0, "source_score": -86.02365451388889, "dest_score": 75.22873263888886, "capture_signals": {"capture_by_destination_prior": false, "capture_by_changed_count": true, "occupied_margin": 23.75150173611111, "source_before_occupied": false, "source_after_occupied": false, "dest_before_occupied": false, "dest_after_occupied": false, "source_before_occ_score": 0.9626736111111143, "source_after_occ_score": -78.13986545138889, "dest_before_occ_score": -80.27473958333331, "dest_after_occ_score": 1.8751085069444429}, "captured_at": {"x": 5, "y": 1}, "captured_piece_type": null}

@@ -108,6 +108,50 @@ One-command capture + wait + analyze + STM32 payload generation:
 python scripts/run_turn_capture_analyze.py --wait-mode enter
 ```
 
+### Live Bridge: CV -> Software-GUI -> STM32
+
+One-command Mac launcher for the normal hardware path:
+
+```bash
+cd "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera"
+./scripts/run_full_system_mac.sh
+```
+
+This opens two Terminal windows:
+- Raspberry Pi bridge: camera/CV + STM32 dispatch
+- local `Software-GUI`: board UI + Player 2 move planning
+
+By default the launcher syncs `FlexyBoard-Camera` to the Pi first, excluding `.venv`, `debug_output`, and logs. Use `SYNC=0 ./scripts/run_full_system_mac.sh` if the Pi already has the current code.
+
+Run this on the Pi to host the TCP bridge used by `Software-GUI`:
+
+```bash
+cd ~/FlexyBoard-Camera
+source .venv/bin/activate
+python3 scripts/run_pi_software_bridge.py
+```
+
+Default bridge mode is rolling capture, similar to Chess-Tracker:
+1. capture one initial reference image when the system starts
+2. wait for Player 1 to move and press Enter
+3. capture one current image
+4. diff previous reference -> current image
+5. resolve Player 1 move against legal game state on Pi
+6. send resolved Player 1 move step(s) to Software-GUI as `{"type":"p1_move","from":"...","to":"..."}`
+7. receive Software-GUI Player 2 reply (`p2_move`) with `stm_sequence`
+8. write `sample_data/stm32_move_sequence.txt`
+9. call `scripts/send_moves_from_file.py` to execute on STM32
+10. capture a fresh reference image after STM32 movement completes
+
+Per-turn legal-resolution artifact:
+- `player1_resolved_move.json` in the analysis folder
+
+Optional:
+- run once only: `--once`
+- skip STM execution (debug bridge only): `--no-stm-send`
+- GPIO trigger instead of Enter: `--wait-mode gpio --gpio-pin 17`
+- old two-image-per-turn behavior: `--capture-mode two-shot`
+
 Flow for this command:
 1. captures `before`
 2. waits for Enter (or GPIO trigger)
@@ -371,14 +415,18 @@ FlexyBoard-Camera/
 Primary runtime config: `configs/default.yaml`
 
 Key settings:
+- `app.game`
+- `analysis.diff_threshold` / `analysis.min_changed_ratio` (main full-bridge changed-square sensitivity)
+- `analysis.geometry_reference`
+- `analysis.board_lock_source`
+- `analysis.disable_tape_projection`
 - `vision.roi`
 - `vision.auto_detect_board` (if true, detects outer sheet + chessboard and diffs on warped chessboard only)
 - `vision.warp_square_px`
 - `vision.outer_sheet_hsv_lower` / `vision.outer_sheet_hsv_upper`
 - `vision.outer_sheet_max_area_to_chessboard_ratio`
 - `vision.fallback_outer_margins_squares`
-- `vision.diff_threshold`
-- `vision.changed_square_pixel_ratio`
+- `vision.diff_threshold` / `vision.changed_square_pixel_ratio` (older controller/calibration CLI path)
 - `app.confidence_threshold`
 - `comms.port` (`mock://stm32` for dry run)
 - `safety.auto_home_before_move`

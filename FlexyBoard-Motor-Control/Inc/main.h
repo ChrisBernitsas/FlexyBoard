@@ -99,6 +99,20 @@ typedef struct
 #define CORNER_77_X_STEPS     1670
 #define CORNER_77_Y_STEPS     1671
 
+/* Full reachable workspace (green-grid / gantry area) in motor steps.
+ * Used for off-board staging moves (captured pieces, detours).
+ */
+#define WORKSPACE_MIN_X_STEPS 0
+#define WORKSPACE_MAX_X_STEPS 2055
+#define WORKSPACE_MIN_Y_STEPS 0
+#define WORKSPACE_MAX_Y_STEPS 2280
+
+/* Percentage command scale:
+ * 0   -> 0%
+ * 100 -> 100%
+ */
+#define WORKSPACE_PERCENT_SCALE 100
+
 /* Step pulse timing (higher delay = slower speed). */
 #define STEP_DELAY_CYCLES     1400
 #define STEP_DELAY_CYCLES_Z   3000

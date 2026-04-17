@@ -8,7 +8,7 @@
     8,
     8
   ],
-  "board_detection_source": "before_fallback",
+  "board_detection_source": "after",
   "locked_geometry_source": "reference:before_geometry_reference.json",
   "geometry_reference": {
     "enabled": true,
@@ -29,54 +29,122 @@
         1.3546037673950195,
         1.2051100730895996,
         2.629484176635742
-      ]
+      ],
+      "before": {
+        "mode": "reference_margins_from_chessboard",
+        "applied": true,
+        "area_ratio_clamp": {
+          "applied": true,
+          "min_ratio": 0.5721182747615039,
+          "max_ratio": 0.6323412510521886,
+          "current_ratio": 0.20659667070227958,
+          "desired_ratio": 0.5721182747615039,
+          "scale": 1.664107013128703,
+          "new_ratio": 0.5721183047726187
+        },
+        "bbox_size_clamp": {
+          "applied": true,
+          "target_w_px": 827.0,
+          "target_h_px": 889.0,
+          "tolerance": 0.05,
+          "current_w_px": 1005.01220703125,
+          "current_h_px": 649.2353820800781,
+          "desired_w_px": 827.0,
+          "desired_h_px": 889.0,
+          "new_w_px": 827.0,
+          "new_h_px": 889.0000305175781,
+          "sx": 0.8228755772458842,
+          "sy": 1.3693030671737925
+        }
+      },
+      "after": {
+        "mode": "reference_margins_from_chessboard",
+        "applied": true,
+        "area_ratio_clamp": {
+          "applied": true,
+          "min_ratio": 0.5721182747615039,
+          "max_ratio": 0.6323412510521886,
+          "current_ratio": 0.20978326167028033,
+          "desired_ratio": 0.5721182747615039,
+          "scale": 1.6514198231917507,
+          "new_ratio": 0.5721183169362102
+        },
+        "bbox_size_clamp": {
+          "applied": true,
+          "target_w_px": 827.0,
+          "target_h_px": 889.0,
+          "tolerance": 0.05,
+          "current_w_px": 997.3499755859375,
+          "current_h_px": 654.2232055664062,
+          "desired_w_px": 827.0,
+          "desired_h_px": 889.0,
+          "new_w_px": 827.0000610351562,
+          "new_h_px": 889.0000305175781,
+          "sx": 0.8291973933364185,
+          "sy": 1.358863446658593
+        }
+      }
     }
   },
   "algorithm_live_green_source": "raw_detector_candidate_outer",
-  "algorithm_live_outer_source_before": "locked_fallback",
-  "algorithm_live_outer_source_after": "locked_fallback",
+  "algorithm_live_outer_source_before": "candidate",
+  "algorithm_live_outer_source_after": "candidate",
+  "algorithm_live_inner_source_before": "outer_relative_reference",
+  "algorithm_live_inner_source_after": "outer_relative_reference",
+  "inner_from_outer_reference": {
+    "enabled": true,
+    "path": "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/configs/inner_from_outer_reference.json",
+    "status": "ok",
+    "used": true,
+    "margins_squares": [
+      1.39824640750885,
+      1.3445653915405273,
+      1.2583465576171875,
+      2.656569480895996
+    ]
+  },
   "outer_candidate_mode": "auto",
   "tape_projection_enabled": false,
   "warp_alignment_requested": "independent",
   "warp_alignment_mode": "locked_static_board",
-  "board_corner_relative_drift": 0.0,
-  "board_corner_mean_distance_px": 0.0,
+  "board_corner_relative_drift": 0.0062543409707046865,
+  "board_corner_mean_distance_px": 3.254241943359375,
   "shared_after_recommended": false,
   "shared_after_drift_threshold": 0.06,
   "before_chessboard_corners_px": [
     [
-      262.0,
-      185.0
+      333.4444580078125,
+      391.1525573730469
     ],
     [
-      842.0,
-      167.0
+      779.5555419921875,
+      391.1525573730469
     ],
     [
-      869.0,
-      756.0
+      779.5555419921875,
+      654.88134765625
     ],
     [
-      266.0,
-      769.0
+      333.4444580078125,
+      654.88134765625
     ]
   ],
   "after_chessboard_corners_px": [
     [
-      262.0,
-      185.0
+      333.4444580078125,
+      385.8644104003906
     ],
     [
-      842.0,
-      167.0
+      779.5555419921875,
+      385.8644104003906
     ],
     [
-      869.0,
-      756.0
+      779.5555419921875,
+      653.6610107421875
     ],
     [
-      266.0,
-      769.0
+      333.4444580078125,
+      653.6610107421875
     ]
   ],
   "outer_sheet_corners_px": [
@@ -121,16 +189,16 @@
     "image_area_px2": 1140480.0,
     "locked_board_area_px2": 347155.0,
     "locked_outer_area_px2": 686831.0,
-    "before_board_area_px2": 347155.0,
-    "after_board_area_px2": 347155.0,
-    "before_outer_area_px2": null,
-    "after_outer_area_px2": null,
+    "before_board_area_px2": 117652.33651112765,
+    "after_board_area_px2": 119467.03166580945,
+    "before_outer_area_px2": 735203.0252380371,
+    "after_outer_area_px2": 735203.0794982929,
     "locked_board_area_ratio_image": 0.30439376402918067,
     "locked_outer_area_ratio_image": 0.6022297629068463,
-    "before_board_area_ratio_image": 0.30439376402918067,
-    "after_board_area_ratio_image": 0.30439376402918067,
-    "before_outer_area_ratio_image": 0.0,
-    "after_outer_area_ratio_image": 0.0
+    "before_board_area_ratio_image": 0.10316036801270312,
+    "after_board_area_ratio_image": 0.10475153590225997,
+    "before_outer_area_ratio_image": 0.6446435055748783,
+    "after_outer_area_ratio_image": 0.6446435531515615
   },
   "pre_detection_crop": {
     "enabled": true,
@@ -1987,12 +2055,27 @@
     "moved_piece_type": null,
     "capture": false,
     "confidence": 1.0,
-    "timestamp": "2026-04-13T15:50:21.226917+00:00",
+    "timestamp": "2026-04-15T16:09:11.724593+00:00",
     "metadata": {
       "changed_count": 2,
       "classifier_confidence": 0.0,
       "source_score": -80.67154947916666,
-      "dest_score": 81.68663194444446
+      "dest_score": 81.68663194444446,
+      "capture_signals": {
+        "capture_by_destination_prior": false,
+        "capture_by_changed_count": false,
+        "occupied_margin": 24.420155164930552,
+        "source_before_occupied": false,
+        "source_after_occupied": false,
+        "dest_before_occupied": false,
+        "dest_after_occupied": false,
+        "source_before_occ_score": -0.7928602430555571,
+        "source_after_occ_score": -82.56412760416666,
+        "dest_before_occ_score": -84.57020399305556,
+        "dest_after_occ_score": -3.983289930555557
+      },
+      "captured_at": null,
+      "captured_piece_type": null
     }
   },
   "outputs": {
@@ -2018,15 +2101,13 @@
     "changed_warp_overlay": "debug_output/Moves/analysis/Move8/official/changed_warp_overlay.png",
     "analysis_summary_txt": "debug_output/Moves/analysis/Move8/official/analysis_summary.txt",
     "before_detector_dark_mask_raw": "debug_output/Moves/analysis/Move8/algorithm_live/before_detector_dark_mask_raw.png",
-    "before_detector_dark_mask": "debug_output/Moves/analysis/Move8/algorithm_live/before_detector_dark_mask.png",
     "before_detector_tape_ring_mask": "debug_output/Moves/analysis/Move8/algorithm_live/before_detector_tape_ring_mask.png",
-    "before_detector_dark_mask_candidates": "debug_output/Moves/analysis/Move8/algorithm_live/before_detector_dark_mask_candidates.png",
     "before_detector_candidate_overlay": "debug_output/Moves/analysis/Move8/algorithm_live/before_detector_candidate_overlay.png",
+    "before_detector_center_projection_dark_mask_raw": "debug_output/Moves/analysis/Move8/algorithm_live/before_detector_center_projection_dark_mask_raw.png",
     "after_detector_dark_mask_raw": "debug_output/Moves/analysis/Move8/algorithm_live/after_detector_dark_mask_raw.png",
-    "after_detector_dark_mask": "debug_output/Moves/analysis/Move8/algorithm_live/after_detector_dark_mask.png",
     "after_detector_tape_ring_mask": "debug_output/Moves/analysis/Move8/algorithm_live/after_detector_tape_ring_mask.png",
-    "after_detector_dark_mask_candidates": "debug_output/Moves/analysis/Move8/algorithm_live/after_detector_dark_mask_candidates.png",
-    "after_detector_candidate_overlay": "debug_output/Moves/analysis/Move8/algorithm_live/after_detector_candidate_overlay.png"
+    "after_detector_candidate_overlay": "debug_output/Moves/analysis/Move8/algorithm_live/after_detector_candidate_overlay.png",
+    "after_detector_center_projection_dark_mask_raw": "debug_output/Moves/analysis/Move8/algorithm_live/after_detector_center_projection_dark_mask_raw.png"
   },
   "detector_debug": {
     "before": {
@@ -2037,9 +2118,29 @@
       "before_detector_outer_candidate_mode": "auto",
       "before_detector_outer_candidate_mode_effective": "auto",
       "before_detector_outer_candidate_source": "none",
-      "before_detector_outer_source": "none",
-      "before_detector_has_chessboard": false,
-      "before_detector_has_outer_sheet": false
+      "before_detector_center_projection_left": 155,
+      "before_detector_center_projection_right": 958,
+      "before_detector_center_projection_top": 345,
+      "before_detector_center_projection_bottom": 734,
+      "before_detector_center_projection_seed_center": [
+        528,
+        540
+      ],
+      "before_detector_center_projection_gap_x": 190,
+      "before_detector_center_projection_gap_y": 194,
+      "before_detector_center_projection_support_col": 208.61761169433595,
+      "before_detector_center_projection_support_row": 104.68542022705078,
+      "before_detector_expected_outer_side_support": [
+        0.18020158977300663,
+        0.5431336559319205,
+        0.08801114480045891,
+        0.5674954113131987
+      ],
+      "before_detector_expected_outer_side_support_strong_count": 4,
+      "before_detector_expected_outer_side_support_threshold": 0.08,
+      "before_detector_outer_source": "center_outward_dark_projection_fallback",
+      "before_detector_has_chessboard": true,
+      "before_detector_has_outer_sheet": true
     },
     "after": {
       "after_detector_dark_mask_on_ratio": 0.1703949214365881,
@@ -2049,9 +2150,29 @@
       "after_detector_outer_candidate_mode": "auto",
       "after_detector_outer_candidate_mode_effective": "auto",
       "after_detector_outer_candidate_source": "none",
-      "after_detector_outer_source": "none",
-      "after_detector_has_chessboard": false,
-      "after_detector_has_outer_sheet": false
+      "after_detector_center_projection_left": 155,
+      "after_detector_center_projection_right": 958,
+      "after_detector_center_projection_top": 339,
+      "after_detector_center_projection_bottom": 734,
+      "after_detector_center_projection_seed_center": [
+        528,
+        540
+      ],
+      "after_detector_center_projection_gap_x": 190,
+      "after_detector_center_projection_gap_y": 194,
+      "after_detector_center_projection_support_col": 208.4814376831055,
+      "after_detector_center_projection_support_row": 103.24390258789063,
+      "after_detector_expected_outer_side_support": [
+        0.1657789068261903,
+        0.5622225875390432,
+        0.08801114480045891,
+        0.5579483807331909
+      ],
+      "after_detector_expected_outer_side_support_strong_count": 4,
+      "after_detector_expected_outer_side_support_threshold": 0.08,
+      "after_detector_outer_source": "center_outward_dark_projection_fallback",
+      "after_detector_has_chessboard": true,
+      "after_detector_has_outer_sheet": true
     }
   }
 }

@@ -26,18 +26,45 @@ def _parse_line_to_move(line: str, line_no: int) -> dict[str, Any] | None:
     if not content:
         return None
 
-    nums = re.findall(r"-?\d+", content)
-    if len(nums) != 4:
+    if "->" not in content:
         raise ValueError(
             f"Invalid move format at line {line_no}. "
-            "Expected 4 integers (sx sy dx dy), e.g. '2,2 -> 5,5'."
+            "Expected 'source -> dest', e.g. '2,2 -> 5,5' or '2,2 -> 92%,12%'."
         )
 
-    sx, sy, dx, dy = (int(n) for n in nums)
+    source_raw, dest_raw = content.split("->", 1)
+    source = _parse_endpoint(source_raw.strip(), line_no)
+    dest = _parse_endpoint(dest_raw.strip(), line_no)
+
     return {
-        "source": {"x": sx, "y": sy},
-        "dest": {"x": dx, "y": dy},
+        "source": source,
+        "dest": dest,
     }
+
+
+def _parse_endpoint(token: str, line_no: int) -> dict[str, Any]:
+    board_match = re.fullmatch(r"\(?\s*(-?\d+)\s*,\s*(-?\d+)\s*\)?", token)
+    if board_match:
+        return {
+            "kind": "board",
+            "x": int(board_match.group(1)),
+            "y": int(board_match.group(2)),
+            "text": token,
+        }
+
+    pct_match = re.fullmatch(r"\(?\s*(-?\d+(?:\.\d+)?)\s*%\s*,\s*(-?\d+(?:\.\d+)?)\s*%\s*\)?", token)
+    if pct_match:
+        return {
+            "kind": "pct",
+            "x_pct": float(pct_match.group(1)),
+            "y_pct": float(pct_match.group(2)),
+            "text": token,
+        }
+
+    raise ValueError(
+        f"Invalid endpoint at line {line_no}: '{token}'. "
+        "Use board 'x,y' (e.g. 2,2) or percent 'x%,y%' (e.g. 92%,12%)."
+    )
 
 
 def _load_moves(path: Path) -> list[dict[str, Any]]:
@@ -108,6 +135,11 @@ def _load_board_mapping_constants() -> dict[str, int]:
         "CORNER_07_Y_STEPS",
         "CORNER_77_X_STEPS",
         "CORNER_77_Y_STEPS",
+        "WORKSPACE_MIN_X_STEPS",
+        "WORKSPACE_MAX_X_STEPS",
+        "WORKSPACE_MIN_Y_STEPS",
+        "WORKSPACE_MAX_Y_STEPS",
+        "WORKSPACE_PERCENT_SCALE",
     ]
     return {k: _parse_define_int(text, k) for k in keys}
 
@@ -138,6 +170,45 @@ def _board_to_steps(board_x: int, board_y: int, c: dict[str, int]) -> tuple[int,
     return x_steps, y_steps
 
 
+def _percent_to_steps(pct_x: float, pct_y: float, c: dict[str, int]) -> tuple[int, int]:
+    scale = float(c["WORKSPACE_PERCENT_SCALE"])
+    if pct_x < 0.0 or pct_x > scale or pct_y < 0.0 or pct_y > scale:
+        raise ValueError(
+            f"Percent coordinate out of range: ({pct_x}%,{pct_y}%). "
+            f"Expected 0..{int(scale)}%."
+        )
+
+    x_min = c["WORKSPACE_MIN_X_STEPS"]
+    x_max = c["WORKSPACE_MAX_X_STEPS"]
+    y_min = c["WORKSPACE_MIN_Y_STEPS"]
+    y_max = c["WORKSPACE_MAX_Y_STEPS"]
+
+    x_range = x_max - x_min
+    y_range = y_max - y_min
+
+    x_steps = int(round(x_min + (x_range * (pct_x / scale))))
+    y_steps = int(round(y_min + (y_range * (pct_y / scale))))
+    return x_steps, y_steps
+
+
+def _endpoint_to_steps(endpoint: dict[str, Any], c: dict[str, int]) -> tuple[int, int]:
+    kind = endpoint.get("kind")
+    if kind == "board":
+        return _board_to_steps(int(endpoint["x"]), int(endpoint["y"]), c)
+    if kind == "pct":
+        return _percent_to_steps(float(endpoint["x_pct"]), float(endpoint["y_pct"]), c)
+    raise ValueError(f"Unsupported endpoint kind: {kind}")
+
+
+def _endpoint_label(endpoint: dict[str, Any]) -> str:
+    kind = endpoint.get("kind")
+    if kind == "board":
+        return f"{endpoint['x']},{endpoint['y']}"
+    if kind == "pct":
+        return f"{endpoint['x_pct']:.2f}%,{endpoint['y_pct']:.2f}%"
+    return str(endpoint)
+
+
 def _build_stage_summary(planned_moves: list[dict[str, Any]], c: dict[str, int]) -> list[dict[str, Any]]:
     stages: list[dict[str, Any]] = []
     prev_x = 0
@@ -146,8 +217,8 @@ def _build_stage_summary(planned_moves: list[dict[str, Any]], c: dict[str, int])
     for idx, move in enumerate(planned_moves, start=1):
         src = move["source"]
         dst = move["dest"]
-        src_x, src_y = _board_to_steps(int(src["x"]), int(src["y"]), c)
-        dst_x, dst_y = _board_to_steps(int(dst["x"]), int(dst["y"]), c)
+        src_x, src_y = _endpoint_to_steps(src, c)
+        dst_x, dst_y = _endpoint_to_steps(dst, c)
 
         stage_points = [
             (f"move_{idx}_to_source", src_x, src_y),
@@ -272,13 +343,13 @@ def main() -> int:
 
         last_dest: dict[str, int] | None = None
         for idx, move in enumerate(planned_moves, start=1):
-            cmd = f"MOVE {move['source']['x']} {move['source']['y']} {move['dest']['x']} {move['dest']['y']}"
+            src_steps_x, src_steps_y = _endpoint_to_steps(move["source"], mapping_constants)
+            dst_steps_x, dst_steps_y = _endpoint_to_steps(move["dest"], mapping_constants)
+
+            cmd = f"MOVE_STEPS {src_steps_x} {src_steps_y} {dst_steps_x} {dst_steps_y}"
             reply = _send_command(ser, cmd)
             move_status = _send_command(ser, "STATUS")
-            src_steps_x, src_steps_y = _board_to_steps(
-                int(move["source"]["x"]), int(move["source"]["y"]), mapping_constants
-            )
-            dst_steps_x, dst_steps_y = _parse_status_xy(move_status)
+            status_x, status_y = _parse_status_xy(move_status)
             result["executed"].append(
                 {
                     "index": idx,
@@ -287,7 +358,8 @@ def main() -> int:
                     "reply": reply,
                     "status_after_move": move_status,
                     "source_steps": {"x": src_steps_x, "y": src_steps_y},
-                    "dest_steps": {"x": dst_steps_x, "y": dst_steps_y},
+                    "dest_steps_planned": {"x": dst_steps_x, "y": dst_steps_y},
+                    "dest_steps_status": {"x": status_x, "y": status_y},
                 }
             )
             result["status_checkpoints"].append(
@@ -299,7 +371,8 @@ def main() -> int:
             result["position_report"].append(
                 {
                     "stage": f"move_{idx}_source",
-                    "square": dict(move["source"]),
+                    "endpoint": dict(move["source"]),
+                    "endpoint_label": _endpoint_label(move["source"]),
                     "x": src_steps_x,
                     "y": src_steps_y,
                 }
@@ -307,17 +380,18 @@ def main() -> int:
             result["position_report"].append(
                 {
                     "stage": f"move_{idx}_dest",
-                    "square": dict(move["dest"]),
-                    "x": dst_steps_x,
-                    "y": dst_steps_y,
+                    "endpoint": dict(move["dest"]),
+                    "endpoint_label": _endpoint_label(move["dest"]),
+                    "x": status_x,
+                    "y": status_y,
                 }
             )
-            last_dest = dict(move["dest"])
+            last_dest = {"x": status_x, "y": status_y}
 
         if last_dest is not None and (last_dest["x"] != 0 or last_dest["y"] != 0):
             return_zero_move = {
-                "source": {"x": int(last_dest["x"]), "y": int(last_dest["y"])},
-                "dest": {"x": 0, "y": 0},
+                "source_steps": {"x": int(last_dest["x"]), "y": int(last_dest["y"])},
+                "dest_steps": {"x": 0, "y": 0},
             }
             time.sleep(RETURN_START_DELAY_SEC)
             rz_cmd = "RETURN_START"
@@ -361,9 +435,8 @@ def main() -> int:
 
     print("Position Report")
     for item in result["position_report"]:
-        if "square" in item:
-            sq = item["square"]
-            print(f"{item['stage']} square=({sq['x']},{sq['y']}) x={item['x']} y={item['y']}")
+        if "endpoint" in item:
+            print(f"{item['stage']} endpoint={item['endpoint_label']} x={item['x']} y={item['y']}")
         else:
             print(f"{item['stage']} x={item['x']} y={item['y']}")
 

@@ -385,6 +385,50 @@ bool board_coord_to_steps(int32_t board_x, int32_t board_y, int32_t *out_x_steps
     return true;
 }
 
+static bool workspace_steps_in_range(int32_t x_steps, int32_t y_steps)
+{
+    if (x_steps < WORKSPACE_MIN_X_STEPS || x_steps > WORKSPACE_MAX_X_STEPS)
+    {
+        return false;
+    }
+    if (y_steps < WORKSPACE_MIN_Y_STEPS || y_steps > WORKSPACE_MAX_Y_STEPS)
+    {
+        return false;
+    }
+    return true;
+}
+
+static bool workspace_percent_to_steps(int32_t pct_x, int32_t pct_y, int32_t *out_x_steps, int32_t *out_y_steps)
+{
+    int64_t x_range;
+    int64_t y_range;
+    int64_t x_scaled;
+    int64_t y_scaled;
+
+    if (out_x_steps == NULL || out_y_steps == NULL)
+    {
+        return false;
+    }
+
+    if (pct_x < 0 || pct_x > WORKSPACE_PERCENT_SCALE || pct_y < 0 || pct_y > WORKSPACE_PERCENT_SCALE)
+    {
+        return false;
+    }
+
+    x_range = (int64_t)WORKSPACE_MAX_X_STEPS - (int64_t)WORKSPACE_MIN_X_STEPS;
+    y_range = (int64_t)WORKSPACE_MAX_Y_STEPS - (int64_t)WORKSPACE_MIN_Y_STEPS;
+
+    x_scaled = x_range * (int64_t)pct_x;
+    y_scaled = y_range * (int64_t)pct_y;
+
+    *out_x_steps = WORKSPACE_MIN_X_STEPS +
+                   (int32_t)((x_scaled + (WORKSPACE_PERCENT_SCALE / 2)) / WORKSPACE_PERCENT_SCALE);
+    *out_y_steps = WORKSPACE_MIN_Y_STEPS +
+                   (int32_t)((y_scaled + (WORKSPACE_PERCENT_SCALE / 2)) / WORKSPACE_PERCENT_SCALE);
+
+    return workspace_steps_in_range(*out_x_steps, *out_y_steps);
+}
+
 static void send_status(void)
 {
     char line[96];
@@ -403,6 +447,18 @@ static void z_release(void)
     step_z(Z_RELEASE_STEPS, Z_RELEASE_DIR);
 }
 
+static void execute_pick_and_place_steps(int32_t src_x_steps, int32_t src_y_steps, int32_t dst_x_steps,
+                                         int32_t dst_y_steps)
+{
+    move_to_steps(src_x_steps, src_y_steps);
+    delay_cycles(MOVE_PAUSE_CYCLES);
+    z_pickup();
+    delay_cycles(MOVE_PAUSE_CYCLES);
+    move_to_steps(dst_x_steps, dst_y_steps);
+    delay_cycles(MOVE_PAUSE_CYCLES);
+    z_release();
+}
+
 static void process_command(const char *cmd)
 {
     char sanitized[96];
@@ -414,6 +470,10 @@ static void process_command(const char *cmd)
     int sy;
     int dx;
     int dy;
+    int spx;
+    int spy;
+    int dpx;
+    int dpy;
     int32_t goto_x_steps;
     int32_t goto_y_steps;
     int32_t src_x_steps;
@@ -470,6 +530,32 @@ static void process_command(const char *cmd)
         return;
     }
 
+    if (sscanf(sanitized, "GOTO_STEPS %d %d", &gx, &gy) == 2)
+    {
+        if (!workspace_steps_in_range((int32_t)gx, (int32_t)gy))
+        {
+            uart_write_line("ERR STEP_RANGE");
+            return;
+        }
+
+        move_to_steps((int32_t)gx, (int32_t)gy);
+        uart_write_line("OK GOTO_STEPS");
+        return;
+    }
+
+    if (sscanf(sanitized, "GOTOPCT %d %d", &gx, &gy) == 2)
+    {
+        if (!workspace_percent_to_steps((int32_t)gx, (int32_t)gy, &goto_x_steps, &goto_y_steps))
+        {
+            uart_write_line("ERR PCT_RANGE");
+            return;
+        }
+
+        move_to_steps(goto_x_steps, goto_y_steps);
+        uart_write_line("OK GOTOPCT");
+        return;
+    }
+
     if (sscanf(sanitized, "GOTO %d %d", &gx, &gy) == 2)
     {
         if (!board_coord_to_steps(gx, gy, &goto_x_steps, &goto_y_steps))
@@ -480,6 +566,47 @@ static void process_command(const char *cmd)
 
         move_to_steps(goto_x_steps, goto_y_steps);
         uart_write_line("OK GOTO");
+        return;
+    }
+
+    if (sscanf(sanitized, "MOVE_STEPS %d %d %d %d", &sx, &sy, &dx, &dy) == 4)
+    {
+        src_x_steps = (int32_t)sx;
+        src_y_steps = (int32_t)sy;
+        dst_x_steps = (int32_t)dx;
+        dst_y_steps = (int32_t)dy;
+
+        if (!workspace_steps_in_range(src_x_steps, src_y_steps))
+        {
+            uart_write_line("ERR SOURCE_STEP_RANGE");
+            return;
+        }
+        if (!workspace_steps_in_range(dst_x_steps, dst_y_steps))
+        {
+            uart_write_line("ERR DEST_STEP_RANGE");
+            return;
+        }
+
+        execute_pick_and_place_steps(src_x_steps, src_y_steps, dst_x_steps, dst_y_steps);
+        uart_write_line("OK MOVE_STEPS");
+        return;
+    }
+
+    if (sscanf(sanitized, "MOVEPCT %d %d %d %d", &spx, &spy, &dpx, &dpy) == 4)
+    {
+        if (!workspace_percent_to_steps((int32_t)spx, (int32_t)spy, &src_x_steps, &src_y_steps))
+        {
+            uart_write_line("ERR SOURCE_PCT_RANGE");
+            return;
+        }
+        if (!workspace_percent_to_steps((int32_t)dpx, (int32_t)dpy, &dst_x_steps, &dst_y_steps))
+        {
+            uart_write_line("ERR DEST_PCT_RANGE");
+            return;
+        }
+
+        execute_pick_and_place_steps(src_x_steps, src_y_steps, dst_x_steps, dst_y_steps);
+        uart_write_line("OK MOVEPCT");
         return;
     }
 
@@ -496,13 +623,7 @@ static void process_command(const char *cmd)
             return;
         }
 
-        move_to_steps(src_x_steps, src_y_steps);
-        delay_cycles(MOVE_PAUSE_CYCLES);
-        z_pickup();
-        delay_cycles(MOVE_PAUSE_CYCLES);
-        move_to_steps(dst_x_steps, dst_y_steps);
-        delay_cycles(MOVE_PAUSE_CYCLES);
-        z_release();
+        execute_pick_and_place_steps(src_x_steps, src_y_steps, dst_x_steps, dst_y_steps);
         uart_write_line("OK MOVE");
         return;
     }

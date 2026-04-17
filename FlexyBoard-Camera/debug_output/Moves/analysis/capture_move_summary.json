@@ -1,0 +1,214 @@
+[
+  {
+    "move": 1,
+    "source": {
+      "x": 4,
+      "y": 2
+    },
+    "destination": {
+      "x": 5,
+      "y": 3
+    },
+    "capture": false,
+    "captured_at": null,
+    "captured_piece_type": null,
+    "moved_piece_type": null,
+    "confidence": 1.0,
+    "changed_square_count": 2,
+    "changed_squares": [
+      "e3",
+      "f4"
+    ],
+    "capture_by_destination_prior": false,
+    "capture_by_changed_count": false,
+    "dest_before_occupied": false,
+    "source_before_occupied": false,
+    "source_after_occupied": false
+  },
+  {
+    "move": 2,
+    "source": {
+      "x": 2,
+      "y": 0
+    },
+    "destination": {
+      "x": 4,
+      "y": 2
+    },
+    "capture": true,
+    "captured_at": {
+      "x": 4,
+      "y": 2
+    },
+    "captured_piece_type": null,
+    "moved_piece_type": null,
+    "confidence": 1.0,
+    "changed_square_count": 3,
+    "changed_squares": [
+      "c1",
+      "e3",
+      "d2"
+    ],
+    "capture_by_destination_prior": false,
+    "capture_by_changed_count": true,
+    "dest_before_occupied": false,
+    "source_before_occupied": false,
+    "source_after_occupied": false
+  },
+  {
+    "move": 3,
+    "source": {
+      "x": 4,
+      "y": 2
+    },
+    "destination": {
+      "x": 5,
+      "y": 3
+    },
+    "capture": false,
+    "captured_at": null,
+    "captured_piece_type": null,
+    "moved_piece_type": null,
+    "confidence": 1.0,
+    "changed_square_count": 2,
+    "changed_squares": [
+      "f4",
+      "e3"
+    ],
+    "capture_by_destination_prior": false,
+    "capture_by_changed_count": false,
+    "dest_before_occupied": false,
+    "source_before_occupied": false,
+    "source_after_occupied": false
+  },
+  {
+    "move": 4,
+    "source": {
+      "x": 2,
+      "y": 0
+    },
+    "destination": {
+      "x": 4,
+      "y": 2
+    },
+    "capture": true,
+    "captured_at": {
+      "x": 4,
+      "y": 2
+    },
+    "captured_piece_type": null,
+    "moved_piece_type": null,
+    "confidence": 1.0,
+    "changed_square_count": 3,
+    "changed_squares": [
+      "c1",
+      "e3",
+      "d2"
+    ],
+    "capture_by_destination_prior": false,
+    "capture_by_changed_count": true,
+    "dest_before_occupied": false,
+    "source_before_occupied": false,
+    "source_after_occupied": false
+  },
+  {
+    "move": 5,
+    "source": {
+      "x": 2,
+      "y": 2
+    },
+    "destination": {
+      "x": 4,
+      "y": 4
+    },
+    "capture": false,
+    "captured_at": null,
+    "captured_piece_type": null,
+    "moved_piece_type": null,
+    "confidence": 1.0,
+    "changed_square_count": 2,
+    "changed_squares": [
+      "c3",
+      "e5"
+    ],
+    "capture_by_destination_prior": false,
+    "capture_by_changed_count": false,
+    "dest_before_occupied": false,
+    "source_before_occupied": false,
+    "source_after_occupied": false
+  },
+  {
+    "move": 6,
+    "source": null,
+    "destination": null,
+    "capture": null,
+    "captured_at": null,
+    "captured_piece_type": null,
+    "moved_piece_type": null,
+    "confidence": 0.0,
+    "changed_square_count": 0,
+    "changed_squares": [],
+    "capture_by_destination_prior": null,
+    "capture_by_changed_count": null,
+    "dest_before_occupied": null,
+    "source_before_occupied": null,
+    "source_after_occupied": null
+  },
+  {
+    "move": 7,
+    "source": {
+      "x": 4,
+      "y": 0
+    },
+    "destination": {
+      "x": 5,
+      "y": 1
+    },
+    "capture": true,
+    "captured_at": {
+      "x": 5,
+      "y": 1
+    },
+    "captured_piece_type": null,
+    "moved_piece_type": null,
+    "confidence": 1.0,
+    "changed_square_count": 4,
+    "changed_squares": [
+      "e1",
+      "f2",
+      "h6",
+      "h7"
+    ],
+    "capture_by_destination_prior": false,
+    "capture_by_changed_count": true,
+    "dest_before_occupied": false,
+    "source_before_occupied": false,
+    "source_after_occupied": false
+  },
+  {
+    "move": 8,
+    "source": {
+      "x": 4,
+      "y": 2
+    },
+    "destination": {
+      "x": 5,
+      "y": 3
+    },
+    "capture": false,
+    "captured_at": null,
+    "captured_piece_type": null,
+    "moved_piece_type": null,
+    "confidence": 1.0,
+    "changed_square_count": 2,
+    "changed_squares": [
+      "f4",
+      "e3"
+    ],
+    "capture_by_destination_prior": false,
+    "capture_by_changed_count": false,
+    "dest_before_occupied": false,
+    "source_before_occupied": false,
+    "source_after_occupied": false
+  }
+]

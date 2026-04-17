@@ -1,3 +1,12 @@
-# Auto-generated sweep across all 64 board squares (0..7).
-# Format: sx,sy -> dx,dy
+# Move sequence file for scripts/send_moves_from_file.py
+# Syntax:
+#   board square endpoint: x,y        (0..7 for chess/checkers board)
+#   green-grid endpoint:   x%,y%      (0..100% of full workspace / green grid)
+#   line format:           source -> dest
+#
+# Examples:
+#   2,2 -> 4,4
+#   4,4 -> 92%,12%      # move a captured piece off-board to staging
+#   92%,12% -> 95%,20%  # move within off-board staging area
+
 5,0 -> 4,1

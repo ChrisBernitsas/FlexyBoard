@@ -20,15 +20,6 @@ from flexyboard_camera.game.move_models import MoveEvent
 from flexyboard_camera.utils.config import load_config
 from flexyboard_camera.utils.logging_utils import setup_logging
 
-ANALYSIS_LABEL_MODE = "index"
-ANALYSIS_INNER_SHRINK = 0.02
-ANALYSIS_DIFF_THRESHOLD = 45
-ANALYSIS_MIN_CHANGED_RATIO = 0.28
-ANALYSIS_OUTER_CANDIDATE_MODE = "auto"
-ANALYSIS_DISABLE_TAPE_PROJECTION = True
-ANALYSIS_BOARD_LOCK_SOURCE = "before"
-ANALYSIS_GEOMETRY_REFERENCE = str(ROOT / "configs" / "before_geometry_reference.json")
-ANALYSIS_DISABLE_GEOMETRY_REFERENCE = False
 DEFAULT_CONFIG_PATH = str(ROOT / "configs" / "default.yaml")
 
 
@@ -67,11 +58,19 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _repo_relative_path(path_text: str) -> str:
+    path = Path(path_text)
+    if path.is_absolute():
+        return str(path)
+    return str(ROOT / path)
+
+
 def _run_analysis(
     before_path: Path,
     after_path: Path,
     out_dir: str | None,
     game: str,
+    analysis_config: Any,
 ) -> dict[str, Any]:
     cmd = [
         sys.executable,
@@ -83,23 +82,23 @@ def _run_analysis(
         "--game",
         str(game),
         "--label-mode",
-        ANALYSIS_LABEL_MODE,
+        analysis_config.label_mode,
         "--inner-shrink",
-        str(ANALYSIS_INNER_SHRINK),
+        str(analysis_config.inner_shrink),
         "--diff-threshold",
-        str(ANALYSIS_DIFF_THRESHOLD),
+        str(analysis_config.diff_threshold),
         "--min-changed-ratio",
-        str(ANALYSIS_MIN_CHANGED_RATIO),
+        str(analysis_config.min_changed_ratio),
         "--outer-candidate-mode",
-        ANALYSIS_OUTER_CANDIDATE_MODE,
+        analysis_config.outer_candidate_mode,
         "--board-lock-source",
-        ANALYSIS_BOARD_LOCK_SOURCE,
+        analysis_config.board_lock_source,
         "--geometry-reference",
-        ANALYSIS_GEOMETRY_REFERENCE,
+        _repo_relative_path(analysis_config.geometry_reference),
     ]
-    if ANALYSIS_DISABLE_TAPE_PROJECTION:
+    if analysis_config.disable_tape_projection:
         cmd.append("--disable-tape-projection")
-    if ANALYSIS_DISABLE_GEOMETRY_REFERENCE:
+    if analysis_config.disable_geometry_reference:
         cmd.append("--disable-geometry-reference")
     if out_dir is not None:
         cmd.extend(["--out-dir", out_dir])
@@ -291,6 +290,7 @@ def main() -> int:
             after_path=after_path,
             out_dir=args.analysis_out_dir,
             game=config.app.game,
+            analysis_config=config.analysis,
         )
     except Exception as exc:  # noqa: BLE001
         print(
@@ -381,15 +381,15 @@ def main() -> int:
         "turn_decision_summary_txt": str(decision_summary_path),
         "analysis_settings": {
             "game": config.app.game,
-            "label_mode": ANALYSIS_LABEL_MODE,
-            "inner_shrink": ANALYSIS_INNER_SHRINK,
-            "diff_threshold": ANALYSIS_DIFF_THRESHOLD,
-            "min_changed_ratio": ANALYSIS_MIN_CHANGED_RATIO,
-            "outer_candidate_mode": ANALYSIS_OUTER_CANDIDATE_MODE,
-            "disable_tape_projection": ANALYSIS_DISABLE_TAPE_PROJECTION,
-            "board_lock_source": ANALYSIS_BOARD_LOCK_SOURCE,
-            "geometry_reference": ANALYSIS_GEOMETRY_REFERENCE,
-            "disable_geometry_reference": ANALYSIS_DISABLE_GEOMETRY_REFERENCE,
+            "label_mode": config.analysis.label_mode,
+            "inner_shrink": config.analysis.inner_shrink,
+            "diff_threshold": config.analysis.diff_threshold,
+            "min_changed_ratio": config.analysis.min_changed_ratio,
+            "outer_candidate_mode": config.analysis.outer_candidate_mode,
+            "disable_tape_projection": config.analysis.disable_tape_projection,
+            "board_lock_source": config.analysis.board_lock_source,
+            "geometry_reference": _repo_relative_path(config.analysis.geometry_reference),
+            "disable_geometry_reference": config.analysis.disable_geometry_reference,
         },
         "changed_square_count": int(analysis.get("changed_square_count", 0)),
         "changed_squares": analysis.get("changed_squares", []),

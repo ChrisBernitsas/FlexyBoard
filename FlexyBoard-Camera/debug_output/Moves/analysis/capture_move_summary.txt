@@ -1,0 +1,18 @@
+Move Capture Summary (Moves 1-8)
+
+Move1: src={'x': 4, 'y': 2} dst={'x': 5, 'y': 3} capture=False captured_at=None conf=1.000 changed=2 squares=['e3', 'f4']
+  capture_signals: dest_prior=False changed_count_rule=False dest_before_occupied=False source_before_occupied=False source_after_occupied=False
+Move2: src={'x': 2, 'y': 0} dst={'x': 4, 'y': 2} capture=True captured_at={'x': 4, 'y': 2} conf=1.000 changed=3 squares=['c1', 'e3', 'd2']
+  capture_signals: dest_prior=False changed_count_rule=True dest_before_occupied=False source_before_occupied=False source_after_occupied=False
+Move3: src={'x': 4, 'y': 2} dst={'x': 5, 'y': 3} capture=False captured_at=None conf=1.000 changed=2 squares=['f4', 'e3']
+  capture_signals: dest_prior=False changed_count_rule=False dest_before_occupied=False source_before_occupied=False source_after_occupied=False
+Move4: src={'x': 2, 'y': 0} dst={'x': 4, 'y': 2} capture=True captured_at={'x': 4, 'y': 2} conf=1.000 changed=3 squares=['c1', 'e3', 'd2']
+  capture_signals: dest_prior=False changed_count_rule=True dest_before_occupied=False source_before_occupied=False source_after_occupied=False
+Move5: src={'x': 2, 'y': 2} dst={'x': 4, 'y': 4} capture=False captured_at=None conf=1.000 changed=2 squares=['c3', 'e5']
+  capture_signals: dest_prior=False changed_count_rule=False dest_before_occupied=False source_before_occupied=False source_after_occupied=False
+Move6: src=None dst=None capture=None captured_at=None conf=0.000 changed=0 squares=[]
+  capture_signals: dest_prior=None changed_count_rule=None dest_before_occupied=None source_before_occupied=None source_after_occupied=None
+Move7: src={'x': 4, 'y': 0} dst={'x': 5, 'y': 1} capture=True captured_at={'x': 5, 'y': 1} conf=1.000 changed=4 squares=['e1', 'f2', 'h6', 'h7']
+  capture_signals: dest_prior=False changed_count_rule=True dest_before_occupied=False source_before_occupied=False source_after_occupied=False
+Move8: src={'x': 4, 'y': 2} dst={'x': 5, 'y': 3} capture=False captured_at=None conf=1.000 changed=2 squares=['f4', 'e3']
+  capture_signals: dest_prior=False changed_count_rule=False dest_before_occupied=False source_before_occupied=False source_after_occupied=False

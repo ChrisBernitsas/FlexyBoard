@@ -85,6 +85,20 @@
   "algorithm_live_green_source": "raw_detector_candidate_outer",
   "algorithm_live_outer_source_before": "candidate",
   "algorithm_live_outer_source_after": "candidate",
+  "algorithm_live_inner_source_before": "outer_relative_reference",
+  "algorithm_live_inner_source_after": "outer_relative_reference",
+  "inner_from_outer_reference": {
+    "enabled": true,
+    "path": "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/configs/inner_from_outer_reference.json",
+    "status": "ok",
+    "used": true,
+    "margins_squares": [
+      1.39824640750885,
+      1.3445653915405273,
+      1.2583465576171875,
+      2.656569480895996
+    ]
+  },
   "outer_candidate_mode": "auto",
   "tape_projection_enabled": false,
   "warp_alignment_requested": "independent",
@@ -2014,7 +2028,7 @@
     "moved_piece_type": null,
     "capture": null,
     "confidence": 0.0,
-    "timestamp": "2026-04-13T15:50:19.468538+00:00",
+    "timestamp": "2026-04-15T16:09:10.195949+00:00",
     "metadata": {
       "reason": "insufficient_changed_squares",
       "changed_count": 0
@@ -2043,15 +2057,13 @@
     "changed_warp_overlay": "debug_output/Moves/analysis/Move6/official/changed_warp_overlay.png",
     "analysis_summary_txt": "debug_output/Moves/analysis/Move6/official/analysis_summary.txt",
     "before_detector_dark_mask_raw": "debug_output/Moves/analysis/Move6/algorithm_live/before_detector_dark_mask_raw.png",
-    "before_detector_dark_mask": "debug_output/Moves/analysis/Move6/algorithm_live/before_detector_dark_mask.png",
     "before_detector_tape_ring_mask": "debug_output/Moves/analysis/Move6/algorithm_live/before_detector_tape_ring_mask.png",
-    "before_detector_dark_mask_candidates": "debug_output/Moves/analysis/Move6/algorithm_live/before_detector_dark_mask_candidates.png",
     "before_detector_candidate_overlay": "debug_output/Moves/analysis/Move6/algorithm_live/before_detector_candidate_overlay.png",
+    "before_detector_center_projection_dark_mask_raw": "debug_output/Moves/analysis/Move6/algorithm_live/before_detector_center_projection_dark_mask_raw.png",
     "after_detector_dark_mask_raw": "debug_output/Moves/analysis/Move6/algorithm_live/after_detector_dark_mask_raw.png",
-    "after_detector_dark_mask": "debug_output/Moves/analysis/Move6/algorithm_live/after_detector_dark_mask.png",
     "after_detector_tape_ring_mask": "debug_output/Moves/analysis/Move6/algorithm_live/after_detector_tape_ring_mask.png",
-    "after_detector_dark_mask_candidates": "debug_output/Moves/analysis/Move6/algorithm_live/after_detector_dark_mask_candidates.png",
-    "after_detector_candidate_overlay": "debug_output/Moves/analysis/Move6/algorithm_live/after_detector_candidate_overlay.png"
+    "after_detector_candidate_overlay": "debug_output/Moves/analysis/Move6/algorithm_live/after_detector_candidate_overlay.png",
+    "after_detector_center_projection_dark_mask_raw": "debug_output/Moves/analysis/Move6/algorithm_live/after_detector_center_projection_dark_mask_raw.png"
   },
   "detector_debug": {
     "before": {
@@ -2061,26 +2073,19 @@
       "before_detector_tape_ring_inner_candidate_count": 0,
       "before_detector_outer_candidate_mode": "auto",
       "before_detector_outer_candidate_mode_effective": "auto",
-      "before_detector_outer_candidate_source": "dark_mask_three_side_infer",
-      "before_detector_selected_candidate_corners_px": [
-        [
-          28.685054779052734,
-          89.57127380371094
-        ],
-        [
-          1067.087646484375,
-          61.83189010620117
-        ],
-        [
-          1106.79150390625,
-          930.993408203125
-        ],
-        [
-          29.995725631713867,
-          952.7891845703125
-        ]
+      "before_detector_outer_candidate_source": "none",
+      "before_detector_center_projection_left": 156,
+      "before_detector_center_projection_right": 950,
+      "before_detector_center_projection_top": 92,
+      "before_detector_center_projection_bottom": 960,
+      "before_detector_center_projection_seed_center": [
+        556,
+        468
       ],
-      "before_detector_selected_candidate_area_px2": 916589.451335456,
+      "before_detector_center_projection_gap_x": 346,
+      "before_detector_center_projection_gap_y": 343,
+      "before_detector_center_projection_support_col": 184.07715148925783,
+      "before_detector_center_projection_support_row": 61.068857574462896,
       "before_detector_expected_outer_side_support": [
         0.21568374136037724,
         0.0,
@@ -2089,7 +2094,7 @@
       ],
       "before_detector_expected_outer_side_support_strong_count": 3,
       "before_detector_expected_outer_side_support_threshold": 0.08,
-      "before_detector_outer_source": "dark_mask_three_side_infer",
+      "before_detector_outer_source": "center_outward_dark_projection_fallback",
       "before_detector_has_chessboard": true,
       "before_detector_has_outer_sheet": true
     },
@@ -2100,26 +2105,19 @@
       "after_detector_tape_ring_inner_candidate_count": 0,
       "after_detector_outer_candidate_mode": "auto",
       "after_detector_outer_candidate_mode_effective": "auto",
-      "after_detector_outer_candidate_source": "dark_mask_three_side_infer",
-      "after_detector_selected_candidate_corners_px": [
-        [
-          28.732255935668945,
-          89.4462661743164
-        ],
-        [
-          1067.2874755859375,
-          61.545536041259766
-        ],
-        [
-          1107.12841796875,
-          931.6165161132812
-        ],
-        [
-          30.22112274169922,
-          953.0839233398438
-        ]
+      "after_detector_outer_candidate_source": "none",
+      "after_detector_center_projection_left": 156,
+      "after_detector_center_projection_right": 950,
+      "after_detector_center_projection_top": 92,
+      "after_detector_center_projection_bottom": 960,
+      "after_detector_center_projection_seed_center": [
+        556,
+        468
       ],
-      "after_detector_selected_candidate_area_px2": 917409.0023730393,
+      "after_detector_center_projection_gap_x": 346,
+      "after_detector_center_projection_gap_y": 344,
+      "after_detector_center_projection_support_col": 185.17191467285159,
+      "after_detector_center_projection_support_row": 62.17723731994629,
       "after_detector_expected_outer_side_support": [
         0.3044573643410853,
         0.0,
@@ -2128,7 +2126,7 @@
       ],
       "after_detector_expected_outer_side_support_strong_count": 3,
       "after_detector_expected_outer_side_support_threshold": 0.08,
-      "after_detector_outer_source": "dark_mask_three_side_infer",
+      "after_detector_outer_source": "center_outward_dark_projection_fallback",
       "after_detector_has_chessboard": true,
       "after_detector_has_outer_sheet": true
     }

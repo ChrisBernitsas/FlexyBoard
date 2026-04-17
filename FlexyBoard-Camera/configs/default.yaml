@@ -1,5 +1,5 @@
 app:
-  game: checkers
+  game: chess
   confidence_threshold: 0.55
   allow_low_confidence_override: false
 
@@ -26,6 +26,19 @@ vision:
   diff_threshold: 28
   min_changed_squares: 2
   changed_square_pixel_ratio: 0.08
+
+analysis:
+  # Used by scripts/run_pi_software_bridge.py and scripts/run_turn_capture_analyze.py.
+  # Lower diff_threshold/min_changed_ratio if slightly misaligned pieces are missed.
+  label_mode: index
+  inner_shrink: 0.02
+  diff_threshold: 45
+  min_changed_ratio: 0.28
+  outer_candidate_mode: auto
+  disable_tape_projection: true
+  board_lock_source: before
+  geometry_reference: configs/before_geometry_reference.json
+  disable_geometry_reference: false
 
 classifier:
   enabled: false

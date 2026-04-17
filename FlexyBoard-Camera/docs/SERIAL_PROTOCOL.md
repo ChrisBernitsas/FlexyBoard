@@ -4,6 +4,26 @@ This document defines the shared serial interface used by:
 - Raspberry Pi camera/CV stack (`FlexyBoard-Camera`)
 - STM32 motor-control firmware (`FlexyBoard-Motor-Control`)
 
+## Current Bring-Up Commands (ASCII, line-based)
+
+The current Pi<->STM bring-up path uses simple newline-terminated ASCII commands over `/dev/ttyACM0` (USB CDC serial on NUCLEO), not JSON framing yet.
+
+Supported STM commands:
+- `PING` -> `PONG`
+- `ZERO` -> `OK ZERO`
+- `STATUS` -> `STATUS cur_x=<steps> cur_y=<steps>`
+- `RETURN_START` -> `OK RETURN_START`
+- `GOTO gx gy` (board coords 0..7)
+- `GOTO_STEPS x y` (absolute workspace steps)
+- `GOTOPCT px py` (0..100% of green-grid workspace)
+- `MOVE sx sy dx dy` (board coords 0..7)
+- `MOVE_STEPS sx sy dx dy` (absolute workspace steps)
+- `MOVEPCT spx spy dpx dpy` (percent endpoints)
+
+Pi move sender behavior (`scripts/send_moves_from_file.py`):
+- File endpoints can be board squares (`x,y`) or green-grid percentages (`x%,y%`).
+- The script resolves endpoints to absolute step coordinates and sends `MOVE_STEPS ...`.
+
 ## 1) Transport
 - Physical layer: UART (`115200 8N1` default)
 - Framing: one JSON object per line (`\n` terminated)

@@ -550,6 +550,226 @@ def _find_boundary_near_board(
     return int(start + int(indices.min()))
 
 
+def _find_boundary_from_center(
+    profile: np.ndarray,
+    *,
+    center_idx: int,
+    gap: int,
+    support_threshold: float,
+    side: str,
+) -> int | None:
+    n = int(profile.shape[0])
+    c = int(np.clip(center_idx, 0, max(0, n - 1)))
+    g = int(max(1, gap))
+    if side == "left":
+        end = max(0, c - g)
+        if end <= 0:
+            return None
+        idx = np.where(profile[:end] >= support_threshold)[0]
+        if idx.size == 0:
+            return None
+        return int(idx.max())
+    if side == "right":
+        start = min(n, c + g)
+        if start >= n:
+            return None
+        idx = np.where(profile[start:] >= support_threshold)[0]
+        if idx.size == 0:
+            return None
+        return int(start + idx.min())
+    if side == "top":
+        end = max(0, c - g)
+        if end <= 0:
+            return None
+        idx = np.where(profile[:end] >= support_threshold)[0]
+        if idx.size == 0:
+            return None
+        return int(idx.max())
+    if side == "bottom":
+        start = min(n, c + g)
+        if start >= n:
+            return None
+        idx = np.where(profile[start:] >= support_threshold)[0]
+        if idx.size == 0:
+            return None
+        return int(start + idx.min())
+    return None
+
+
+def detect_outer_sheet_from_center_outward(
+    frame_bgr: np.ndarray,
+    *,
+    min_area_ratio: float = 0.1,
+    seed_center_xy: tuple[float, float] | None = None,
+    ignore_center_quad: np.ndarray | None = None,
+    center_blackout_ratio: float = 0.30,
+    debug: dict[str, object] | None = None,
+) -> np.ndarray | None:
+    h, w = frame_bgr.shape[:2]
+    if h < 80 or w < 80:
+        return None
+
+    gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, dark_raw = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    dark = cv2.morphologyEx(dark_raw, cv2.MORPH_CLOSE, np.ones((7, 7), dtype=np.uint8), iterations=2)
+    dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, np.ones((3, 3), dtype=np.uint8), iterations=1)
+    dark_search = dark.copy()
+
+    if seed_center_xy is not None:
+        cx = int(round(float(seed_center_xy[0])))
+        cy = int(round(float(seed_center_xy[1])))
+    else:
+        cx = int(round(w * 0.5))
+        cy = int(round(h * 0.5))
+    cx = int(np.clip(cx, 0, max(0, w - 1)))
+    cy = int(np.clip(cy, 0, max(0, h - 1)))
+
+    # Suppress inner-board texture before center-outward search.
+    # If chessboard corners are known, black out that region; otherwise black out
+    # a centered rectangle so "first white wall" detection skips inner squares.
+    if ignore_center_quad is not None:
+        inner_mask = np.zeros_like(dark_search)
+        cv2.fillPoly(inner_mask, [ignore_center_quad.astype(np.int32).reshape(-1, 1, 2)], 255)
+        inner_mask = cv2.dilate(inner_mask, np.ones((17, 17), dtype=np.uint8), iterations=1)
+        dark_search[inner_mask > 0] = 0
+    else:
+        bw = int(max(24, round(w * float(np.clip(center_blackout_ratio, 0.10, 0.60)))))
+        bh = int(max(24, round(h * float(np.clip(center_blackout_ratio, 0.10, 0.60)))))
+        x0_blk = max(0, cx - (bw // 2))
+        x1_blk = min(w, cx + (bw // 2))
+        y0_blk = max(0, cy - (bh // 2))
+        y1_blk = min(h, cy + (bh // 2))
+        dark_search[y0_blk:y1_blk, x0_blk:x1_blk] = 0
+
+    band_h = max(48, int(round(h * 0.36)))
+    band_w = max(48, int(round(w * 0.36)))
+    y0 = max(0, cy - (band_h // 2))
+    y1 = min(h, cy + (band_h // 2))
+    x0 = max(0, cx - (band_w // 2))
+    x1 = min(w, cx + (band_w // 2))
+
+    col_profile = dark_search[y0:y1, :].sum(axis=0).astype(np.float32) / 255.0
+    row_profile = dark_search[:, x0:x1].sum(axis=1).astype(np.float32) / 255.0
+    smooth = np.ones((21,), dtype=np.float32) / 21.0
+    col_profile = np.convolve(col_profile, smooth, mode="same")
+    row_profile = np.convolve(row_profile, smooth, mode="same")
+
+    # Adaptive side-support thresholds: retain minimum absolute support, but adapt to
+    # frame-specific profile strength so low-contrast tape still passes.
+    support_col_base = float(max(1, y1 - y0)) * 0.14
+    support_row_base = float(max(1, x1 - x0)) * 0.14
+    support_col = max(support_col_base, float(np.percentile(col_profile, 92)) * 0.55, 2.0)
+    support_row = max(support_row_base, float(np.percentile(row_profile, 92)) * 0.55, 2.0)
+
+    # Skip clutter around center; when inner board is known, skip beyond that span.
+    if ignore_center_quad is not None:
+        q = ignore_center_quad.astype(np.float32).reshape(4, 2)
+        qx_min = float(np.min(q[:, 0]))
+        qx_max = float(np.max(q[:, 0]))
+        qy_min = float(np.min(q[:, 1]))
+        qy_max = float(np.max(q[:, 1]))
+        inner_half_w = max(abs(float(cx) - qx_min), abs(qx_max - float(cx)))
+        inner_half_h = max(abs(float(cy) - qy_min), abs(qy_max - float(cy)))
+        gap_x = max(12, int(round(inner_half_w + (0.04 * w))))
+        gap_y = max(12, int(round(inner_half_h + (0.04 * h))))
+    else:
+        gap_x = max(12, int(round(w * 0.18)))
+        gap_y = max(12, int(round(h * 0.18)))
+
+    left = _find_boundary_from_center(
+        col_profile,
+        center_idx=cx,
+        gap=gap_x,
+        support_threshold=support_col,
+        side="left",
+    )
+    right = _find_boundary_from_center(
+        col_profile,
+        center_idx=cx,
+        gap=gap_x,
+        support_threshold=support_col,
+        side="right",
+    )
+    top = _find_boundary_from_center(
+        row_profile,
+        center_idx=cy,
+        gap=gap_y,
+        support_threshold=support_row,
+        side="top",
+    )
+    bottom = _find_boundary_from_center(
+        row_profile,
+        center_idx=cy,
+        gap=gap_y,
+        support_threshold=support_row,
+        side="bottom",
+    )
+
+    # If exactly one side is missing, infer it by symmetry about center.
+    missing = [left is None, right is None, top is None, bottom is None]
+    if sum(1 for m in missing if m) == 1:
+        if left is None and right is not None:
+            left = max(0, int(round((2.0 * cx) - float(right))))
+        elif right is None and left is not None:
+            right = min(w - 1, int(round((2.0 * cx) - float(left))))
+        elif top is None and bottom is not None:
+            top = max(0, int(round((2.0 * cy) - float(bottom))))
+        elif bottom is None and top is not None:
+            bottom = min(h - 1, int(round((2.0 * cy) - float(top))))
+
+    if debug is not None:
+        debug["center_projection_dark_mask_raw"] = dark_raw
+        debug["center_projection_dark_mask"] = dark
+        debug["center_projection_dark_mask_search"] = dark_search
+        overlay = cv2.cvtColor(dark_search, cv2.COLOR_GRAY2BGR)
+        cv2.rectangle(overlay, (x0, y0), (x1, y1), (255, 255, 0), 2)
+        cv2.circle(overlay, (cx, cy), 4, (0, 255, 255), thickness=-1, lineType=cv2.LINE_AA)
+        if left is not None:
+            cv2.line(overlay, (left, 0), (left, h - 1), (255, 0, 0), 1)
+        if right is not None:
+            cv2.line(overlay, (right, 0), (right, h - 1), (255, 0, 0), 1)
+        if top is not None:
+            cv2.line(overlay, (0, top), (w - 1, top), (255, 0, 0), 1)
+        if bottom is not None:
+            cv2.line(overlay, (0, bottom), (w - 1, bottom), (255, 0, 0), 1)
+        debug["center_projection_overlay"] = overlay
+        debug["center_projection_left"] = left
+        debug["center_projection_right"] = right
+        debug["center_projection_top"] = top
+        debug["center_projection_bottom"] = bottom
+        debug["center_projection_seed_center"] = [int(cx), int(cy)]
+        debug["center_projection_gap_x"] = int(gap_x)
+        debug["center_projection_gap_y"] = int(gap_y)
+        debug["center_projection_support_col"] = float(support_col)
+        debug["center_projection_support_row"] = float(support_row)
+
+    if left is None or right is None or top is None or bottom is None:
+        return None
+    if right <= left + int(0.20 * w):
+        return None
+    if bottom <= top + int(0.20 * h):
+        return None
+
+    quad = _order_quad(
+        np.array(
+            [
+                [float(left), float(top)],
+                [float(right), float(top)],
+                [float(right), float(bottom)],
+                [float(left), float(bottom)],
+            ],
+            dtype=np.float32,
+        )
+    )
+    area_ratio = _quad_area(quad) / float(max(1, h * w))
+    if area_ratio < float(min_area_ratio) * 0.8:
+        return None
+    if area_ratio > 0.92:
+        return None
+    return quad
+
+
 def detect_outer_sheet_from_tape_projection(
     frame_bgr: np.ndarray,
     chessboard_corners: np.ndarray,
@@ -790,6 +1010,46 @@ def detect_board_regions(
     if debug is not None:
         debug.update(outer_debug)
 
+    # Center-outward projection candidate from dark mask.
+    # Use chessboard center when available; otherwise image center.
+    center_seed_xy: tuple[float, float] | None = None
+    if chessboard is not None:
+        c = np.mean(chessboard.astype(np.float32), axis=0)
+        center_seed_xy = (float(c[0]), float(c[1]))
+    center_debug: dict[str, object] = {}
+    center_outer = detect_outer_sheet_from_center_outward(
+        frame_bgr=frame_bgr,
+        min_area_ratio=min_outer_area_ratio,
+        seed_center_xy=center_seed_xy,
+        ignore_center_quad=chessboard,
+        debug=center_debug,
+    )
+    if debug is not None:
+        debug.update(center_debug)
+    if center_outer is not None:
+        center_ok = True
+        if chessboard is not None and not _quad_encloses_points(center_outer, chessboard):
+            center_ok = False
+
+        if center_ok and outer_sheet is None:
+            # Candidate-selected outer (detector_candidate_overlay) is the default.
+            # Center-outward is fallback only when no candidate was selected.
+            use_center = False
+            if chessboard is None:
+                use_center = True
+            else:
+                chess_area = _quad_area(chessboard)
+                if chess_area > 1.0:
+                    center_ratio = _quad_area(center_outer) / chess_area
+                    center_plausible = (
+                        center_ratio >= (expected_outer_to_chess_ratio * 0.60)
+                        and center_ratio <= (expected_outer_to_chess_ratio * 1.45)
+                    )
+                    use_center = center_plausible
+            if use_center:
+                outer_sheet = center_outer
+                outer_source = "center_outward_dark_projection_fallback"
+
     # Dark-mask-guided fallback: if one side of the tape ring is weak/missing (commonly top),
     # but at least 3 expected sides are supported, infer the outer quad from the chessboard.
     if chessboard is not None:
@@ -807,19 +1067,9 @@ def detect_board_regions(
 
             apply_inferred_outer = False
             if expected_strong >= 3:
+                # Keep candidate-selected outer as default; only infer if candidate is missing.
                 if outer_sheet is None:
                     apply_inferred_outer = True
-                else:
-                    current_support = _quad_side_support(dark_mask_dbg, outer_sheet, band_px=band_px)
-                    current_mean = float(np.mean(current_support))
-                    expected_mean = float(np.mean(expected_support))
-                    expected_area = _quad_area(expected_outer)
-                    current_area = _quad_area(outer_sheet)
-                    area_small_vs_expected = current_area < (0.82 * expected_area)
-                    support_much_better = expected_mean > (current_mean + 0.06)
-                    missing_one_side = min(expected_support) < 0.02
-                    if area_small_vs_expected or support_much_better or missing_one_side:
-                        apply_inferred_outer = True
 
             if apply_inferred_outer:
                 outer_sheet = expected_outer
@@ -868,16 +1118,16 @@ def detect_board_regions(
         chess_area = _quad_area(chessboard)
         if chess_area > 1.0:
             tape_ratio = _quad_area(tape_outer) / chess_area
-            if outer_sheet is None:
+            tape_ratio_plausible = (
+                tape_ratio >= (expected_outer_to_chess_ratio * 0.60)
+                and tape_ratio <= (expected_outer_to_chess_ratio * 1.45)
+            )
+            if tape_ratio_plausible and outer_sheet is None:
                 outer_sheet = tape_outer
-                outer_source = "tape_projection"
-            else:
-                outer_ratio = _quad_area(outer_sheet) / chess_area
-                tape_err = abs(tape_ratio - expected_outer_to_chess_ratio)
-                outer_err = abs(outer_ratio - expected_outer_to_chess_ratio)
-                if tape_err + 0.15 < outer_err:
-                    outer_sheet = tape_outer
-                    outer_source = "tape_projection"
+                outer_source = "center_outward_projection_fallback"
+            elif outer_sheet is None:
+                outer_sheet = tape_outer
+                outer_source = "center_outward_projection_fallback"
 
     if chessboard is None and outer_sheet is not None:
         expected_inner_to_outer_area = (float(cols) * float(rows)) / (
@@ -919,19 +1169,9 @@ def detect_board_regions(
 
             apply_inferred_outer = False
             if expected_strong >= 3:
+                # Keep candidate-selected outer as default; only infer if candidate is missing.
                 if outer_sheet is None:
                     apply_inferred_outer = True
-                else:
-                    current_support = _quad_side_support(dark_mask_dbg, outer_sheet, band_px=band_px)
-                    current_mean = float(np.mean(current_support))
-                    expected_mean = float(np.mean(expected_support))
-                    expected_area = _quad_area(expected_outer)
-                    current_area = _quad_area(outer_sheet)
-                    area_small_vs_expected = current_area < (0.82 * expected_area)
-                    support_much_better = expected_mean > (current_mean + 0.06)
-                    missing_one_side = min(expected_support) < 0.02
-                    if area_small_vs_expected or support_much_better or missing_one_side:
-                        apply_inferred_outer = True
 
             if apply_inferred_outer:
                 outer_sheet = expected_outer
@@ -998,16 +1238,16 @@ def detect_board_regions(
             chess_area = _quad_area(chessboard)
             if chess_area > 1.0:
                 tape_ratio = _quad_area(tape_outer_late) / chess_area
-                tape_err = abs(tape_ratio - expected_outer_to_chess_ratio)
-                if outer_sheet is None:
+                tape_ratio_plausible = (
+                    tape_ratio >= (expected_outer_to_chess_ratio * 0.60)
+                    and tape_ratio <= (expected_outer_to_chess_ratio * 1.45)
+                )
+                if tape_ratio_plausible and outer_sheet is None:
                     outer_sheet = tape_outer_late
-                    outer_source = "tape_projection"
-                else:
-                    outer_ratio = _quad_area(outer_sheet) / chess_area
-                    outer_err = abs(outer_ratio - expected_outer_to_chess_ratio)
-                    if tape_err + 0.10 < outer_err:
-                        outer_sheet = tape_outer_late
-                        outer_source = "tape_projection"
+                    outer_source = "center_outward_projection_late_fallback"
+                elif outer_sheet is None:
+                    outer_sheet = tape_outer_late
+                    outer_source = "center_outward_projection_late_fallback"
 
     if outer_sheet is None and chessboard is not None:
         outer_sheet = estimate_outer_sheet_from_chessboard(
