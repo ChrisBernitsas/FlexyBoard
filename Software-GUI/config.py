@@ -67,6 +67,10 @@ BOARD_EXIT_BOTTOM_Y_PCT = float(os.environ.get("P2_BOARD_EXIT_BOTTOM_Y_PCT", "82
 BOARD_EXIT_RIGHT_X_PCT = float(os.environ.get("P2_BOARD_EXIT_RIGHT_X_PCT", "8.0"))
 BOARD_EXIT_LEFT_X_PCT = float(os.environ.get("P2_BOARD_EXIT_LEFT_X_PCT", "92.0"))
 OFFBOARD_CLEARANCE_PCT = float(os.environ.get("P2_OFFBOARD_CLEARANCE_PCT", "6.0"))
+# Collision clearance for continuous board-space sweeps. The default is a bit
+# below one center-to-center board-cell spacing, so adjacent lanes can pass but
+# diagonal sweeps still reject side-cell collisions.
+BOARD_SWEEP_CLEARANCE_PCT = float(os.environ.get("P2_BOARD_SWEEP_CLEARANCE_PCT", "12.2"))
 
 # Legacy bottom-row names are still accepted by external scripts/env overrides,
 # but the planner now uses a shared global slot sequence instead of separate

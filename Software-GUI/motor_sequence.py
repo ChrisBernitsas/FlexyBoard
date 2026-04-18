@@ -88,6 +88,16 @@ class BoardToBoardPlan:
     blockers: frozenset[BoardCoord]
 
 
+@dataclass(frozen=True)
+class BoardViaOffboardPlan:
+    start_route: tuple[BoardCoord, ...]
+    start_exit: BoardExit
+    offboard_path: tuple[PercentEndpoint, ...]
+    end_exit: BoardExit
+    end_route: tuple[BoardCoord, ...]
+    blockers: frozenset[BoardCoord]
+
+
 class CaptureInventory:
     """Tracks captured pieces by slot, side, and piece type for physical tray usage."""
 
@@ -362,13 +372,21 @@ def _neighbors_4(coord: BoardCoord) -> Iterable[BoardCoord]:
 
 def _neighbors_8(coord: BoardCoord) -> Iterable[BoardCoord]:
     x, y = coord
-    for dx in (-1, 0, 1):
-        for dy in (-1, 0, 1):
-            if dx == 0 and dy == 0:
-                continue
-            nx, ny = x + dx, y + dy
-            if 0 <= nx <= 7 and 0 <= ny <= 7:
-                yield (nx, ny)
+    # Prefer orthogonal steps before diagonal steps. When blocker count and
+    # path length tie, this tends to produce fewer compressed STM segments.
+    for dx, dy in (
+        (-1, 0),
+        (1, 0),
+        (0, -1),
+        (0, 1),
+        (-1, -1),
+        (-1, 1),
+        (1, -1),
+        (1, 1),
+    ):
+        nx, ny = x + dx, y + dy
+        if 0 <= nx <= 7 and 0 <= ny <= 7:
+            yield (nx, ny)
 
 
 def _manhattan(a: BoardCoord, b: BoardCoord) -> int:
@@ -414,6 +432,10 @@ def _compress_path(path: Sequence[BoardCoord]) -> list[tuple[BoardEndpoint, Boar
 
     segments.append((_board_ep(seg_start[0], seg_start[1]), _board_ep(path[-1][0], path[-1][1])))
     return segments
+
+
+def _compressed_segment_count(path: Sequence[BoardCoord]) -> int:
+    return len(_compress_path(path))
 
 
 def _step_collision_cells(a: BoardCoord, b: BoardCoord) -> set[BoardCoord]:
@@ -658,6 +680,140 @@ class MotionPlanner:
     def _motor_y_for_file(self, file_index: int) -> float:
         return (float(file_index) / 7.0) * 100.0
 
+    def _board_coord_to_pct(self, coord: BoardCoord) -> PercentEndpoint:
+        return _pct_ep(self._motor_x_for_rank(coord[1]), self._motor_y_for_file(coord[0]))
+
+    def _pct_is_in_green_lane(self, point: PercentEndpoint) -> bool:
+        return (
+            point.y_pct <= config.BOARD_EXIT_TOP_Y_PCT
+            or point.y_pct >= config.BOARD_EXIT_BOTTOM_Y_PCT
+            or point.x_pct <= config.BOARD_EXIT_RIGHT_X_PCT
+            or point.x_pct >= config.BOARD_EXIT_LEFT_X_PCT
+        )
+
+    def _continuous_board_segment_clear(
+        self,
+        a: PercentEndpoint,
+        b: PercentEndpoint,
+        *,
+        ignore_board: set[BoardCoord],
+    ) -> bool:
+        for coord in self.occupied:
+            if coord in ignore_board:
+                continue
+            occupied = self._board_coord_to_pct(coord)
+            if _pct_point_to_segment_distance(occupied, a, b) < config.BOARD_SWEEP_CLEARANCE_PCT:
+                return False
+        return True
+
+    def _continuous_offboard_segment_clear(
+        self,
+        a: PercentEndpoint,
+        b: PercentEndpoint,
+        *,
+        ignore_slots: set[tuple[float, float]] | None = None,
+    ) -> bool:
+        ignore = ignore_slots or set()
+        for key in self.offboard_occupied:
+            if key in ignore:
+                continue
+            occupied = PercentEndpoint(key[0], key[1])
+            if _pct_point_to_segment_distance(occupied, a, b) < config.OFFBOARD_CLEARANCE_PCT:
+                return False
+        return True
+
+    def _board_to_offboard_segment_clear(
+        self,
+        start: BoardCoord,
+        dst_pct: PercentEndpoint,
+        *,
+        ignore_board: set[BoardCoord],
+        ignore_slots: set[tuple[float, float]] | None = None,
+    ) -> bool:
+        if not self._pct_is_in_green_lane(dst_pct):
+            return False
+        start_pct = self._board_coord_to_pct(start)
+        return self._continuous_board_segment_clear(
+            start_pct,
+            dst_pct,
+            ignore_board=ignore_board | {start},
+        ) and self._continuous_offboard_segment_clear(
+            start_pct,
+            dst_pct,
+            ignore_slots=ignore_slots,
+        )
+
+    def _offboard_to_board_segment_clear(
+        self,
+        src_pct: PercentEndpoint,
+        dst: BoardCoord,
+        *,
+        ignore_board: set[BoardCoord],
+        ignore_slots: set[tuple[float, float]] | None = None,
+    ) -> bool:
+        if not self._pct_is_in_green_lane(src_pct):
+            return False
+        dst_pct = self._board_coord_to_pct(dst)
+        return self._continuous_board_segment_clear(
+            src_pct,
+            dst_pct,
+            ignore_board=ignore_board | {dst},
+        ) and self._continuous_offboard_segment_clear(
+            src_pct,
+            dst_pct,
+            ignore_slots=ignore_slots,
+        )
+
+    def _all_board_exits(self) -> list[BoardExit]:
+        """Return every yellow-board edge square with its adjacent green-grid waypoint."""
+        exits: list[BoardExit] = []
+
+        # File a exits through the camera/top green strip; file h exits through
+        # the camera/bottom strip. Rank 8 exits right; rank 1 exits left.
+        for rank in range(8):
+            exits.append(
+                BoardExit(
+                    edge=(0, rank),
+                    outside=_pct_ep(self._motor_x_for_rank(rank), config.BOARD_EXIT_TOP_Y_PCT),
+                )
+            )
+            exits.append(
+                BoardExit(
+                    edge=(7, rank),
+                    outside=_pct_ep(self._motor_x_for_rank(rank), config.BOARD_EXIT_BOTTOM_Y_PCT),
+                )
+            )
+        for file_index in range(8):
+            exits.append(
+                BoardExit(
+                    edge=(file_index, 7),
+                    outside=_pct_ep(config.BOARD_EXIT_RIGHT_X_PCT, self._motor_y_for_file(file_index)),
+                )
+            )
+            exits.append(
+                BoardExit(
+                    edge=(file_index, 0),
+                    outside=_pct_ep(config.BOARD_EXIT_LEFT_X_PCT, self._motor_y_for_file(file_index)),
+                )
+            )
+
+        unique: dict[tuple[BoardCoord, tuple[float, float]], BoardExit] = {}
+        for exit_point in exits:
+            unique[(exit_point.edge, _pct_key(exit_point.outside))] = exit_point
+        return list(unique.values())
+
+    def _board_exits_by_distance(self, coord: BoardCoord) -> list[BoardExit]:
+        return sorted(
+            self._all_board_exits(),
+            key=lambda exit_point: (
+                _manhattan(coord, exit_point.edge),
+                exit_point.edge[1],
+                exit_point.edge[0],
+                exit_point.outside.x_pct,
+                exit_point.outside.y_pct,
+            ),
+        )
+
     def _edge_candidates_for_pct(self, slot: PercentEndpoint) -> list[BoardExit]:
         rank_hint = self._rank_hint_from_motor_x(slot.x_pct)
         file_hint = self._file_hint_from_motor_y(slot.y_pct)
@@ -855,7 +1011,22 @@ class MotionPlanner:
         protected: set[BoardCoord],
     ) -> BoardToPctPlan | None:
         best: BoardToPctPlan | None = None
-        best_score: tuple[int, int, float] | None = None
+        best_score: tuple[int, int, int, float] | None = None
+
+        if self._board_to_offboard_segment_clear(
+            start,
+            dst_pct,
+            ignore_board=protected | {start},
+            ignore_slots={_pct_key(dst_pct)},
+        ):
+            best_score = (0, 0, 1, 0.0)
+            best = BoardToPctPlan(
+                route=(start,),
+                blockers=frozenset(),
+                board_exit=BoardExit(edge=start, outside=dst_pct),
+                offboard_path=(dst_pct,),
+            )
+
         for board_exit in self._edge_candidates_for_pct(dst_pct):
             offboard_path = self._offboard_path(board_exit.outside, dst_pct)
             if offboard_path is None:
@@ -864,7 +1035,12 @@ class MotionPlanner:
             if planned is None:
                 continue
             route, blockers = planned
-            score = (len(blockers), len(route) + len(offboard_path), sum(_pct_distance(a, b) for a, b in zip(offboard_path, offboard_path[1:])))
+            score = (
+                len(blockers),
+                1,
+                _compressed_segment_count(route) + len(offboard_path),
+                sum(_pct_distance(a, b) for a, b in zip(offboard_path, offboard_path[1:])),
+            )
             if best_score is None or score < best_score:
                 best_score = score
                 best = BoardToPctPlan(
@@ -882,7 +1058,22 @@ class MotionPlanner:
         protected: set[BoardCoord],
     ) -> PctToBoardPlan | None:
         best: PctToBoardPlan | None = None
-        best_score: tuple[int, int, float] | None = None
+        best_score: tuple[int, int, int, float] | None = None
+
+        if self._offboard_to_board_segment_clear(
+            src_pct,
+            dst,
+            ignore_board=protected | {dst},
+            ignore_slots={_pct_key(src_pct)},
+        ):
+            best_score = (0, 0, 1, 0.0)
+            best = PctToBoardPlan(
+                board_exit=BoardExit(edge=dst, outside=src_pct),
+                offboard_path=(src_pct,),
+                route=(dst,),
+                blockers=frozenset(),
+            )
+
         for board_exit in self._edge_candidates_for_pct(src_pct):
             offboard_path = self._offboard_path(src_pct, board_exit.outside, ignore_slots={_pct_key(src_pct)})
             if offboard_path is None:
@@ -893,7 +1084,12 @@ class MotionPlanner:
             route, blockers = planned
             if board_exit.edge in self.occupied and board_exit.edge != dst and board_exit.edge not in protected:
                 blockers = blockers | {board_exit.edge}
-            score = (len(blockers), len(route) + len(offboard_path), sum(_pct_distance(a, b) for a, b in zip(offboard_path, offboard_path[1:])))
+            score = (
+                len(blockers),
+                1,
+                _compressed_segment_count(route) + len(offboard_path),
+                sum(_pct_distance(a, b) for a, b in zip(offboard_path, offboard_path[1:])),
+            )
             if best_score is None or score < best_score:
                 best_score = score
                 best = PctToBoardPlan(
@@ -916,6 +1112,151 @@ class MotionPlanner:
         route, blockers = planned
         return BoardToBoardPlan(route=tuple(route), blockers=frozenset(blockers))
 
+    def _best_route_board_to_board_via_offboard(
+        self,
+        start: BoardCoord,
+        dst: BoardCoord,
+        protected: set[BoardCoord],
+    ) -> BoardViaOffboardPlan | None:
+        best: BoardViaOffboardPlan | None = None
+        best_score: tuple[int, int, int, float] | None = None
+
+        start_exits = self._board_exits_by_distance(start)
+        end_exits = self._board_exits_by_distance(dst)
+
+        start_options: list[tuple[BoardExit, tuple[BoardCoord, ...], frozenset[BoardCoord]]] = []
+        for start_exit in start_exits:
+            planned_start = self._astar_min_blockers(start, start_exit.edge, protected)
+            if planned_start is not None:
+                start_route, start_blockers = planned_start
+                start_options.append((start_exit, tuple(start_route), frozenset(start_blockers)))
+
+            if self._board_to_offboard_segment_clear(
+                start,
+                start_exit.outside,
+                ignore_board=protected | {start},
+                ignore_slots={_pct_key(start_exit.outside)},
+            ):
+                start_options.append(
+                    (
+                        BoardExit(edge=start, outside=start_exit.outside),
+                        (start,),
+                        frozenset(),
+                    )
+                )
+
+        for start_exit, start_route, start_blockers in start_options:
+            for end_exit in end_exits:
+                offboard_path = self._offboard_path(start_exit.outside, end_exit.outside)
+                if offboard_path is None:
+                    continue
+
+                offboard_distance = sum(
+                    _pct_distance(a, b)
+                    for a, b in zip(offboard_path, offboard_path[1:])
+                )
+
+                if self._offboard_to_board_segment_clear(
+                    end_exit.outside,
+                    dst,
+                    ignore_board=protected | {start, dst},
+                    ignore_slots={_pct_key(start_exit.outside), _pct_key(end_exit.outside)},
+                ):
+                    score = (
+                        len(start_blockers),
+                        _compressed_segment_count(start_route) + len(offboard_path) + 1,
+                        0,
+                        offboard_distance,
+                    )
+                    if best_score is None or score < best_score:
+                        best_score = score
+                        best = BoardViaOffboardPlan(
+                            start_route=start_route,
+                            start_exit=start_exit,
+                            offboard_path=offboard_path,
+                            end_exit=BoardExit(edge=dst, outside=end_exit.outside),
+                            end_route=(dst,),
+                            blockers=start_blockers,
+                        )
+
+                planned_end = self._astar_min_blockers(end_exit.edge, dst, protected)
+                if planned_end is None:
+                    continue
+                end_route, end_blockers = planned_end
+
+                blockers = set(start_blockers) | set(end_blockers)
+                if end_exit.edge in self.occupied and end_exit.edge not in {start, dst} and end_exit.edge not in protected:
+                    blockers.add(end_exit.edge)
+
+                score = (
+                    len(blockers),
+                    (
+                        _compressed_segment_count(start_route)
+                        + _compressed_segment_count(end_route)
+                        + len(offboard_path)
+                        + 1
+                    ),
+                    1,
+                    offboard_distance,
+                )
+                if best_score is None or score < best_score:
+                    best_score = score
+                    best = BoardViaOffboardPlan(
+                        start_route=tuple(start_route),
+                        start_exit=start_exit,
+                        offboard_path=offboard_path,
+                        end_exit=end_exit,
+                        end_route=tuple(end_route),
+                        blockers=frozenset(blockers),
+                    )
+        return best
+
+    def _best_route_board_to_board_any(
+        self,
+        start: BoardCoord,
+        dst: BoardCoord,
+        protected: set[BoardCoord],
+    ) -> BoardToBoardPlan | BoardViaOffboardPlan | None:
+        candidates: list[
+            tuple[
+                tuple[int, int, int, float],
+                BoardToBoardPlan | BoardViaOffboardPlan,
+            ]
+        ] = []
+
+        board_plan = self._best_route_board_to_board(start, dst, protected)
+        if board_plan is not None:
+            candidates.append(
+                (
+                    (len(board_plan.blockers), 0, _compressed_segment_count(board_plan.route), 0.0),
+                    board_plan,
+                )
+            )
+
+        offboard_plan = self._best_route_board_to_board_via_offboard(start, dst, protected)
+        if offboard_plan is not None:
+            offboard_distance = sum(
+                _pct_distance(a, b)
+                for a, b in zip(offboard_plan.offboard_path, offboard_plan.offboard_path[1:])
+            )
+            total_route_len = (
+                _compressed_segment_count(offboard_plan.start_route)
+                + _compressed_segment_count(offboard_plan.end_route)
+                + len(offboard_plan.offboard_path)
+                + 1
+            )
+            candidates.append(
+                (
+                    (len(offboard_plan.blockers), 1, total_route_len, offboard_distance),
+                    offboard_plan,
+                )
+            )
+
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: item[0])
+        return candidates[0][1]
+
     def _emit_offboard_path(self, path: Sequence[PercentEndpoint]) -> None:
         for src, dst in zip(path, path[1:]):
             self.append_segment(src, dst)
@@ -936,6 +1277,35 @@ class MotionPlanner:
     def _emit_board_to_board_plan(self, plan: BoardToBoardPlan) -> None:
         for src_ep, dst_ep in _compress_path(plan.route):
             self.append_segment(src_ep, dst_ep)
+
+    def _emit_board_via_offboard_plan(self, plan: BoardViaOffboardPlan) -> None:
+        for src_ep, dst_ep in _compress_path(plan.start_route):
+            self.append_segment(src_ep, dst_ep)
+        self.append_segment(
+            _board_ep(plan.start_exit.edge[0], plan.start_exit.edge[1]),
+            plan.start_exit.outside,
+        )
+        self._emit_offboard_path(plan.offboard_path)
+        self.append_segment(
+            plan.end_exit.outside,
+            _board_ep(plan.end_exit.edge[0], plan.end_exit.edge[1]),
+        )
+        for src_ep, dst_ep in _compress_path(plan.end_route):
+            self.append_segment(src_ep, dst_ep)
+
+    def _board_cells_for_board_move_plan(
+        self,
+        plan: BoardToBoardPlan | BoardViaOffboardPlan,
+    ) -> set[BoardCoord]:
+        if isinstance(plan, BoardViaOffboardPlan):
+            return set(plan.start_route) | set(plan.end_route)
+        return set(plan.route)
+
+    def _emit_board_move_plan(self, plan: BoardToBoardPlan | BoardViaOffboardPlan) -> None:
+        if isinstance(plan, BoardViaOffboardPlan):
+            self._emit_board_via_offboard_plan(plan)
+        else:
+            self._emit_board_to_board_plan(plan)
 
     def _free_board_parking_cells(self, protected: set[BoardCoord]) -> list[BoardCoord]:
         return [
@@ -1190,14 +1560,14 @@ class MotionPlanner:
         if protected_extra:
             protected |= protected_extra
 
-        planned: BoardToBoardPlan | None = None
+        planned: BoardToBoardPlan | BoardViaOffboardPlan | None = None
         for _ in range(config.MAX_TEMP_RELOCATIONS + 1):
-            planned = self._best_route_board_to_board(start, dst, protected)
+            planned = self._best_route_board_to_board_any(start, dst, protected)
             if planned is None:
                 break
             if not planned.blockers:
                 break
-            route_protected = protected | set(planned.route)
+            route_protected = protected | self._board_cells_for_board_move_plan(planned)
             if not self._clear_route_blockers(
                 set(planned.blockers),
                 parking_protected=route_protected,
@@ -1215,7 +1585,7 @@ class MotionPlanner:
 
         if planned.blockers:
             self._fallback_direct_segments += 1
-        self._emit_board_to_board_plan(planned)
+        self._emit_board_move_plan(planned)
 
         self.occupied.remove(start)
         self.occupied.add(dst)
