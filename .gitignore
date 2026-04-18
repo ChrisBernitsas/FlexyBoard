@@ -1,0 +1,8 @@
+**/__pycache__/
+*.pyc
+*.log
+.DS_Store
+FlexyBoard-Camera/debug_output/Moves/
+FlexyBoard-Camera/debug_output/board_analysis_*/
+FlexyBoard-Camera/debug_output/latest_live_review/
+Software-GUI/debug_output/
