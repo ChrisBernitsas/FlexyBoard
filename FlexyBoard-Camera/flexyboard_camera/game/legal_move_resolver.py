@@ -30,11 +30,12 @@ class ResolvedPlayer1Move:
     capture: bool
     special: str | None
     resolver: str
-    score: int
+    score: float
     matched_expected: bool
+    metadata: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "steps": [step.to_dict() for step in self.steps],
             "capture": self.capture,
             "special": self.special,
@@ -42,6 +43,9 @@ class ResolvedPlayer1Move:
             "score": self.score,
             "matched_expected": self.matched_expected,
         }
+        if self.metadata is not None:
+            payload["metadata"] = self.metadata
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +53,52 @@ class _ObservedMove:
     source: BoardCoord | None
     destination: BoardCoord | None
     capture: bool | None
+
+
+def _map_camera_coord_to_game(coord: BoardCoord, orientation: str) -> BoardCoord:
+    normalized = str(orientation or "identity").strip().lower()
+    if normalized in {"identity", "image_tl_a1_tr_h1_br_h8_bl_a8"}:
+        return coord
+    if normalized == "image_tl_a1_tr_a8_br_h8_bl_h1":
+        return BoardCoord(x=coord.y, y=coord.x)
+    if normalized == "image_tr_a1_br_a8_bl_h8_tl_h1":
+        return BoardCoord(x=7 - coord.y, y=coord.x)
+    raise ValueError(f"unsupported camera square orientation: {orientation!r}")
+
+
+def _map_observed_to_game(observed: _ObservedMove, orientation: str) -> _ObservedMove:
+    return _ObservedMove(
+        source=_map_camera_coord_to_game(observed.source, orientation) if observed.source is not None else None,
+        destination=(
+            _map_camera_coord_to_game(observed.destination, orientation)
+            if observed.destination is not None
+            else None
+        ),
+        capture=observed.capture,
+    )
+
+
+def _map_changed_squares_to_game(
+    changed_squares: list[dict[str, Any]],
+    orientation: str,
+) -> list[dict[str, Any]]:
+    mapped: list[dict[str, Any]] = []
+    for item in changed_squares:
+        if not isinstance(item, dict):
+            continue
+        x = item.get("x")
+        y = item.get("y")
+        if not isinstance(x, int) or not isinstance(y, int):
+            continue
+        coord = _map_camera_coord_to_game(BoardCoord(x=x, y=y), orientation)
+        copy = dict(item)
+        copy["camera_x"] = x
+        copy["camera_y"] = y
+        copy["x"] = coord.x
+        copy["y"] = coord.y
+        copy["label"] = _board_coord_to_square_id(coord)
+        mapped.append(copy)
+    return mapped
 
 
 def _coord_from_obj(raw: Any) -> BoardCoord | None:
@@ -79,6 +129,48 @@ def _changed_coords(changed_squares: list[dict[str, Any]]) -> set[tuple[int, int
     return out
 
 
+def _changed_strengths(changed_squares: list[dict[str, Any]]) -> dict[tuple[int, int], float]:
+    strengths: dict[tuple[int, int], float] = {}
+    for item in changed_squares:
+        if not isinstance(item, dict):
+            continue
+        x = item.get("x")
+        y = item.get("y")
+        if not isinstance(x, int) or not isinstance(y, int):
+            continue
+        try:
+            strength = float(item.get("pixel_ratio", 0.0))
+        except (TypeError, ValueError):
+            strength = 0.0
+        strength = max(0.0, min(1.0, strength))
+        key = (x, y)
+        strengths[key] = max(strengths.get(key, 0.0), strength)
+    return strengths
+
+
+def _coord_set_to_list(coords: set[tuple[int, int]]) -> list[dict[str, int | str]]:
+    return [
+        {
+            "x": x,
+            "y": y,
+            "square": _board_coord_to_square_id(BoardCoord(x=x, y=y)),
+        }
+        for x, y in sorted(coords, key=lambda item: (item[1], item[0]))
+    ]
+
+
+def _coord_strengths_to_list(strengths: dict[tuple[int, int], float]) -> list[dict[str, int | str | float]]:
+    return [
+        {
+            "x": x,
+            "y": y,
+            "square": _board_coord_to_square_id(BoardCoord(x=x, y=y)),
+            "strength": round(float(strength), 6),
+        }
+        for (x, y), strength in sorted(strengths.items(), key=lambda item: (item[0][1], item[0][0]))
+    ]
+
+
 def _board_coord_to_square_id(coord: BoardCoord) -> str:
     files = "abcdefgh"
     ranks = "12345678"
@@ -98,23 +190,36 @@ def _score_candidate(
     *,
     observed: _ObservedMove,
     observed_changed: set[tuple[int, int]],
+    observed_strengths: dict[tuple[int, int], float],
     expected_changed: set[tuple[int, int]],
     source: BoardCoord,
     destination: BoardCoord,
     is_capture: bool,
-) -> int:
-    missing = len(expected_changed - observed_changed)
-    extra = len(observed_changed - expected_changed)
-    score = (missing * 4) + extra
+) -> float:
+    score = 0.0
+
+    # The legal resolver should be driven primarily by which squares changed
+    # strongly. This avoids selecting a legal one-square pawn move when the real
+    # destination changed more than a nearby low-ratio noise square.
+    for coord in expected_changed:
+        strength = observed_strengths.get(coord, 0.0)
+        if coord not in observed_changed:
+            score += 6.0
+        else:
+            score += max(0.0, 1.0 - strength)
+
+    for coord in observed_changed - expected_changed:
+        strength = observed_strengths.get(coord, 0.0)
+        score += 0.75 + (4.0 * strength)
 
     if observed.source is not None and observed.source != source:
-        score += 3
+        score += 0.25
     if observed.destination is not None and observed.destination != destination:
-        score += 3
+        score += 0.25
     if observed.capture is True and not is_capture:
-        score += 3
+        score += 3.0
     if observed.capture is False and is_capture:
-        score += 2
+        score += 2.0
     return score
 
 
@@ -123,6 +228,40 @@ class _ChessResolver:
         if chess is None:
             raise RuntimeError("python-chess is required for chess move resolution")
         self._board = chess.Board()
+
+    @staticmethod
+    def _piece_name(piece: chess.Piece) -> str:
+        side = "P1" if piece.color == chess.WHITE else "P2"
+        names = {
+            chess.PAWN: "PAWN",
+            chess.KNIGHT: "KNIGHT",
+            chess.BISHOP: "BISHOP",
+            chess.ROOK: "ROOK",
+            chess.QUEEN: "QUEEN",
+            chess.KING: "KING",
+        }
+        return f"{side}_{names[piece.piece_type]}"
+
+    @classmethod
+    def _snapshot(cls, board: chess.Board) -> dict[str, Any]:
+        occupied: dict[str, str] = {}
+        for sq in chess.SQUARES:
+            piece = board.piece_at(sq)
+            if piece is not None:
+                occupied[chess.square_name(sq)] = cls._piece_name(piece)
+        return {
+            "game": "chess",
+            "fen": board.fen(),
+            "turn": "p1" if board.turn == chess.WHITE else "p2",
+            "occupied": occupied,
+            "legal_move_count": board.legal_moves.count(),
+            "is_check": board.is_check(),
+            "is_checkmate": board.is_checkmate(),
+            "is_stalemate": board.is_stalemate(),
+        }
+
+    def debug_state(self) -> dict[str, Any]:
+        return self._snapshot(self._board)
 
     @staticmethod
     def _square_set_diff(before: chess.Board, after: chess.Board) -> set[tuple[int, int]]:
@@ -149,16 +288,20 @@ class _ChessResolver:
     ) -> ResolvedPlayer1Move | None:
         observed = _parse_observed_move(observed_move_obj)
         observed_changed = _changed_coords(changed_squares)
+        observed_strengths = _changed_strengths(changed_squares)
 
         if self._board.turn != chess.WHITE:
             # Drift recovery: if out of phase, force back to P1 turn so we still
             # choose a legal white move against the current board.
             self._board.turn = chess.WHITE
 
-        best: tuple[int, chess.Move, set[tuple[int, int]], bool, str | None] | None = None
+        state_before = self._snapshot(self._board)
+        best: tuple[float, chess.Move, set[tuple[int, int]], bool, str | None] | None = None
+        candidate_count = 0
         for move in self._board.legal_moves:
             if self._board.color_at(move.from_square) != chess.WHITE:
                 continue
+            candidate_count += 1
             before = self._board.copy(stack=False)
             after = self._board.copy(stack=False)
             is_capture = after.is_capture(move)
@@ -177,6 +320,7 @@ class _ChessResolver:
             score = _score_candidate(
                 observed=observed,
                 observed_changed=observed_changed,
+                observed_strengths=observed_strengths,
                 expected_changed=expected_changed,
                 source=source,
                 destination=destination,
@@ -194,6 +338,7 @@ class _ChessResolver:
 
         score, move, expected_changed, is_capture, special = best
         self._board.push(move)
+        state_after = self._snapshot(self._board)
 
         step = ResolvedStep(
             source=BoardCoord(x=chess.square_file(move.from_square), y=chess.square_rank(move.from_square)),
@@ -205,7 +350,19 @@ class _ChessResolver:
             special=special,
             resolver="chess_legal_match",
             score=score,
-            matched_expected=score == 0 and expected_changed == observed_changed,
+            matched_expected=expected_changed == observed_changed,
+            metadata={
+                "persistent_state": True,
+                "state_before": state_before,
+                "state_after": state_after,
+                "selected_uci": move.uci(),
+                "legal_candidate_count": candidate_count,
+                "observed_changed": _coord_set_to_list(observed_changed),
+                "observed_changed_strengths": _coord_strengths_to_list(observed_strengths),
+                "expected_changed": _coord_set_to_list(expected_changed),
+                "extra_changed": _coord_set_to_list(observed_changed - expected_changed),
+                "missing_changed": _coord_set_to_list(expected_changed - observed_changed),
+            },
         )
 
     def apply_player2(self, from_square: str, to_square: str) -> None:
@@ -277,6 +434,27 @@ class _CheckersState:
                     self.board[y][x] = _CheckersPiece.P1_MAN
                 elif y >= 5:
                     self.board[y][x] = _CheckersPiece.P2_MAN
+
+    def debug_state(self) -> dict[str, Any]:
+        occupied: dict[str, str] = {}
+        names = {
+            _CheckersPiece.P1_MAN: "P1_MAN",
+            _CheckersPiece.P1_KING: "P1_KING",
+            _CheckersPiece.P2_MAN: "P2_MAN",
+            _CheckersPiece.P2_KING: "P2_KING",
+        }
+        for y in range(8):
+            for x in range(8):
+                piece = self.board[y][x]
+                if piece != _CheckersPiece.EMPTY:
+                    occupied[_board_coord_to_square_id(BoardCoord(x=x, y=y))] = names[piece]
+        return {
+            "game": "checkers",
+            "turn": "tracked_by_bridge",
+            "occupied": occupied,
+            "p1_capture_available": self._has_any_capture("p1"),
+            "p2_capture_available": self._has_any_capture("p2"),
+        }
 
     def get(self, coord: BoardCoord) -> _CheckersPiece:
         return self.board[coord.y][coord.x]
@@ -433,12 +611,13 @@ class _CheckersState:
     ) -> ResolvedPlayer1Move | None:
         observed = _parse_observed_move(observed_move_obj)
         observed_changed = _changed_coords(changed_squares)
+        observed_strengths = _changed_strengths(changed_squares)
 
         candidates = self._all_sequences_for_side("p1")
         if not candidates:
             return None
 
-        best: tuple[int, list[_CheckersHop], bool, set[tuple[int, int]]] | None = None
+        best: tuple[float, list[_CheckersHop], bool, set[tuple[int, int]]] | None = None
         for sequence in candidates:
             trial = self.copy()
             capture = False
@@ -453,6 +632,7 @@ class _CheckersState:
             score = _score_candidate(
                 observed=observed,
                 observed_changed=observed_changed,
+                observed_strengths=observed_strengths,
                 expected_changed=expected_changed,
                 source=source,
                 destination=destination,
@@ -475,7 +655,16 @@ class _CheckersState:
             special="multi_jump" if len(sequence) > 1 else None,
             resolver="checkers_legal_match",
             score=score,
-            matched_expected=score == 0 and expected_changed == observed_changed,
+            matched_expected=expected_changed == observed_changed,
+            metadata={
+                "persistent_state": True,
+                "state_after": self.debug_state(),
+                "observed_changed": _coord_set_to_list(observed_changed),
+                "observed_changed_strengths": _coord_strengths_to_list(observed_strengths),
+                "expected_changed": _coord_set_to_list(expected_changed),
+                "extra_changed": _coord_set_to_list(observed_changed - expected_changed),
+                "missing_changed": _coord_set_to_list(expected_changed - observed_changed),
+            },
         )
 
     def apply_player2(self, from_square: str, to_square: str) -> None:
@@ -500,9 +689,10 @@ class Player1MoveResolver:
     squares to a legal move before forwarding to Software-GUI.
     """
 
-    def __init__(self, game: str) -> None:
+    def __init__(self, game: str, camera_square_orientation: str = "identity") -> None:
         normalized = str(game).strip().lower()
         self.game = normalized
+        self.camera_square_orientation = camera_square_orientation
         if normalized == "chess":
             try:
                 self._engine = _ChessResolver()
@@ -521,6 +711,22 @@ class Player1MoveResolver:
     ) -> ResolvedPlayer1Move | None:
         if self._engine is None:
             return None
+        observed = _parse_observed_move(observed_move_obj)
+        observed = _map_observed_to_game(observed, self.camera_square_orientation)
+        observed_move_obj = {
+            "source": (
+                {"x": observed.source.x, "y": observed.source.y}
+                if observed.source is not None
+                else None
+            ),
+            "destination": (
+                {"x": observed.destination.x, "y": observed.destination.y}
+                if observed.destination is not None
+                else None
+            ),
+            "capture": observed.capture,
+        }
+        changed_squares = _map_changed_squares_to_game(changed_squares, self.camera_square_orientation)
         if self.game == "chess":
             return self._engine.resolve_player1(observed_move_obj, changed_squares)
         if self.game == "checkers":
@@ -532,9 +738,27 @@ class Player1MoveResolver:
             return
         self._engine.apply_player2(from_square, to_square)
 
-    @staticmethod
-    def fallback_from_observed(observed_move_obj: dict[str, Any]) -> ResolvedPlayer1Move | None:
+    def debug_state(self) -> dict[str, Any]:
+        if self._engine is None or not hasattr(self._engine, "debug_state"):
+            return {
+                "game": self.game,
+                "persistent_state": False,
+                "reason": "no stateful resolver for this game",
+            }
+        state = self._engine.debug_state()
+        if isinstance(state, dict):
+            state["persistent_state"] = True
+            state["camera_square_orientation"] = self.camera_square_orientation
+            return state
+        return {
+            "game": self.game,
+            "persistent_state": False,
+            "reason": "stateful resolver returned invalid debug state",
+        }
+
+    def fallback_from_observed(self, observed_move_obj: dict[str, Any]) -> ResolvedPlayer1Move | None:
         observed = _parse_observed_move(observed_move_obj)
+        observed = _map_observed_to_game(observed, self.camera_square_orientation)
         if observed.source is None or observed.destination is None:
             return None
         step = ResolvedStep(source=observed.source, destination=observed.destination)
@@ -545,6 +769,7 @@ class Player1MoveResolver:
             resolver="fallback_observed",
             score=9999,
             matched_expected=False,
+            metadata={"persistent_state": False},
         )
 
     @staticmethod

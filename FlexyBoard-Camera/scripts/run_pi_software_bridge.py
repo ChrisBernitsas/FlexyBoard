@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import socket
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -54,6 +56,35 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not execute STM sequence; only print and persist move file",
     )
+    parser.add_argument(
+        "--slow-live-analysis",
+        action="store_true",
+        help="Disable fast live mode and redetect board geometry every turn.",
+    )
+    parser.add_argument(
+        "--reopen-camera-each-capture",
+        action="store_true",
+        help="Close/reopen the camera for every capture. Default keeps the camera open for lower latency.",
+    )
+    parser.add_argument(
+        "--session-geometry-path",
+        default=str(ROOT / "debug_output" / "live_session_geometry.json"),
+        help="Where to store the geometry reference detected from the initial rolling reference frame.",
+    )
+    parser.add_argument(
+        "--startup-geometry-mode",
+        choices=("manual", "auto"),
+        default="manual",
+        help=(
+            "manual: send the initial board image to Software-GUI for corner clicks. "
+            "auto: detect and confirm the startup geometry automatically."
+        ),
+    )
+    parser.add_argument(
+        "--skip-geometry-confirmation",
+        action="store_true",
+        help="Auto geometry mode only: do not send the startup grid preview to Software-GUI for confirmation.",
+    )
     return parser.parse_args()
 
 
@@ -89,7 +120,17 @@ def _run_analysis(
     out_dir: str | None,
     game: str,
     analysis_config: Any,
+    *,
+    fast_locked_geometry: bool = False,
+    geometry_reference_override: str | None = None,
+    disable_geometry_reference_override: bool | None = None,
 ) -> dict[str, Any]:
+    geometry_reference = geometry_reference_override or analysis_config.geometry_reference
+    disable_geometry_reference = (
+        analysis_config.disable_geometry_reference
+        if disable_geometry_reference_override is None
+        else bool(disable_geometry_reference_override)
+    )
     cmd = [
         sys.executable,
         str(ROOT / "scripts" / "analyze_board_and_diff.py"),
@@ -112,11 +153,15 @@ def _run_analysis(
         "--board-lock-source",
         analysis_config.board_lock_source,
         "--geometry-reference",
-        _repo_relative_path(analysis_config.geometry_reference),
+        _repo_relative_path(geometry_reference),
+        "--camera-square-orientation",
+        analysis_config.camera_square_orientation,
     ]
+    if fast_locked_geometry:
+        cmd.append("--fast-locked-geometry")
     if analysis_config.disable_tape_projection:
         cmd.append("--disable-tape-projection")
-    if analysis_config.disable_geometry_reference:
+    if disable_geometry_reference:
         cmd.append("--disable-geometry-reference")
     if out_dir:
         cmd.extend(["--out-dir", out_dir])
@@ -156,6 +201,8 @@ def _analyze_paths(
     args: argparse.Namespace,
     game: str,
     analysis_config: Any,
+    *,
+    fast_locked_geometry: bool = False,
 ) -> dict[str, Any]:
     analysis = _run_analysis(
         before_path=before_path,
@@ -163,6 +210,7 @@ def _analyze_paths(
         out_dir=args.analysis_out_dir,
         game=game,
         analysis_config=analysis_config,
+        fast_locked_geometry=fast_locked_geometry,
     )
     analysis_root = Path(
         analysis.get("analysis_root_dir", Path(analysis["outputs"]["after_grid_overlay"]).parent)
@@ -183,18 +231,278 @@ def _analyze_paths(
     }
 
 
+def _quad_entry_from_cropped(
+    corners: object,
+    *,
+    crop_meta: dict[str, Any],
+    image_w: int,
+    image_h: int,
+) -> dict[str, Any] | None:
+    if not isinstance(corners, list) or len(corners) != 4:
+        return None
+
+    try:
+        crop_x0 = float(crop_meta.get("x0_px", 0.0))
+        crop_y0 = float(crop_meta.get("y0_px", 0.0))
+        pts = [
+            [float(p[0]) + crop_x0, float(p[1]) + crop_y0]
+            for p in corners
+            if isinstance(p, list) and len(p) == 2
+        ]
+    except (TypeError, ValueError):
+        return None
+
+    if len(pts) != 4:
+        return None
+
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    bbox = [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
+    image_w_f = max(float(image_w), 1.0)
+    image_h_f = max(float(image_h), 1.0)
+    return {
+        "corners_px": pts,
+        "corners_norm": [[p[0] / image_w_f, p[1] / image_h_f] for p in pts],
+        "bbox_xywh_px": bbox,
+        "bbox_xywh_norm": [
+            bbox[0] / image_w_f,
+            bbox[1] / image_h_f,
+            bbox[2] / image_w_f,
+            bbox[3] / image_h_f,
+        ],
+    }
+
+
+def _png_size(path: Path) -> tuple[int, int]:
+    with path.open("rb") as handle:
+        header = handle.read(24)
+    if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n":
+        raise RuntimeError(f"Expected PNG image for manual geometry, got: {path}")
+    width, height = struct.unpack(">II", header[16:24])
+    return int(width), int(height)
+
+
+def _quad_entry_from_raw(
+    corners: object,
+    *,
+    image_w: int,
+    image_h: int,
+) -> dict[str, Any] | None:
+    return _quad_entry_from_cropped(
+        corners,
+        crop_meta={"x0_px": 0.0, "y0_px": 0.0},
+        image_w=image_w,
+        image_h=image_h,
+    )
+
+
+def _draw_manual_reference_overlay(
+    *,
+    reference_path: Path,
+    outer_corners_px: list[list[float]],
+    chessboard_corners_px: list[list[float]],
+    out_dir: Path,
+    geometry_payload: dict[str, Any],
+) -> None:
+    try:
+        import cv2
+        import numpy as np
+    except Exception as exc:  # noqa: BLE001
+        print(f"[Bridge] Warning: could not create manual reference overlay; OpenCV unavailable: {exc}")
+        return
+
+    image = cv2.imread(str(reference_path), cv2.IMREAD_COLOR)
+    if image is None:
+        print(f"[Bridge] Warning: could not read manual reference image for overlay: {reference_path}")
+        return
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    overlay = image.copy()
+
+    def draw_quad(points: list[list[float]], color: tuple[int, int, int], prefix: str) -> None:
+        pts = np.array(points, dtype=np.float32).round().astype(np.int32)
+        if pts.shape != (4, 2):
+            return
+        cv2.polylines(overlay, [pts.reshape(-1, 1, 2)], isClosed=True, color=color, thickness=4)
+        for index, point in enumerate(pts, start=1):
+            x, y = int(point[0]), int(point[1])
+            cv2.circle(overlay, (x, y), 9, color, thickness=-1)
+            cv2.circle(overlay, (x, y), 10, (0, 0, 0), thickness=1)
+            cv2.putText(
+                overlay,
+                f"{prefix}{index}",
+                (x + 10, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                color,
+                2,
+                cv2.LINE_AA,
+            )
+
+    draw_quad(outer_corners_px, (0, 230, 70), "G")
+    draw_quad(chessboard_corners_px, (0, 220, 255), "Y")
+
+    overlay_path = out_dir / "manual_startup_grid_overlay.png"
+    geometry_path = out_dir / "manual_startup_geometry.json"
+    source_copy_path = out_dir / "manual_startup_reference.png"
+    cv2.imwrite(str(overlay_path), overlay)
+    cv2.imwrite(str(source_copy_path), image)
+    geometry_path.write_text(json.dumps(geometry_payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    print(f"[Bridge] Manual reference overlay saved: {overlay_path}")
+    print(f"[Bridge] Manual reference geometry copy saved: {geometry_path}")
+
+
+def _write_session_geometry_reference(analysis: dict[str, Any], out_path: Path) -> Path:
+    crop = analysis.get("pre_detection_crop")
+    if not isinstance(crop, dict):
+        raise RuntimeError("Initial analysis did not include pre_detection_crop metadata.")
+
+    try:
+        image_w = int(crop["source_image_width_px"])
+        image_h = int(crop["source_image_height_px"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("Initial analysis had invalid source image size metadata.") from exc
+
+    before_crop = crop.get("before")
+    if not isinstance(before_crop, dict):
+        raise RuntimeError("Initial analysis did not include before crop metadata.")
+
+    chess = _quad_entry_from_cropped(
+        analysis.get("chessboard_corners_px"),
+        crop_meta=before_crop,
+        image_w=image_w,
+        image_h=image_h,
+    )
+    if chess is None:
+        raise RuntimeError("Initial analysis did not produce chessboard corners for session geometry.")
+
+    outer = _quad_entry_from_cropped(
+        analysis.get("outer_sheet_corners_px"),
+        crop_meta=before_crop,
+        image_w=image_w,
+        image_h=image_h,
+    )
+
+    payload = {
+        "generated_by": "run_pi_software_bridge.py",
+        "source": "initial_rolling_reference",
+        "source_image": analysis.get("before_image"),
+        "latest_image_size_px": {
+            "width": image_w,
+            "height": image_h,
+        },
+        "median_geometry_for_latest_size": {
+            "outer_sheet": outer,
+            "chessboard": chess,
+        },
+    }
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    return out_path
+
+
+def _write_manual_session_geometry_reference(
+    *,
+    reference_path: Path,
+    outer_corners_px: object,
+    chessboard_corners_px: object,
+    out_path: Path,
+) -> Path:
+    image_w, image_h = _png_size(reference_path)
+    outer = _quad_entry_from_raw(outer_corners_px, image_w=image_w, image_h=image_h)
+    chess = _quad_entry_from_raw(chessboard_corners_px, image_w=image_w, image_h=image_h)
+    if outer is None:
+        raise RuntimeError("Manual geometry did not include 4 valid outer corners.")
+    if chess is None:
+        raise RuntimeError("Manual geometry did not include 4 valid inner chessboard corners.")
+
+    payload = {
+        "generated_by": "run_pi_software_bridge.py",
+        "source": "manual_startup_geometry",
+        "source_image": str(reference_path),
+        "latest_image_size_px": {
+            "width": image_w,
+            "height": image_h,
+        },
+        "median_geometry_for_latest_size": {
+            "outer_sheet": outer,
+            "chessboard": chess,
+        },
+        "per_image": [
+            {
+                "image_path": str(reference_path),
+                "image_size_px": {"width": image_w, "height": image_h},
+                "outer_sheet": outer,
+                "chessboard": chess,
+                "annotation_source": "manual_startup_click",
+            }
+        ],
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    _draw_manual_reference_overlay(
+        reference_path=reference_path,
+        outer_corners_px=outer["corners_px"],
+        chessboard_corners_px=chess["corners_px"],
+        out_dir=ROOT / "configs" / "reference_overlays" / "live_session",
+        geometry_payload=payload,
+    )
+    return out_path
+
+
+def _build_session_geometry_reference(
+    *,
+    reference_path: Path,
+    args: argparse.Namespace,
+    game: str,
+    analysis_config: Any,
+) -> dict[str, Path] | None:
+    print("[Bridge] Building live session geometry from initial reference...")
+    try:
+        analysis = _run_analysis(
+            before_path=reference_path,
+            after_path=reference_path,
+            out_dir=str(ROOT / "debug_output" / "live_geometry_init"),
+            game=game,
+            analysis_config=analysis_config,
+            fast_locked_geometry=False,
+            disable_geometry_reference_override=True,
+        )
+        session_path = _write_session_geometry_reference(analysis, Path(args.session_geometry_path))
+        outputs = analysis.get("outputs") if isinstance(analysis.get("outputs"), dict) else {}
+        preview_path_text = (
+            outputs.get("before_grid_overlay_live")
+            or outputs.get("before_grid_overlay")
+            or outputs.get("before_live_overlay")
+            or outputs.get("before_overlay")
+        )
+        preview_path = Path(str(preview_path_text)) if preview_path_text else None
+    except Exception as exc:  # noqa: BLE001
+        print(
+            "[Bridge] Warning: failed to build session geometry; "
+            f"falling back to configured geometry reference. Details: {exc}"
+        )
+        return None
+
+    print(f"[Bridge] Live session geometry saved: {session_path}")
+    if preview_path is not None:
+        print(f"[Bridge] Startup grid preview: {preview_path}")
+    return {"geometry": session_path, "preview": preview_path} if preview_path is not None else {"geometry": session_path}
+
+
 def _capture_and_analyze_two_shot(
     controller: EndTurnController,
     args: argparse.Namespace,
     game: str,
     analysis_config: Any,
 ) -> dict[str, Any]:
-    before_path = controller.capture_before()
+    before_path = controller.capture_before(reopen_stream=args.reopen_camera_each_capture)
     print(f"[Bridge] BEFORE captured: {before_path}")
 
     _wait_for_turn_trigger(args, "[Bridge] Move Player 1 piece, then press Enter to capture AFTER...")
 
-    after_path = controller.capture_after()
+    after_path = controller.capture_after(reopen_stream=args.reopen_camera_each_capture)
     print(f"[Bridge] AFTER captured: {after_path}")
 
     return _analyze_paths(before_path, after_path, args, game, analysis_config)
@@ -213,11 +521,18 @@ def _capture_and_analyze_rolling(
         f"[Bridge] Turn {turn_index}: make Player 1 move, then press Enter to capture current board...",
     )
 
-    after_path = controller.capture_after()
+    after_path = controller.capture_after(reopen_stream=args.reopen_camera_each_capture)
     print(f"[Bridge] CURRENT captured: {after_path}")
     print(f"[Bridge] Diffing previous reference -> current: {reference_path} -> {after_path}")
 
-    return _analyze_paths(reference_path, after_path, args, game, analysis_config)
+    return _analyze_paths(
+        reference_path,
+        after_path,
+        args,
+        game,
+        analysis_config,
+        fast_locked_geometry=not args.slow_live_analysis,
+    )
 
 
 def _send_moves_to_stm() -> dict[str, Any]:
@@ -272,6 +587,82 @@ def _write_json_line(conn_file: Any, obj: dict[str, Any]) -> None:
     conn_file.flush()
 
 
+def _request_manual_startup_geometry(
+    conn_file: Any,
+    *,
+    reference_path: Path,
+    geometry_path: Path,
+) -> Path | None:
+    image_b64 = base64.b64encode(reference_path.read_bytes()).decode("ascii")
+    _write_json_line(
+        conn_file,
+        {
+            "type": "geometry_calibration_request",
+            "title": "Manual Board Geometry",
+            "summary": (
+                "Click 4 green outer-grid corners first, then 4 yellow inner-grid corners. "
+                "Use order: top-left, top-right, bottom-right, bottom-left."
+            ),
+            "source_path": str(reference_path),
+            "image_png_b64": image_b64,
+        },
+    )
+    print("[Bridge] Sent initial board image to Software-GUI for manual grid selection.")
+
+    while True:
+        msg = _read_json_line(conn_file)
+        if msg.get("type") != "geometry_calibration_result":
+            print(f"[Bridge] Ignoring message while waiting for manual geometry: {msg.get('type')}")
+            continue
+        if not bool(msg.get("accepted")):
+            print("[Bridge] Manual startup geometry was cancelled.")
+            return None
+        path = _write_manual_session_geometry_reference(
+            reference_path=reference_path,
+            outer_corners_px=msg.get("outer_corners_px"),
+            chessboard_corners_px=msg.get("chessboard_corners_px"),
+            out_path=geometry_path,
+        )
+        print(f"[Bridge] Manual startup geometry saved: {path}")
+        return path
+
+
+def _confirm_startup_geometry(conn_file: Any, preview_path: Path | None, geometry_path: Path) -> bool:
+    if preview_path is None or not preview_path.exists():
+        print("[Bridge] No startup grid preview image available; using terminal confirmation.")
+        reply = input("[Bridge] Continue with this detected geometry? [y/N] ").strip().lower()
+        return reply in {"y", "yes"}
+
+    image_b64 = base64.b64encode(preview_path.read_bytes()).decode("ascii")
+    _write_json_line(
+        conn_file,
+        {
+            "type": "geometry_preview",
+            "title": "Confirm Detected Board Grid",
+            "summary": (
+                "Review the startup green/yellow grid. Click Confirm only if the board outline "
+                "and 8x8 chess/checkers grid line up with the physical board."
+            ),
+            "source_path": str(preview_path),
+            "geometry_path": str(geometry_path),
+            "image_png_b64": image_b64,
+        },
+    )
+    print("[Bridge] Sent startup grid preview to Software-GUI; waiting for Confirm...")
+
+    while True:
+        msg = _read_json_line(conn_file)
+        if msg.get("type") != "geometry_confirm":
+            print(f"[Bridge] Ignoring message while waiting for geometry confirmation: {msg.get('type')}")
+            continue
+        accepted = bool(msg.get("accepted"))
+        if accepted:
+            print("[Bridge] Startup grid confirmed.")
+        else:
+            print("[Bridge] Startup grid rejected.")
+        return accepted
+
+
 def _normalize_sequence_lines_from_p2(msg: dict[str, Any]) -> list[str]:
     seq = msg.get("stm_sequence")
     if isinstance(seq, list):
@@ -320,8 +711,40 @@ def _serve_client(
 
         if args.capture_mode == "rolling":
             input("[Bridge] Make sure the physical board matches the software state, then press Enter to capture INITIAL reference...")
-            reference_path = controller.capture_before()
+            reference_path = controller.capture_before(reopen_stream=args.reopen_camera_each_capture)
             print(f"[Bridge] Initial reference captured: {reference_path}")
+            if not args.slow_live_analysis:
+                if args.startup_geometry_mode == "manual":
+                    session_geometry = _request_manual_startup_geometry(
+                        conn_file,
+                        reference_path=reference_path,
+                        geometry_path=Path(args.session_geometry_path),
+                    )
+                    if session_geometry is None:
+                        print("[Bridge] Stopping before turn capture because manual geometry was cancelled.")
+                        return
+                    analysis_config.geometry_reference = str(session_geometry)
+                    analysis_config.disable_geometry_reference = False
+                else:
+                    session_geometry_result = _build_session_geometry_reference(
+                        reference_path=reference_path,
+                        args=args,
+                        game=game,
+                        analysis_config=analysis_config,
+                    )
+                    if session_geometry_result is not None:
+                        session_geometry = session_geometry_result["geometry"]
+                        analysis_config.geometry_reference = str(session_geometry)
+                        analysis_config.disable_geometry_reference = False
+                        if not args.skip_geometry_confirmation:
+                            accepted = _confirm_startup_geometry(
+                                conn_file,
+                                session_geometry_result.get("preview"),
+                                session_geometry,
+                            )
+                            if not accepted:
+                                print("[Bridge] Stopping before turn capture because startup geometry was rejected.")
+                                return
 
         while True:
             print("")
@@ -365,10 +788,15 @@ def _serve_client(
                 continue
 
             analysis_dir_raw = analysis_wrap.get("analysis_dir")
+            analysis_dir: Path | None = None
             if isinstance(analysis_dir_raw, str):
                 analysis_dir = Path(analysis_dir_raw)
                 (analysis_dir / "player1_resolved_move.json").write_text(
                     json.dumps(resolved.to_dict(), ensure_ascii=True, indent=2),
+                    encoding="utf-8",
+                )
+                (analysis_dir / "pi_resolver_state_after_p1.json").write_text(
+                    json.dumps(resolver.debug_state(), ensure_ascii=True, indent=2),
                     encoding="utf-8",
                 )
 
@@ -398,6 +826,11 @@ def _serve_client(
             if isinstance(p2_from, str) and isinstance(p2_to, str):
                 try:
                     resolver.apply_player2(p2_from, p2_to)
+                    if analysis_dir is not None:
+                        (analysis_dir / "pi_resolver_state_after_p2.json").write_text(
+                            json.dumps(resolver.debug_state(), ensure_ascii=True, indent=2),
+                            encoding="utf-8",
+                        )
                 except Exception as exc:  # noqa: BLE001
                     print(f"[Bridge] Warning: failed to apply P2 move in resolver state: {exc}")
 
@@ -416,7 +849,7 @@ def _serve_client(
                 print(json.dumps({"bridge_stm_result": stm_result}, indent=2))
                 if args.capture_mode == "rolling":
                     print("[Bridge] Capturing updated reference after STM32 move...")
-                    reference_path = controller.capture_before()
+                    reference_path = controller.capture_before(reopen_stream=args.reopen_camera_each_capture)
                     print(f"[Bridge] Rolling reference refreshed: {reference_path}")
 
             turn_index += 1
@@ -433,7 +866,16 @@ def main() -> int:
         config.comms.baudrate = int(args.serial_baudrate)
     setup_logging(config.paths.logs_dir)
     controller = EndTurnController(config)
-    resolver = Player1MoveResolver(config.app.game)
+    resolver = Player1MoveResolver(
+        config.app.game,
+        camera_square_orientation=config.analysis.camera_square_orientation,
+    )
+    print(
+        "[Bridge] Analysis thresholds: "
+        f"diff_threshold={config.analysis.diff_threshold} "
+        f"min_changed_ratio={config.analysis.min_changed_ratio}"
+    )
+    print(f"[Bridge] Stateful resolver initialized: {resolver.debug_state().get('persistent_state')}")
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

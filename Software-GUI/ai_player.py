@@ -167,30 +167,16 @@ def choose_p2_move(game: str, state: ChessState | CheckersState | ParcheesiState
 
 
 def choose_p2_parcheesi_move(state: ParcheesiState) -> Optional[ChosenMove]:
+    if not state.rolls_remaining:
+        state.roll_dice()
+
     quiet_move: Optional[ChosenMove] = None
-
-    for start_id in _all_square_ids():
-        start_sq = parse_square(start_id)
-        moving = state.get(start_sq)
-        if moving not in (CheckersPiece.P2_MAN, CheckersPiece.P2_KING):
-            continue
-
-        for end_id in _all_square_ids():
-            if end_id == start_id:
-                continue
-
-            end_sq = parse_square(end_id)
-            target = state.get(end_sq)
-            trial = state.copy()
-            err = trial.try_apply_p2_move(start_id, end_id)
-            if err is not None:
-                continue
-
-            is_capture = target in (CheckersPiece.P1_MAN, CheckersPiece.P1_KING)
-            candidate = ChosenMove(start_id=start_id, end_id=end_id, is_capture=is_capture)
-            if is_capture:
-                return candidate
-            if quiet_move is None:
-                quiet_move = candidate
+    for piece, start_id, end_id in state.get_possible_moves(2):
+        is_capture = state.move_is_capture(piece, end_id)
+        candidate = ChosenMove(start_id=start_id, end_id=end_id, is_capture=is_capture)
+        if is_capture:
+            return candidate
+        if quiet_move is None:
+            quiet_move = candidate
 
     return quiet_move

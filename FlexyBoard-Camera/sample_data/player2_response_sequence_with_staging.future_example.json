@@ -1,0 +1,17 @@
+{
+  "note": "Future protocol example (not yet parsed by current scripts).",
+  "stm32_move_sequence": [
+    {
+      "source": { "space": "board", "x": 2, "y": 2 },
+      "dest": { "space": "board", "x": 4, "y": 4 }
+    },
+    {
+      "source": { "space": "board", "x": 4, "y": 4 },
+      "dest": { "space": "workspace_pct", "x": 0.92, "y": 0.14 }
+    },
+    {
+      "source": { "space": "workspace_pct", "x": 0.92, "y": 0.14 },
+      "dest": { "space": "workspace_pct", "x": 0.88, "y": 0.14 }
+    }
+  ]
+}

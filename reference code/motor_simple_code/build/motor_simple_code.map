@@ -1,0 +1,373 @@
+Archive member included to satisfy reference by file (symbol)
+
+/opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-exit.o)
+                              /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o (exit)
+/opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-impure.o)
+                              /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-exit.o) (_global_impure_ptr)
+/opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-init.o)
+                              /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o (__libc_init_array)
+/opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-memset.o)
+                              /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o (memset)
+/opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libnosys.a(_exit.o)
+                              /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-exit.o) (_exit)
+
+Discarded input sections
+
+ .text          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crti.o
+ .data          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crti.o
+ .bss           0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crti.o
+ .text          0x0000000000000000       0x40 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .data          0x0000000000000000        0x4 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .bss           0x0000000000000000       0x1c /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .rodata        0x0000000000000000       0x24 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .init_array    0x0000000000000000        0x4 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .fini_array    0x0000000000000000        0x4 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .eh_frame      0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .ARM.attributes
+                0x0000000000000000       0x34 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+ .text          0x0000000000000000       0x7c /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o
+ .data          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o
+ .bss           0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o
+ .ARM.extab     0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o
+ .ARM.exidx     0x0000000000000000       0x10 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o
+ .ARM.attributes
+                0x0000000000000000       0x1c /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .text          0x0000000000000000        0x0 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .data          0x0000000000000000        0x0 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .bss           0x0000000000000000        0x0 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .comment       0x0000000000000000       0x4a /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .group         0x0000000000000000        0xc /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .text          0x0000000000000000        0x0 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .data          0x0000000000000000        0x0 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .bss           0x0000000000000000        0x0 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .text.enable_driver
+                0x0000000000000000        0x2 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .text.disable_driver
+                0x0000000000000000        0x2 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .debug_macro   0x0000000000000000      0xa60 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .debug_macro   0x0000000000000000       0x22 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .debug_macro   0x0000000000000000       0x56 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .debug_macro   0x0000000000000000       0x51 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .debug_macro   0x0000000000000000      0x103 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .debug_macro   0x0000000000000000       0x6a /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .debug_macro   0x0000000000000000      0x1df /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .comment       0x0000000000000000       0x4a /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .text          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-exit.o)
+ .data          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-exit.o)
+ .bss           0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-exit.o)
+ .text.exit     0x0000000000000000       0x28 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-exit.o)
+ .debug_frame   0x0000000000000000       0x28 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-exit.o)
+ .ARM.attributes
+                0x0000000000000000       0x34 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-exit.o)
+ .text          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-impure.o)
+ .data          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-impure.o)
+ .bss           0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-impure.o)
+ .data._impure_ptr
+                0x0000000000000000        0x4 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-impure.o)
+ .data.impure_data
+                0x0000000000000000       0x60 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-impure.o)
+ .rodata._global_impure_ptr
+                0x0000000000000000        0x4 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-impure.o)
+ .ARM.attributes
+                0x0000000000000000       0x34 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-impure.o)
+ .text          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-init.o)
+ .data          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-init.o)
+ .bss           0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-init.o)
+ .text.__libc_init_array
+                0x0000000000000000       0x48 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-init.o)
+ .debug_frame   0x0000000000000000       0x2c /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-init.o)
+ .ARM.attributes
+                0x0000000000000000       0x34 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-init.o)
+ .text          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-memset.o)
+ .data          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-memset.o)
+ .bss           0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-memset.o)
+ .text.memset   0x0000000000000000       0x10 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-memset.o)
+ .debug_frame   0x0000000000000000       0x20 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-memset.o)
+ .ARM.attributes
+                0x0000000000000000       0x34 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a(lib_a-memset.o)
+ .text          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libnosys.a(_exit.o)
+ .data          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libnosys.a(_exit.o)
+ .bss           0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libnosys.a(_exit.o)
+ .text._exit    0x0000000000000000        0x4 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libnosys.a(_exit.o)
+ .debug_frame   0x0000000000000000       0x20 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libnosys.a(_exit.o)
+ .ARM.attributes
+                0x0000000000000000       0x34 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libnosys.a(_exit.o)
+ .text          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtend.o
+ .data          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtend.o
+ .bss           0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtend.o
+ .rodata        0x0000000000000000       0x24 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtend.o
+ .eh_frame      0x0000000000000000        0x4 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtend.o
+ .ARM.attributes
+                0x0000000000000000       0x34 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtend.o
+ .text          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtn.o
+ .data          0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtn.o
+ .bss           0x0000000000000000        0x0 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtn.o
+ .init          0x0000000000000000        0x8 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtn.o
+ .fini          0x0000000000000000        0x8 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtn.o
+ .ARM.attributes
+                0x0000000000000000       0x1e /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtn.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+FLASH            0x0000000008000000 0x0000000000080000 xr
+RAM              0x0000000020000000 0x0000000000020000 xrw
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crti.o
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtbegin.o
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/crt0.o
+LOAD /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+LOAD /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+                0x0000000020020000                _estack = (ORIGIN (RAM) + LENGTH (RAM))
+
+.isr_vector     0x0000000008000000      0x194
+                0x0000000008000000                . = ALIGN (0x4)
+ *(.isr_vector)
+ .isr_vector    0x0000000008000000      0x194 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+                0x0000000008000000                g_pfn_vectors
+                0x0000000008000194                . = ALIGN (0x4)
+
+.text           0x0000000008000194      0x12c
+                0x0000000008000194                . = ALIGN (0x4)
+ *(.text*)
+ .text.Default_Handler
+                0x0000000008000194        0x2 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+                0x0000000008000194                DMA1_Stream3_IRQHandler
+                0x0000000008000194                EXTI2_IRQHandler
+                0x0000000008000194                DebugMon_Handler
+                0x0000000008000194                FMPI2C1_EV_IRQHandler
+                0x0000000008000194                SPI4_IRQHandler
+                0x0000000008000194                TIM1_CC_IRQHandler
+                0x0000000008000194                DMA2_Stream5_IRQHandler
+                0x0000000008000194                HardFault_Handler
+                0x0000000008000194                DMA1_Stream5_IRQHandler
+                0x0000000008000194                SysTick_Handler
+                0x0000000008000194                PVD_IRQHandler
+                0x0000000008000194                SDIO_IRQHandler
+                0x0000000008000194                TAMP_STAMP_IRQHandler
+                0x0000000008000194                PendSV_Handler
+                0x0000000008000194                NMI_Handler
+                0x0000000008000194                EXTI3_IRQHandler
+                0x0000000008000194                TIM1_UP_TIM10_IRQHandler
+                0x0000000008000194                I2C3_ER_IRQHandler
+                0x0000000008000194                EXTI0_IRQHandler
+                0x0000000008000194                I2C2_EV_IRQHandler
+                0x0000000008000194                DMA1_Stream2_IRQHandler
+                0x0000000008000194                CAN1_RX0_IRQHandler
+                0x0000000008000194                FPU_IRQHandler
+                0x0000000008000194                UsageFault_Handler
+                0x0000000008000194                DMA2_Stream2_IRQHandler
+                0x0000000008000194                SPI1_IRQHandler
+                0x0000000008000194                TIM1_BRK_TIM9_IRQHandler
+                0x0000000008000194                DMA2_Stream3_IRQHandler
+                0x0000000008000194                SAI2_IRQHandler
+                0x0000000008000194                USART6_IRQHandler
+                0x0000000008000194                USART3_IRQHandler
+                0x0000000008000194                CAN1_RX1_IRQHandler
+                0x0000000008000194                DMA2_Stream0_IRQHandler
+                0x0000000008000194                TIM4_IRQHandler
+                0x0000000008000194                QUADSPI_IRQHandler
+                0x0000000008000194                I2C1_EV_IRQHandler
+                0x0000000008000194                HDMI_CEC_IRQHandler
+                0x0000000008000194                DMA1_Stream6_IRQHandler
+                0x0000000008000194                DMA1_Stream1_IRQHandler
+                0x0000000008000194                TIM3_IRQHandler
+                0x0000000008000194                RCC_IRQHandler
+                0x0000000008000194                Default_Handler
+                0x0000000008000194                EXTI15_10_IRQHandler
+                0x0000000008000194                ADC_IRQHandler
+                0x0000000008000194                DMA1_Stream7_IRQHandler
+                0x0000000008000194                TIM5_IRQHandler
+                0x0000000008000194                DMA2_Stream7_IRQHandler
+                0x0000000008000194                I2C3_EV_IRQHandler
+                0x0000000008000194                EXTI9_5_IRQHandler
+                0x0000000008000194                RTC_WKUP_IRQHandler
+                0x0000000008000194                SPDIF_RX_IRQHandler
+                0x0000000008000194                SPI2_IRQHandler
+                0x0000000008000194                MemManage_Handler
+                0x0000000008000194                DMA1_Stream0_IRQHandler
+                0x0000000008000194                CAN1_TX_IRQHandler
+                0x0000000008000194                SVC_Handler
+                0x0000000008000194                FMPI2C1_ER_IRQHandler
+                0x0000000008000194                EXTI4_IRQHandler
+                0x0000000008000194                WWDG_IRQHandler
+                0x0000000008000194                TIM2_IRQHandler
+                0x0000000008000194                OTG_FS_WKUP_IRQHandler
+                0x0000000008000194                TIM1_TRG_COM_TIM11_IRQHandler
+                0x0000000008000194                EXTI1_IRQHandler
+                0x0000000008000194                USART2_IRQHandler
+                0x0000000008000194                I2C2_ER_IRQHandler
+                0x0000000008000194                DMA2_Stream1_IRQHandler
+                0x0000000008000194                CAN1_SCE_IRQHandler
+                0x0000000008000194                FLASH_IRQHandler
+                0x0000000008000194                DMA2_Stream4_IRQHandler
+                0x0000000008000194                BusFault_Handler
+                0x0000000008000194                USART1_IRQHandler
+                0x0000000008000194                OTG_FS_IRQHandler
+                0x0000000008000194                SPI3_IRQHandler
+                0x0000000008000194                DMA1_Stream4_IRQHandler
+                0x0000000008000194                I2C1_ER_IRQHandler
+                0x0000000008000194                DMA2_Stream6_IRQHandler
+                0x0000000008000194                SAI1_IRQHandler
+                0x0000000008000194                RTC_Alarm_IRQHandler
+ .text.SystemInit
+                0x0000000008000196        0x2 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+                0x0000000008000196                SystemInit
+ .text.Reset_Handler
+                0x0000000008000198       0x44 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+                0x0000000008000198                Reset_Handler
+ .text.gpio_init
+                0x00000000080001dc       0x44 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+                0x00000000080001dc                gpio_init
+ .text.delay_cycles
+                0x0000000008000220       0x16 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+                0x0000000008000220                delay_cycles
+ *fill*         0x0000000008000236        0x2 
+ .text.step_motor
+                0x0000000008000238       0x58 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+                0x0000000008000238                step_motor
+ .text.main     0x0000000008000290       0x30 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+                0x0000000008000290                main
+ *(.rodata*)
+ *(.glue_7)
+ .glue_7        0x00000000080002c0        0x0 linker stubs
+ *(.glue_7t)
+ .glue_7t       0x00000000080002c0        0x0 linker stubs
+ *(.eh_frame*)
+                0x00000000080002c0                . = ALIGN (0x4)
+
+.vfp11_veneer   0x00000000080002c0        0x0
+ .vfp11_veneer  0x00000000080002c0        0x0 linker stubs
+
+.v4_bx          0x00000000080002c0        0x0
+ .v4_bx         0x00000000080002c0        0x0 linker stubs
+
+.init           0x00000000080002c0        0x4
+ .init          0x00000000080002c0        0x4 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crti.o
+                0x00000000080002c0                _init
+
+.fini           0x00000000080002c4        0x4
+ .fini          0x00000000080002c4        0x4 /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crti.o
+                0x00000000080002c4                _fini
+
+.iplt           0x00000000080002c8        0x0
+ .iplt          0x00000000080002c8        0x0 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+
+.rel.dyn        0x00000000080002c8        0x0
+ .rel.iplt      0x00000000080002c8        0x0 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+
+.data           0x0000000020000000        0x0 load address 0x00000000080002c8
+                0x0000000020000000                . = ALIGN (0x4)
+                0x0000000020000000                _sdata = .
+ *(.data*)
+                0x0000000020000000                . = ALIGN (0x4)
+                0x0000000020000000                _edata = .
+                0x00000000080002c8                _sidata = LOADADDR (.data)
+
+.igot.plt       0x0000000020000000        0x0 load address 0x00000000080002c8
+ .igot.plt      0x0000000020000000        0x0 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+
+.bss            0x0000000020000000        0x0 load address 0x00000000080002c8
+                0x0000000020000000                . = ALIGN (0x4)
+                0x0000000020000000                _sbss = .
+ *(.bss*)
+ *(COMMON)
+                0x0000000020000000                . = ALIGN (0x4)
+                0x0000000020000000                _ebss = .
+
+/DISCARD/
+ *(.note*)
+ *(.comment*)
+START GROUP
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/libgcc.a
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libg_nano.a
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libc_nano.a
+END GROUP
+START GROUP
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/libgcc.a
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libc_nano.a
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libnosys.a
+END GROUP
+START GROUP
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/libgcc.a
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libc_nano.a
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/../../../../arm-none-eabi/lib/thumb/v7e-m+fp/hard/libnosys.a
+END GROUP
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtend.o
+LOAD /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crtn.o
+OUTPUT(/Users/christopher/Desktop/Design Code/motor_simple_code/build/motor_simple_code.elf elf32-littlearm)
+LOAD linker stubs
+
+.ARM.attributes
+                0x0000000000000000       0x30
+ .ARM.attributes
+                0x0000000000000000       0x1e /opt/homebrew/Cellar/arm-gcc-bin@10/10.3-2021.10_1/bin/../lib/gcc/arm-none-eabi/10.3.1/thumb/v7e-m+fp/hard/crti.o
+ .ARM.attributes
+                0x000000000000001e       0x34 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .ARM.attributes
+                0x0000000000000052       0x34 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+
+.debug_info     0x0000000000000000      0x3a9
+ .debug_info    0x0000000000000000      0x19b /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_info    0x000000000000019b      0x20e /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+
+.debug_abbrev   0x0000000000000000      0x208
+ .debug_abbrev  0x0000000000000000       0xec /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_abbrev  0x00000000000000ec      0x11c /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+
+.debug_loc      0x0000000000000000      0x13c
+ .debug_loc     0x0000000000000000       0x8b /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_loc     0x000000000000008b       0xb1 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+
+.debug_aranges  0x0000000000000000       0x78
+ .debug_aranges
+                0x0000000000000000       0x30 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_aranges
+                0x0000000000000030       0x48 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+
+.debug_ranges   0x0000000000000000       0x70
+ .debug_ranges  0x0000000000000000       0x20 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_ranges  0x0000000000000020       0x50 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+
+.debug_macro    0x0000000000000000      0xfba
+ .debug_macro   0x0000000000000000       0x63 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_macro   0x0000000000000063      0xa60 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_macro   0x0000000000000ac3       0x22 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_macro   0x0000000000000ae5       0x56 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_macro   0x0000000000000b3b       0x51 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_macro   0x0000000000000b8c      0x103 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_macro   0x0000000000000c8f       0x6a /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_macro   0x0000000000000cf9      0x1df /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_macro   0x0000000000000ed8       0x72 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+ .debug_macro   0x0000000000000f4a       0x70 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+
+.debug_line     0x0000000000000000      0x60e
+ .debug_line    0x0000000000000000      0x2aa /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_line    0x00000000000002aa      0x364 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+
+.debug_str      0x0000000000000000     0x3d9c
+ .debug_str     0x0000000000000000     0x3a71 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+                                       0x3bdf (size before relaxing)
+ .debug_str     0x0000000000003a71      0x32b /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o
+                                       0x3e4e (size before relaxing)
+
+.debug_frame    0x0000000000000000       0xd4
+ .debug_frame   0x0000000000000000       0x48 /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//cclvzC1x.o
+ .debug_frame   0x0000000000000048       0x8c /var/folders/wt/3lcx9pcs32q_g6d4c0r5_4k80000gn/T//ccAI5aAJ.o

@@ -188,12 +188,9 @@ def _board_occupancy_from_checkers(state_before: CheckersState) -> set[BoardCoor
 
 
 def _board_occupancy_from_parcheesi(state_before: ParcheesiState) -> set[BoardCoord]:
-    occ: set[BoardCoord] = set()
-    for y in range(8):
-        for x in range(8):
-            if state_before.board[y][x] != CheckersPiece.EMPTY:
-                occ.add((x, y))
-    return occ
+    # Parcheesi uses percent endpoints, not chess/checkers board-cell endpoints.
+    # Collision-aware board routing is therefore not applied here yet.
+    return set()
 
 
 def _checkers_capture_mid_square(start_sq: Square, end_sq: Square) -> Square | None:
@@ -206,7 +203,7 @@ def _checkers_capture_mid_square(start_sq: Square, end_sq: Square) -> Square | N
     return Square(mid_f, mid_r)
 
 
-def _parcheesi_square_to_pct(square: Square) -> PercentEndpoint:
+def _parcheesi_location_to_pct(location_id: str) -> PercentEndpoint:
     x_min = config.P2_PARCHEESI_MIN_X_PCT
     x_max = config.P2_PARCHEESI_MAX_X_PCT
     y_min = config.P2_PARCHEESI_MIN_Y_PCT
@@ -214,18 +211,17 @@ def _parcheesi_square_to_pct(square: Square) -> PercentEndpoint:
 
     span_x = max(1e-6, x_max - x_min)
     span_y = max(1e-6, y_max - y_min)
-    cell_x = span_x / 8.0
-    cell_y = span_y / 8.0
 
-    fx = square.file_index
-    fy = square.rank_index
+    gx, gy = ParcheesiState.location_id_to_grid(location_id)
+    fx = gx / float(ParcheesiState.GRID_MAX)
+    fy = gy / float(ParcheesiState.GRID_MAX)
     if config.P2_PARCHEESI_INVERT_X:
-        fx = 7 - fx
+        fx = 1.0 - fx
     if config.P2_PARCHEESI_INVERT_Y:
-        fy = 7 - fy
+        fy = 1.0 - fy
 
-    x_pct = x_min + ((float(fx) + 0.5) * cell_x)
-    y_pct = y_min + ((float(fy) + 0.5) * cell_y)
+    x_pct = x_min + (fx * span_x)
+    y_pct = y_min + (fy * span_y)
     return _pct_ep(x_pct, y_pct)
 
 
@@ -765,18 +761,22 @@ def generate_parcheesi_p2_sequence(
     end_id: str,
     capture_inventory: CaptureInventory | None = None,
 ) -> GeneratedSequence:
-    start_sq = parse_square(start_id)
-    end_sq = parse_square(end_id)
-
-    start_pct = _parcheesi_square_to_pct(start_sq)
-    end_pct = _parcheesi_square_to_pct(end_sq)
+    start_pct = _parcheesi_location_to_pct(start_id)
+    end_pct = _parcheesi_location_to_pct(end_id)
 
     capture = False
     capture_slots_used: list[str] = []
 
-    target = state_before.get(end_sq)
+    mover = state_before.piece_at_id(start_id)
+    target = state_before.piece_at_id(end_id)
     lines: list[str] = []
-    if target in (CheckersPiece.P1_MAN, CheckersPiece.P1_KING):
+    if (
+        mover is not None
+        and target is not None
+        and target.name != "EMPTY"
+        and mover.name != "EMPTY"
+        and target.to_player_num() != mover.to_player_num()
+    ):
         capture = True
         if capture_inventory is not None:
             rec = capture_inventory.add_captured_piece("p1", _piece_name(target))
@@ -785,7 +785,7 @@ def generate_parcheesi_p2_sequence(
                 f"{rec.captured_side}[{rec.slot_index}]={rec.slot.x_pct:.2f}%,{rec.slot.y_pct:.2f}%:{rec.piece_name}"
             )
         else:
-            slot_index = len(state_before.captured_by_p2)
+            slot_index = len(state_before.captured_pieces.get(target.to_player_num(), []))
             slot = _capture_slot("p1", slot_index)
             capture_slots_used.append(
                 f"p1[{slot_index}]={slot.x_pct:.2f}%,{slot.y_pct:.2f}%:{_piece_name(target)}"

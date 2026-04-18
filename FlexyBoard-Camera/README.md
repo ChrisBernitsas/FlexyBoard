@@ -121,7 +121,19 @@ This opens two Terminal windows:
 - Raspberry Pi bridge: camera/CV + STM32 dispatch
 - local `Software-GUI`: board UI + Player 2 move planning
 
-By default the launcher syncs `FlexyBoard-Camera` to the Pi first, excluding `.venv`, `debug_output`, and logs. Use `SYNC=0 ./scripts/run_full_system_mac.sh` if the Pi already has the current code.
+By default the launcher syncs `FlexyBoard-Camera` and `FlexyBoard-Motor-Control` to the Pi first. It excludes virtualenv/build/debug folders so generated files do not overwrite the Pi runtime.
+
+If the STM32 command protocol changed, flash the STM32 before launching the bridge:
+
+```bash
+cd "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera"
+FLASH_STM32=1 ./scripts/run_full_system_mac.sh
+```
+
+Useful launcher flags:
+- `SYNC=0 ./scripts/run_full_system_mac.sh`: skip syncing both repos
+- `SYNC_MOTOR=0 ./scripts/run_full_system_mac.sh`: sync camera only
+- `BRIDGE_ARGS="--once --no-stm-send" ./scripts/run_full_system_mac.sh`: one CV/GUI test turn without moving motors
 
 Run this on the Pi to host the TCP bridge used by `Software-GUI`:
 

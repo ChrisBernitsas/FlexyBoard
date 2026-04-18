@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from queue import Empty, Queue
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from ipc.protocol import P1MoveMessage, P2MoveMessage
 
@@ -35,5 +35,11 @@ class MockTransport:
             except Empty:
                 break
 
+    def poll_control_message(self, block: bool = False, timeout: float = 0.0) -> Optional[dict[str, Any]]:
+        return None
+
     def send_p2_move(self, msg: P2MoveMessage) -> None:
         self.sent_p2.append(msg)
+
+    def send_control_message(self, obj: dict[str, Any]) -> None:
+        pass

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +27,7 @@ from flexyboard_camera.vision.board_detector import (
     warp_to_board,
 )
 from flexyboard_camera.vision.diff_detector import detect_square_changes
+from flexyboard_camera.vision.diff_detector import ContourSquareCandidate, SquareChange
 from flexyboard_camera.vision.move_inference import InferenceInputs, infer_move
 from flexyboard_camera.vision.preprocess import preprocess_frame
 
@@ -466,7 +468,7 @@ def _draw_changed_overlay_on_raw(
         corners_px = np.array(square["corners_px"], dtype=np.float32).astype(np.int32).reshape(-1, 1, 2)
         cv2.polylines(vis, [corners_px], True, (0, 0, 255), 2, cv2.LINE_AA)
         center = np.array(square["center_px"], dtype=np.float32).astype(np.int32)
-        label = str(item["index"])
+        label = str(item.get("label", item["index"]))
         cv2.putText(
             vis,
             label,
@@ -501,7 +503,7 @@ def _draw_changed_overlay_on_warp(
         cv2.rectangle(vis, (x0, y0), (x1, y1), (0, 0, 255), 2, cv2.LINE_AA)
         cv2.putText(
             vis,
-            str(item["index"]),
+            str(item.get("label", item["index"])),
             (x0 + 4, y0 + 16),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
@@ -518,6 +520,7 @@ def _draw_live_regions_and_grid(
     detection: BoardDetection,
     board_size: tuple[int, int],
     label_mode: str,
+    camera_square_orientation: str,
 ) -> tuple[np.ndarray, np.ndarray]:
     regions_overlay = draw_detection_overlay(frame_bgr, detection)
     if detection.chessboard_corners is None:
@@ -534,7 +537,10 @@ def _draw_live_regions_and_grid(
         )
         return regions_overlay, grid_overlay
 
-    squares = generate_square_geometry(board_corners=detection.chessboard_corners, board_size=board_size)
+    squares = _game_labeled_squares(
+        generate_square_geometry(board_corners=detection.chessboard_corners, board_size=board_size),
+        camera_square_orientation,
+    )
     grid_overlay = draw_square_grid_overlay(regions_overlay.copy(), squares=squares, label_mode=label_mode)
     return regions_overlay, grid_overlay
 
@@ -557,8 +563,11 @@ def _write_analysis_summary_text(
                 f"index={item.get('index')} "
                 f"coord=({item.get('x')},{item.get('y')}) "
                 f"label={item.get('label')} "
+                f"raw_camera_label={item.get('raw_camera_label', item.get('label'))} "
                 f"pixel_ratio={float(item.get('pixel_ratio', 0.0)):.4f} "
-                f"delta={float(item.get('signed_intensity_delta', 0.0)):.3f}"
+                f"delta={float(item.get('signed_intensity_delta', 0.0)):.3f} "
+                f"sources={','.join(str(x) for x in item.get('detection_sources', []))}"
+                f"{' contour_rank=' + str(item.get('contour_rank')) if item.get('contour_rank') is not None else ''}"
             )
     else:
         lines.append("  - none")
@@ -581,6 +590,55 @@ def _write_analysis_summary_text(
     lines.append("")
 
     out_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _camera_coord_to_game_coord(x: int, y: int, orientation: str) -> tuple[int, int]:
+    normalized = str(orientation or "identity").strip().lower()
+    if normalized in {"identity", "image_tl_a1_tr_h1_br_h8_bl_a8"}:
+        return x, y
+    if normalized == "image_tl_a1_tr_a8_br_h8_bl_h1":
+        return y, x
+    if normalized == "image_tr_a1_br_a8_bl_h8_tl_h1":
+        return 7 - y, x
+    raise ValueError(f"unsupported camera square orientation: {orientation!r}")
+
+
+def _game_label_from_camera_coord(x: int, y: int, orientation: str) -> str:
+    gx, gy = _camera_coord_to_game_coord(x, y, orientation)
+    return BoardCoord(x=gx, y=gy).to_algebraic()
+
+
+def _game_labeled_squares(squares: list[object], orientation: str) -> list[object]:
+    labeled: list[object] = []
+    for square in squares:
+        x = getattr(square, "x")
+        y = getattr(square, "y")
+        labeled.append(replace(square, label=_game_label_from_camera_coord(int(x), int(y), orientation)))
+    return labeled
+
+
+def _square_change_payload(change: SquareChange | ContourSquareCandidate, *, index: int, orientation: str) -> dict[str, object]:
+    raw_camera_label = BoardCoord(x=change.coord.x, y=change.coord.y).to_algebraic()
+    game_label = _game_label_from_camera_coord(change.coord.x, change.coord.y, orientation)
+    payload: dict[str, object] = {
+        "index": index,
+        "x": change.coord.x,
+        "y": change.coord.y,
+        "label": game_label,
+        "raw_camera_label": raw_camera_label,
+        "pixel_ratio": change.pixel_ratio,
+        "signed_intensity_delta": change.signed_intensity_delta,
+    }
+    detection_sources = getattr(change, "detection_sources", None)
+    if detection_sources:
+        payload["detection_sources"] = list(detection_sources)
+    contour_area = getattr(change, "contour_area", 0.0)
+    contour_rank = getattr(change, "contour_rank", None)
+    if contour_area:
+        payload["contour_area"] = float(contour_area)
+    if contour_rank is not None:
+        payload["contour_rank"] = int(contour_rank)
+    return payload
 
 
 def _clamp_ratio(raw: float) -> float:
@@ -791,6 +849,14 @@ def main() -> int:
         help="How to annotate each detected board square",
     )
     parser.add_argument(
+        "--camera-square-orientation",
+        default="identity",
+        help=(
+            "Mapping from image-grid cells to game squares. Supported: identity, "
+            "image_tl_a1_tr_a8_br_h8_bl_h1."
+        ),
+    )
+    parser.add_argument(
         "--warp-alignment-mode",
         default="independent",
         choices=("independent", "auto_shared_after"),
@@ -802,6 +868,14 @@ def main() -> int:
     )
     parser.add_argument("--out-dir", default=None, help="Output folder (default: debug_output/board_analysis_<timestamp>)")
     parser.add_argument("--json-out", default=None, help="Optional explicit JSON path")
+    parser.add_argument(
+        "--fast-locked-geometry",
+        action="store_true",
+        help=(
+            "Skip live board-region detection and use --geometry-reference as the locked board geometry. "
+            "This is intended for live play after a session geometry reference has been built."
+        ),
+    )
     parser.add_argument(
         "--crop-left-ratio",
         type=float,
@@ -877,6 +951,7 @@ def main() -> int:
     fallback_margins = _parse_quad(args.fallback_margins)
     tape_projection_enabled = bool(args.enable_tape_projection) and not bool(args.disable_tape_projection)
     inner_from_outer_reference_path = Path(args.inner_from_outer_reference)
+    reference_path = Path(args.geometry_reference)
     game_lower = str(args.game).strip().lower()
     supports_inner_from_outer = game_lower in {"chess", "checkers"}
     inner_from_outer_reference_status = "unsupported_game"
@@ -900,44 +975,81 @@ def main() -> int:
         else fallback_margins
     )
 
+    preloaded_ref_board: np.ndarray | None = None
+    preloaded_ref_outer: np.ndarray | None = None
+    preloaded_ref_status = "not_loaded"
+    fast_locked_geometry_used = False
+    if bool(args.fast_locked_geometry) and not bool(args.disable_geometry_reference):
+        preloaded_ref_board, preloaded_ref_outer, preloaded_ref_status = _load_reference_geometry(
+            reference_path=reference_path,
+            image_w=full_w,
+            image_h=full_h,
+        )
+        preloaded_ref_board = _shift_quad_for_crop(preloaded_ref_board, crop_x0=crop_x0, crop_y0=crop_y0)
+        preloaded_ref_outer = _shift_quad_for_crop(preloaded_ref_outer, crop_x0=crop_x0, crop_y0=crop_y0)
+        fast_locked_geometry_used = preloaded_ref_board is not None
+
     before_debug: dict[str, object] = {}
-    before_detection = detect_board_regions(
-        frame_bgr=before_raw,
-        board_size=board_size,
-        outer_sheet_hsv_lower=hsv_lower,
-        outer_sheet_hsv_upper=hsv_upper,
-        min_outer_area_ratio=float(args.min_outer_area_ratio),
-        max_outer_area_to_chessboard_ratio=float(args.max_outer_to_chess_ratio),
-        fallback_outer_margins_squares=fallback_margins,
-        outer_candidate_mode=args.outer_candidate_mode,
-        enable_tape_projection=tape_projection_enabled,
-        debug=before_debug,
-    )
     after_debug: dict[str, object] = {}
-    after_detection = detect_board_regions(
-        frame_bgr=after_raw,
-        board_size=board_size,
-        outer_sheet_hsv_lower=hsv_lower,
-        outer_sheet_hsv_upper=hsv_upper,
-        min_outer_area_ratio=float(args.min_outer_area_ratio),
-        max_outer_area_to_chessboard_ratio=float(args.max_outer_to_chess_ratio),
-        fallback_outer_margins_squares=fallback_margins,
-        outer_candidate_mode=args.outer_candidate_mode,
-        enable_tape_projection=tape_projection_enabled,
-        debug=after_debug,
-    )
-    # Keep raw detector-selected outer quads for algorithm_live overlays.
-    before_outer_candidate_raw = (
-        before_detection.outer_sheet_corners.astype(np.float32).copy()
-        if before_detection.outer_sheet_corners is not None
-        else None
-    )
-    after_outer_candidate_raw = (
-        after_detection.outer_sheet_corners.astype(np.float32).copy()
-        if after_detection.outer_sheet_corners is not None
-        else None
-    )
-    reference_path = Path(args.geometry_reference)
+    if fast_locked_geometry_used:
+        before_detection = BoardDetection(
+            outer_sheet_corners=preloaded_ref_outer.astype(np.float32).copy()
+            if preloaded_ref_outer is not None
+            else None,
+            chessboard_corners=preloaded_ref_board.astype(np.float32).copy()
+            if preloaded_ref_board is not None
+            else None,
+        )
+        after_detection = BoardDetection(
+            outer_sheet_corners=preloaded_ref_outer.astype(np.float32).copy()
+            if preloaded_ref_outer is not None
+            else None,
+            chessboard_corners=preloaded_ref_board.astype(np.float32).copy()
+            if preloaded_ref_board is not None
+            else None,
+        )
+        before_debug["fast_locked_geometry"] = True
+        after_debug["fast_locked_geometry"] = True
+        before_debug["fast_locked_geometry_reference_status"] = preloaded_ref_status
+        after_debug["fast_locked_geometry_reference_status"] = preloaded_ref_status
+        before_outer_candidate_raw = None
+        after_outer_candidate_raw = None
+    else:
+        before_detection = detect_board_regions(
+            frame_bgr=before_raw,
+            board_size=board_size,
+            outer_sheet_hsv_lower=hsv_lower,
+            outer_sheet_hsv_upper=hsv_upper,
+            min_outer_area_ratio=float(args.min_outer_area_ratio),
+            max_outer_area_to_chessboard_ratio=float(args.max_outer_to_chess_ratio),
+            fallback_outer_margins_squares=fallback_margins,
+            outer_candidate_mode=args.outer_candidate_mode,
+            enable_tape_projection=tape_projection_enabled,
+            debug=before_debug,
+        )
+        after_detection = detect_board_regions(
+            frame_bgr=after_raw,
+            board_size=board_size,
+            outer_sheet_hsv_lower=hsv_lower,
+            outer_sheet_hsv_upper=hsv_upper,
+            min_outer_area_ratio=float(args.min_outer_area_ratio),
+            max_outer_area_to_chessboard_ratio=float(args.max_outer_to_chess_ratio),
+            fallback_outer_margins_squares=fallback_margins,
+            outer_candidate_mode=args.outer_candidate_mode,
+            enable_tape_projection=tape_projection_enabled,
+            debug=after_debug,
+        )
+        # Keep raw detector-selected outer quads for algorithm_live overlays.
+        before_outer_candidate_raw = (
+            before_detection.outer_sheet_corners.astype(np.float32).copy()
+            if before_detection.outer_sheet_corners is not None
+            else None
+        )
+        after_outer_candidate_raw = (
+            after_detection.outer_sheet_corners.astype(np.float32).copy()
+            if after_detection.outer_sheet_corners is not None
+            else None
+        )
     ref_board: np.ndarray | None = None
     ref_outer: np.ndarray | None = None
     ref_status = "disabled"
@@ -950,13 +1062,18 @@ def main() -> int:
     outer_size_lock_details: dict[str, object] = {}
 
     if not bool(args.disable_geometry_reference):
-        ref_board, ref_outer, ref_status = _load_reference_geometry(
-            reference_path=reference_path,
-            image_w=full_w,
-            image_h=full_h,
-        )
-        ref_board = _shift_quad_for_crop(ref_board, crop_x0=crop_x0, crop_y0=crop_y0)
-        ref_outer = _shift_quad_for_crop(ref_outer, crop_x0=crop_x0, crop_y0=crop_y0)
+        if preloaded_ref_status != "not_loaded":
+            ref_board = preloaded_ref_board
+            ref_outer = preloaded_ref_outer
+            ref_status = preloaded_ref_status
+        else:
+            ref_board, ref_outer, ref_status = _load_reference_geometry(
+                reference_path=reference_path,
+                image_w=full_w,
+                image_h=full_h,
+            )
+            ref_board = _shift_quad_for_crop(ref_board, crop_x0=crop_x0, crop_y0=crop_y0)
+            ref_outer = _shift_quad_for_crop(ref_outer, crop_x0=crop_x0, crop_y0=crop_y0)
         ref_board_area = _quad_area_px2(ref_board)
         ref_outer_area = _quad_area_px2(ref_outer)
         if (
@@ -1320,20 +1437,29 @@ def main() -> int:
         detection=before_live_detection,
         board_size=board_size,
         label_mode=args.label_mode,
+        camera_square_orientation=args.camera_square_orientation,
     )
     after_live_regions_overlay, after_live_grid_overlay = _draw_live_regions_and_grid(
         frame_bgr=after_raw,
         detection=after_live_detection,
         board_size=board_size,
         label_mode=args.label_mode,
+        camera_square_orientation=args.camera_square_orientation,
     )
 
     before_squares = generate_square_geometry(board_corners=locked_board, board_size=board_size)
     after_squares = generate_square_geometry(board_corners=locked_board, board_size=board_size)
+    before_squares_labeled = _game_labeled_squares(before_squares, args.camera_square_orientation)
+    after_squares_labeled = _game_labeled_squares(after_squares, args.camera_square_orientation)
     squares_payload = [item.to_dict() for item in after_squares]
+    for item in squares_payload:
+        raw_camera_label = str(item.get("label"))
+        game_label = _game_label_from_camera_coord(int(item["x"]), int(item["y"]), args.camera_square_orientation)
+        item["raw_camera_label"] = raw_camera_label
+        item["label"] = game_label
     squares_by_coord = {(int(item["x"]), int(item["y"])): item for item in squares_payload}
-    before_grid_overlay = draw_square_grid_overlay(before_overlay, squares=before_squares, label_mode=args.label_mode)
-    after_grid_overlay = draw_square_grid_overlay(after_overlay, squares=after_squares, label_mode=args.label_mode)
+    before_grid_overlay = draw_square_grid_overlay(before_overlay, squares=before_squares_labeled, label_mode=args.label_mode)
+    after_grid_overlay = draw_square_grid_overlay(after_overlay, squares=after_squares_labeled, label_mode=args.label_mode)
 
     warped_before, _ = warp_to_board(
         frame_bgr=before_raw,
@@ -1371,15 +1497,13 @@ def main() -> int:
     cols, _rows = board_size
     for change in diff.changes:
         index = change.coord.y * cols + change.coord.x
-        changed_squares.append(
-            {
-                "index": index,
-                "x": change.coord.x,
-                "y": change.coord.y,
-                "label": BoardCoord(x=change.coord.x, y=change.coord.y).to_algebraic(),
-                "pixel_ratio": change.pixel_ratio,
-                "signed_intensity_delta": change.signed_intensity_delta,
-            }
+        changed_squares.append(_square_change_payload(change, index=index, orientation=args.camera_square_orientation))
+
+    contour_changed_squares: list[dict[str, object]] = []
+    for candidate in diff.contour_candidates:
+        index = candidate.coord.y * cols + candidate.coord.x
+        contour_changed_squares.append(
+            _square_change_payload(candidate, index=index, orientation=args.camera_square_orientation)
         )
 
     inferred = infer_move(
@@ -1474,6 +1598,11 @@ def main() -> int:
             "status": ref_status,
             "used": geometry_reference_used,
         },
+        "fast_locked_geometry": {
+            "requested": bool(args.fast_locked_geometry),
+            "used": bool(fast_locked_geometry_used),
+            "reference_status": preloaded_ref_status,
+        },
         "outer_size_lock": {
             "enabled": outer_size_lock_target_ratio is not None,
             "target_outer_to_chess_ratio": outer_size_lock_target_ratio,
@@ -1553,6 +1682,8 @@ def main() -> int:
         "squares": squares_payload,
         "changed_squares": changed_squares,
         "changed_square_count": len(changed_squares),
+        "contour_changed_squares": contour_changed_squares,
+        "contour_changed_square_count": len(contour_changed_squares),
         "inferred_move": inferred.to_dict(),
         "outputs": outputs,
         "detector_debug": {

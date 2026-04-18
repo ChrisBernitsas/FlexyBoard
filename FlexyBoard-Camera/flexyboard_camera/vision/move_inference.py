@@ -145,7 +145,18 @@ def infer_move(inputs: InferenceInputs, classifier: PieceClassifier | None = Non
         and (not source_after_occupied)
         and dest_before_occupied
     )
-    capture_by_changed_count = source != destination and len(inputs.changes) > 2
+    # Contour assist can intentionally keep weak extra squares so the legal
+    # resolver has context, but weak noise should not imply a capture by itself.
+    significant_changed_count = sum(
+        1
+        for change in inputs.changes
+        if change.pixel_ratio >= 0.12 or abs(change.signed_intensity_delta) >= 5.0
+    )
+    capture_by_changed_count = (
+        inputs.game.lower() != "chess"
+        and source != destination
+        and significant_changed_count > 2
+    )
     capture_guess = capture_by_destination_prior or capture_by_changed_count
 
     return MoveEvent(
@@ -157,6 +168,7 @@ def infer_move(inputs: InferenceInputs, classifier: PieceClassifier | None = Non
         confidence=confidence,
         metadata={
             "changed_count": len(inputs.changes),
+            "significant_changed_count": significant_changed_count,
             "classifier_confidence": piece_conf,
             "source_score": source_candidate[1],
             "dest_score": dest_candidate[1],

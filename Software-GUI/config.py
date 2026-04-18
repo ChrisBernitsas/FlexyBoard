@@ -9,13 +9,16 @@ TRANSPORT = os.environ.get("P2_TRANSPORT", "tcp").lower()
 
 TCP_HOST = os.environ.get("P2_TCP_HOST", "flexyboard-pi.local")
 TCP_PORT = int(os.environ.get("P2_TCP_PORT", "8765"))
+TCP_CONNECT_RETRIES = int(os.environ.get("P2_TCP_CONNECT_RETRIES", "180"))
+TCP_CONNECT_RETRY_DELAY_SEC = float(os.environ.get("P2_TCP_CONNECT_RETRY_DELAY_SEC", "1.0"))
 
-WINDOW_WIDTH = int(os.environ.get("P2_WINDOW_W", "900"))
-WINDOW_HEIGHT = int(os.environ.get("P2_WINDOW_H", "720"))
+WINDOW_WIDTH = int(os.environ.get("P2_WINDOW_W", "1040"))
+WINDOW_HEIGHT = int(os.environ.get("P2_WINDOW_H", "760"))
 
 # "human" (drag-drop in UI) or "ai" (auto-pick legal P2 move)
 # Runtime can be toggled in the GUI via mode button.
 CONTROL_MODE = os.environ.get("P2_CONTROL_MODE", "human").lower()
+START_GAME = os.environ.get("P2_START_GAME", "").strip().lower()
 
 # Write the motor move sequence for the latest P2 move.
 WRITE_STM_SEQUENCE = os.environ.get("P2_WRITE_STM_SEQUENCE", "1").strip() not in {"0", "false", "False"}
@@ -83,6 +86,9 @@ P2_PROMOTION_REQUIRE_MANUAL_IF_MISSING = (
 # Debug overlay in GUI for captured-slot inventory visibility.
 P2_SHOW_CAPTURE_INVENTORY_OVERLAY = (
     os.environ.get("P2_SHOW_CAPTURE_INVENTORY_OVERLAY", "1").strip() not in {"0", "false", "False"}
+)
+P2_SHOW_EMPTY_CAPTURE_INVENTORY_OVERLAY = (
+    os.environ.get("P2_SHOW_EMPTY_CAPTURE_INVENTORY_OVERLAY", "0").strip() not in {"0", "false", "False"}
 )
 P2_CAPTURE_INVENTORY_OVERLAY_MAX_LINES = int(os.environ.get("P2_CAPTURE_INVENTORY_OVERLAY_MAX_LINES", "8"))
 

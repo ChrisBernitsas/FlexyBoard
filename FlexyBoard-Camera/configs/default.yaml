@@ -32,13 +32,16 @@ analysis:
   # Lower diff_threshold/min_changed_ratio if slightly misaligned pieces are missed.
   label_mode: index
   inner_shrink: 0.02
-  diff_threshold: 45
-  min_changed_ratio: 0.28
+  diff_threshold: 30
+  min_changed_ratio: 0.20
   outer_candidate_mode: auto
   disable_tape_projection: true
   board_lock_source: before
   geometry_reference: configs/before_geometry_reference.json
   disable_geometry_reference: false
+  # Camera image orientation for mapping detected grid cells into chess/checkers squares.
+  # Assumes: top-left=a1, top-right=a8, bottom-right=h8, bottom-left=h1.
+  camera_square_orientation: image_tl_a1_tr_a8_br_h8_bl_h1
 
 classifier:
   enabled: false
@@ -51,6 +54,11 @@ classifier:
 board:
   square_size_mm: 50.0
   origin_offset_mm: [0.0, 0.0]
+
+motor:
+  # Board endpoints from Software-GUI are game coordinates (a1=(0,0), h8=(7,7)).
+  # The motor board origin is physically at the top-right camera corner, a8.
+  board_orientation: game_a8_at_motor_00
 
 comms:
   port: mock://stm32  # set to /dev/ttyACM0 (or similar) on Pi for real STM32 over USB

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import socket
 import threading
+import time
 from queue import Queue, Empty
-from typing import Optional
+from typing import Any, Optional
 
 from ipc.protocol import P1MoveMessage, P2MoveMessage, decode_line, encode_line
 
@@ -23,11 +24,25 @@ class TcpClientTransport:
         self._sock: Optional[socket.socket] = None
         self._buf = bytearray()
         self._incoming: Queue[P1MoveMessage] = Queue()
+        self._control: Queue[dict[str, Any]] = Queue()
         self._reader_thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
 
-    def connect(self) -> None:
-        s = socket.create_connection((self._host, self._port), timeout=10.0)
+    def connect(self, retries: int = 1, retry_delay_sec: float = 1.0) -> None:
+        attempts = max(1, retries)
+        last_error: OSError | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                s = socket.create_connection((self._host, self._port), timeout=3.0)
+                break
+            except OSError as exc:
+                last_error = exc
+                if attempt >= attempts:
+                    raise
+                time.sleep(max(0.0, retry_delay_sec))
+        else:
+            assert last_error is not None
+            raise last_error
         s.settimeout(0.5)
         self._sock = s
         self._stop.clear()
@@ -63,11 +78,22 @@ class TcpClientTransport:
             except Empty:
                 break
 
+    def poll_control_message(self, block: bool = False, timeout: float = 0.0) -> Optional[dict[str, Any]]:
+        try:
+            return self._control.get(block=block, timeout=timeout if block else 0)
+        except Empty:
+            return None
+
     def send_p2_move(self, msg: P2MoveMessage) -> None:
         if not self._sock:
             raise RuntimeError("not connected")
         data = encode_line(msg.to_obj())
         self._sock.sendall(data)
+
+    def send_control_message(self, obj: dict[str, Any]) -> None:
+        if not self._sock:
+            raise RuntimeError("not connected")
+        self._sock.sendall(encode_line(obj))
 
     def _read_loop(self) -> None:
         assert self._sock is not None
@@ -87,3 +113,5 @@ class TcpClientTransport:
                 decoded = decode_line(bytes(line))
                 if isinstance(decoded, P1MoveMessage):
                     self._incoming.put(decoded)
+                elif isinstance(decoded, dict):
+                    self._control.put(decoded)

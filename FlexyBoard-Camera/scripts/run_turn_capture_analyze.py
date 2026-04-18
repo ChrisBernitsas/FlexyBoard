@@ -95,6 +95,8 @@ def _run_analysis(
         analysis_config.board_lock_source,
         "--geometry-reference",
         _repo_relative_path(analysis_config.geometry_reference),
+        "--camera-square-orientation",
+        analysis_config.camera_square_orientation,
     ]
     if analysis_config.disable_tape_projection:
         cmd.append("--disable-tape-projection")

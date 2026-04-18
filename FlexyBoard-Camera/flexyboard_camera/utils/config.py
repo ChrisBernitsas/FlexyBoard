@@ -53,12 +53,18 @@ class AnalysisConfig:
     board_lock_source: str
     geometry_reference: str
     disable_geometry_reference: bool
+    camera_square_orientation: str
 
 
 @dataclass(slots=True)
 class BoardConfig:
     square_size_mm: float
     origin_offset_mm: tuple[float, float]
+
+
+@dataclass(slots=True)
+class MotorConfig:
+    board_orientation: str
 
 
 @dataclass(slots=True)
@@ -103,12 +109,14 @@ class Config:
     paths: PathsConfig
     safety: SafetyConfig
     classifier: ClassifierConfig
+    motor: MotorConfig
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Config":
         camera_raw = data["camera"]
         classifier_raw = data.get("classifier", {})
         analysis_raw = data.get("analysis", {})
+        motor_raw = data.get("motor", {})
         return cls(
             app=AppConfig(**data["app"]),
             camera=CameraConfig(
@@ -151,10 +159,14 @@ class Config:
                     analysis_raw.get("geometry_reference", "configs/before_geometry_reference.json")
                 ),
                 disable_geometry_reference=bool(analysis_raw.get("disable_geometry_reference", False)),
+                camera_square_orientation=str(analysis_raw.get("camera_square_orientation", "identity")),
             ),
             board=BoardConfig(
                 square_size_mm=float(data["board"]["square_size_mm"]),
                 origin_offset_mm=tuple(data["board"]["origin_offset_mm"]),
+            ),
+            motor=MotorConfig(
+                board_orientation=str(motor_raw.get("board_orientation", "identity")),
             ),
             comms=CommsConfig(**data["comms"]),
             paths=PathsConfig(**data["paths"]),

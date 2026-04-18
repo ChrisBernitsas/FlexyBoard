@@ -209,9 +209,30 @@ Press **Esc** to return to the **game select** menu.
 
 ### Parcheesi mode notes (v1)
 
-- Current Parcheesi support is integration-focused: token moves are tracked on an 8x8 square ID layer (`a1..h8`) and translated to percent coordinates for motor output.
-- This mode does not yet enforce full official Parcheesi dice/home/blockade/safety rules.
-- Use this mode to validate Pi -> GUI -> planner -> STM physical flow with percent-based moves.
+- Parcheesi now uses explicit location IDs for the full board:
+  - `nest_2_1`
+  - `main_17`
+  - `home_2_3`
+  - `homearea_2_1`
+- The GUI renders four nests, the 68-space main track, safe/start spaces, home paths, and home area.
+- Rules enforced in software include dice entry on 5, remaining dice, safe squares, blockades, captures, and exact home entry.
+- The motor planner converts Parcheesi location IDs into percent-based green-grid coordinates for STM movement.
+
+Run the GUI without a Pi connection:
+
+```bash
+cd "/Users/christopher/Desktop/Design Code/Software-GUI"
+source .venv/bin/activate
+P2_TRANSPORT=mock python3 main.py
+```
+
+Directly open Parcheesi:
+
+```bash
+cd "/Users/christopher/Desktop/Design Code/Software-GUI"
+source .venv/bin/activate
+P2_TRANSPORT=mock P2_START_GAME=parcheesi python3 main.py
+```
 
 ### Chess piece images (optional)
 
