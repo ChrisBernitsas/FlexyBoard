@@ -72,6 +72,32 @@ shell_quote() {
   printf "%q" "$1"
 }
 
+kill_remote_port_process() {
+  local port="$1"
+  local pids_to_kill=""
+
+  echo "Checking for processes using port ${port} on ${PI_USER}@${PI_HOST}..."
+  if [[ -n "${PI_PASSWORD}" ]]; then
+    pids_to_kill=$(SSHPASS="${PI_PASSWORD}" sshpass -e ssh "${PI_USER}@${PI_HOST}" "lsof -t -i :${port}" 2>/dev/null || true)
+  else
+    pids_to_kill=$(ssh "${PI_USER}@${PI_HOST}" "lsof -t -i :${port}" 2>/dev/null || true)
+  fi
+
+  if [[ -n "${pids_to_kill}" ]]; then
+    echo "Found processes using port ${port}: ${pids_to_kill}. Killing them..."
+    for pid in ${pids_to_kill}; do
+      if [[ -n "${PI_PASSWORD}" ]]; then
+        SSHPASS="${PI_PASSWORD}" sshpass -e ssh "${PI_USER}@${PI_HOST}" "kill ${pid}" || true
+      else
+        ssh "${PI_USER}@${PI_HOST}" "kill ${pid}" || true
+      fi
+      echo "Process ${pid} killed."
+    done
+  else
+    echo "No process found using port ${port}."
+  fi
+}
+
 if [[ ! -d "${GUI_DIR}" ]]; then
   echo "Missing Software-GUI folder at: ${GUI_DIR}"
   exit 1
@@ -145,6 +171,8 @@ elif [[ "${FLASH_STM32}" != "0" ]]; then
   echo "FLASH_STM32 must be 0 or 1, got: ${FLASH_STM32}"
   exit 2
 fi
+
+kill_remote_port_process "${BRIDGE_PORT}"
 
 REMOTE_BRIDGE_CMD="cd '${PI_CAMERA_REPO}' && source .venv/bin/activate && python3 scripts/run_pi_software_bridge.py --capture-mode rolling --port '${BRIDGE_PORT}' ${BRIDGE_ARGS}"
 if [[ -n "${PI_PASSWORD}" ]]; then

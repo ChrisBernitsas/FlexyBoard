@@ -2,18 +2,29 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
 import re
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
-MOVE_FILE = Path(__file__).resolve().parents[1] / "sample_data" / "stm32_move_sequence.txt"
-MOTOR_MAIN_H = Path(__file__).resolve().parents[2] / "FlexyBoard-Motor-Control" / "Inc" / "main.h"
-SERIAL_PORT = "/dev/ttyACM0"
+try:
+    import yaml
+except Exception:  # pragma: no cover - runtime fallback if PyYAML is unavailable
+    yaml = None  # type: ignore[assignment]
+
+ROOT = Path(__file__).resolve().parents[1]
+MOVE_FILE = ROOT / "sample_data" / "stm32_move_sequence.txt"
+DEFAULT_CONFIG_FILE = ROOT / "configs" / "default.yaml"
+MOTOR_MAIN_H = ROOT.parents[0] / "FlexyBoard-Motor-Control" / "Inc" / "main.h"
+DEFAULT_SERIAL_PORT = "/dev/ttyACM0" if platform.system() == "Linux" else "/dev/cu.usbmodem103"
+SERIAL_PORT = os.environ.get("FLEXY_SERIAL_PORT", DEFAULT_SERIAL_PORT)
 SERIAL_BAUDRATE = 115200
 SERIAL_TIMEOUT_SEC = 8.0
 RETURN_START_DELAY_SEC = 1.0
+DEFAULT_MOTOR_BOARD_ORIENTATION = "game_a8_at_motor_00"
 
 try:
     import serial  # type: ignore
@@ -144,13 +155,48 @@ def _load_board_mapping_constants() -> dict[str, int]:
     return {k: _parse_define_int(text, k) for k in keys}
 
 
-def _board_to_steps(board_x: int, board_y: int, c: dict[str, int]) -> tuple[int, int]:
+def _load_motor_board_orientation() -> str:
+    if yaml is None or not DEFAULT_CONFIG_FILE.exists():
+        return DEFAULT_MOTOR_BOARD_ORIENTATION
+    try:
+        data = yaml.safe_load(DEFAULT_CONFIG_FILE.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return DEFAULT_MOTOR_BOARD_ORIENTATION
+    motor = data.get("motor", {})
+    if not isinstance(motor, dict):
+        return DEFAULT_MOTOR_BOARD_ORIENTATION
+    return str(motor.get("board_orientation", DEFAULT_MOTOR_BOARD_ORIENTATION)).strip().lower()
+
+
+def _game_to_motor_board_coord(
+    board_x: int,
+    board_y: int,
+    *,
+    max_i: int,
+    orientation: str,
+) -> tuple[int, int]:
+    normalized = str(orientation or "identity").strip().lower()
+    if normalized in {"identity", "game_a1_at_motor_00"}:
+        return board_x, board_y
+    if normalized == "game_a8_at_motor_00":
+        return max_i - board_y, board_x
+    raise ValueError(f"Unsupported motor board_orientation: {orientation!r}")
+
+
+def _board_to_steps(board_x: int, board_y: int, c: dict[str, int], orientation: str) -> tuple[int, int]:
     max_i = c["BOARD_GRID_MAX_INDEX"]
     if board_x < 0 or board_x > max_i or board_y < 0 or board_y > max_i:
         raise ValueError(f"Board coordinate out of range: ({board_x},{board_y})")
 
-    u = float(board_x) / float(max_i)
-    v = float(board_y) / float(max_i)
+    motor_x, motor_y = _game_to_motor_board_coord(
+        board_x,
+        board_y,
+        max_i=max_i,
+        orientation=orientation,
+    )
+
+    u = float(motor_x) / float(max_i)
+    v = float(motor_y) / float(max_i)
 
     x_interp = (
         (1.0 - u) * (1.0 - v) * float(c["CORNER_00_X_STEPS"])
@@ -191,13 +237,26 @@ def _percent_to_steps(pct_x: float, pct_y: float, c: dict[str, int]) -> tuple[in
     return x_steps, y_steps
 
 
-def _endpoint_to_steps(endpoint: dict[str, Any], c: dict[str, int]) -> tuple[int, int]:
+def _endpoint_to_steps(endpoint: dict[str, Any], c: dict[str, int], orientation: str) -> tuple[int, int]:
     kind = endpoint.get("kind")
     if kind == "board":
-        return _board_to_steps(int(endpoint["x"]), int(endpoint["y"]), c)
+        return _board_to_steps(int(endpoint["x"]), int(endpoint["y"]), c, orientation)
     if kind == "pct":
         return _percent_to_steps(float(endpoint["x_pct"]), float(endpoint["y_pct"]), c)
     raise ValueError(f"Unsupported endpoint kind: {kind}")
+
+
+def _endpoint_to_motor_board(endpoint: dict[str, Any], c: dict[str, int], orientation: str) -> dict[str, Any] | None:
+    if endpoint.get("kind") != "board":
+        return None
+    max_i = c["BOARD_GRID_MAX_INDEX"]
+    motor_x, motor_y = _game_to_motor_board_coord(
+        int(endpoint["x"]),
+        int(endpoint["y"]),
+        max_i=max_i,
+        orientation=orientation,
+    )
+    return {"x": motor_x, "y": motor_y, "text": f"{motor_x},{motor_y}"}
 
 
 def _endpoint_label(endpoint: dict[str, Any]) -> str:
@@ -209,7 +268,7 @@ def _endpoint_label(endpoint: dict[str, Any]) -> str:
     return str(endpoint)
 
 
-def _build_stage_summary(planned_moves: list[dict[str, Any]], c: dict[str, int]) -> list[dict[str, Any]]:
+def _build_stage_summary(planned_moves: list[dict[str, Any]], c: dict[str, int], orientation: str) -> list[dict[str, Any]]:
     stages: list[dict[str, Any]] = []
     prev_x = 0
     prev_y = 0
@@ -217,8 +276,8 @@ def _build_stage_summary(planned_moves: list[dict[str, Any]], c: dict[str, int])
     for idx, move in enumerate(planned_moves, start=1):
         src = move["source"]
         dst = move["dest"]
-        src_x, src_y = _endpoint_to_steps(src, c)
-        dst_x, dst_y = _endpoint_to_steps(dst, c)
+        src_x, src_y = _endpoint_to_steps(src, c, orientation)
+        dst_x, dst_y = _endpoint_to_steps(dst, c, orientation)
 
         stage_points = [
             (f"move_{idx}_to_source", src_x, src_y),
@@ -273,7 +332,8 @@ def main() -> int:
 
     try:
         mapping_constants = _load_board_mapping_constants()
-        planned_stage_steps = _build_stage_summary(planned_moves, mapping_constants)
+        motor_board_orientation = _load_motor_board_orientation()
+        planned_stage_steps = _build_stage_summary(planned_moves, mapping_constants, motor_board_orientation)
     except Exception as exc:  # noqa: BLE001
         print(
             json.dumps(
@@ -300,6 +360,8 @@ def main() -> int:
         "status_checkpoints": [],
         "return_start_delay_sec": RETURN_START_DELAY_SEC,
         "mapping_header": str(MOTOR_MAIN_H),
+        "config_file": str(DEFAULT_CONFIG_FILE),
+        "motor_board_orientation": motor_board_orientation,
         "planned_stage_steps": planned_stage_steps,
         "position_report": [],
     }
@@ -343,8 +405,16 @@ def main() -> int:
 
         last_dest: dict[str, int] | None = None
         for idx, move in enumerate(planned_moves, start=1):
-            src_steps_x, src_steps_y = _endpoint_to_steps(move["source"], mapping_constants)
-            dst_steps_x, dst_steps_y = _endpoint_to_steps(move["dest"], mapping_constants)
+            src_steps_x, src_steps_y = _endpoint_to_steps(
+                move["source"],
+                mapping_constants,
+                motor_board_orientation,
+            )
+            dst_steps_x, dst_steps_y = _endpoint_to_steps(
+                move["dest"],
+                mapping_constants,
+                motor_board_orientation,
+            )
 
             cmd = f"MOVE_STEPS {src_steps_x} {src_steps_y} {dst_steps_x} {dst_steps_y}"
             reply = _send_command(ser, cmd)
@@ -373,6 +443,11 @@ def main() -> int:
                     "stage": f"move_{idx}_source",
                     "endpoint": dict(move["source"]),
                     "endpoint_label": _endpoint_label(move["source"]),
+                    "motor_board_endpoint": _endpoint_to_motor_board(
+                        move["source"],
+                        mapping_constants,
+                        motor_board_orientation,
+                    ),
                     "x": src_steps_x,
                     "y": src_steps_y,
                 }
@@ -382,6 +457,11 @@ def main() -> int:
                     "stage": f"move_{idx}_dest",
                     "endpoint": dict(move["dest"]),
                     "endpoint_label": _endpoint_label(move["dest"]),
+                    "motor_board_endpoint": _endpoint_to_motor_board(
+                        move["dest"],
+                        mapping_constants,
+                        motor_board_orientation,
+                    ),
                     "x": status_x,
                     "y": status_y,
                 }

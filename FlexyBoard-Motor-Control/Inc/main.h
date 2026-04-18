@@ -84,11 +84,13 @@ typedef struct
 /* Board coordinate calibration (steps from machine origin) */
 #define BOARD_GRID_MAX_INDEX  7
 
-/* Measured corners (board coords):
- * Corner 0 -> (x=0,y=0) -> CORNER_00
- * Corner 1 -> (x=0,y=7) -> CORNER_07
- * Corner 2 -> (x=7,y=7) -> CORNER_77
- * Corner 3 -> (x=7,y=0) -> CORNER_70
+/* Measured motor-board corners (steps from machine origin).
+ * The Pi sender maps game coords into this motor-board frame before sending
+ * MOVE_STEPS. Current physical convention:
+ *   motor (0,0) -> camera top-right / game a8
+ *   motor (7,0) -> game a1
+ *   motor (0,7) -> game h8
+ *   motor (7,7) -> game h1
  */
 #define CORNER_00_X_STEPS     321
 #define CORNER_00_Y_STEPS     333

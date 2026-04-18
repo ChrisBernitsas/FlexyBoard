@@ -1,0 +1,17 @@
+FlexyBoard Analysis Summary
+
+changed_square_count: 3
+changed_squares:
+  - index=18 coord=(2,2) label=c3 raw_camera_label=c3 pixel_ratio=0.8845 delta=51.842 sources=contour_top2,square_ratio contour_rank=1
+  - index=8 coord=(0,1) label=b1 raw_camera_label=a2 pixel_ratio=0.7544 delta=28.956 sources=contour_top2,square_ratio contour_rank=2
+  - index=0 coord=(0,0) label=a1 raw_camera_label=a1 pixel_ratio=0.2209 delta=9.096 sources=square_ratio
+
+inferred_move:
+  - game: chess
+  - source: (2,2)
+  - destination: (0,0)
+  - moved_piece_type: None
+  - capture: False
+  - confidence: 1.0000
+  - timestamp: 2026-04-18T20:54:13.576318+00:00
+  - metadata: {"changed_count": 3, "significant_changed_count": 3, "classifier_confidence": 0.0, "source_score": -51.84244791666666, "dest_score": -9.096462673611114, "capture_signals": {"capture_by_destination_prior": false, "capture_by_changed_count": false, "occupied_margin": 17.446315104166665, "source_before_occupied": false, "source_after_occupied": false, "dest_before_occupied": false, "dest_after_occupied": false, "source_before_occ_score": 5.729166666666657, "source_after_occ_score": -46.03477647569443, "dest_before_occ_score": -19.5556640625, "dest_after_occ_score": -28.573621961805543}, "captured_at": null, "captured_piece_type": null}

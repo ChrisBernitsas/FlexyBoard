@@ -21,7 +21,10 @@ Supported STM commands:
 - `MOVEPCT spx spy dpx dpy` (percent endpoints)
 
 Pi move sender behavior (`scripts/send_moves_from_file.py`):
-- File endpoints can be board squares (`x,y`) or green-grid percentages (`x%,y%`).
+- File board endpoints are game coordinates (`a1=(0,0)`, `h8=(7,7)`) written as `x,y`.
+- File percent endpoints are physical green-grid/workspace percentages written as `x%,y%`.
+- `configs/default.yaml` `motor.board_orientation` maps game board coordinates to motor board coordinates before step interpolation.
+- Current default: `game_a8_at_motor_00`, meaning game `a8` maps to motor board `(0,0)` because the motor home/rest side is at the top-right camera corner.
 - The script resolves endpoints to absolute step coordinates and sends `MOVE_STEPS ...`.
 
 ## 1) Transport

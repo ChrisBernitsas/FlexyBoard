@@ -1,0 +1,9 @@
+{
+  "game": "chess",
+  "capture_mode": "rolling",
+  "wait_mode": "enter",
+  "bridge_port": 8765,
+  "startup_geometry_mode": "manual",
+  "slow_live_analysis": false,
+  "reopen_camera_each_capture": false
+}

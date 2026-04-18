@@ -47,12 +47,18 @@ Game support in this module:
 ### Graph model
 
 - Nodes: board squares `(x,y)` on 8x8 grid.
-- Traversal: 4-neighbor moves (N/S/E/W), no diagonals in planner search.
-- Blocked nodes: currently occupied squares, except the moving piece start square.
+- Traversal: 8-neighbor physical waypoints are considered for board-to-board moves.
+- Straight steps collide with the destination square.
+- Diagonal steps collide with the destination square plus both orthogonal side squares swept by the piece.
+  - Example: moving `g8 -> f7` must have `f7`, `g7`, and `f8` clear or those pieces must be relocated first.
+- Occupancy comes from the current software board state before the planned move.
 
 ### Search
 
-- A* with Manhattan heuristic.
+- Weighted A* over `(position, unique_blockers_seen)`.
+- Primary objective: minimize the number of unique physical blockers that must be moved.
+- Secondary objective: minimize route length.
+- If the best route crosses occupied collision cells, those exact blockers are relocated first, then the route is recomputed.
 - If path found, path nodes are compressed into straight runs to reduce command count.
   - Example path nodes: `(2,2)->(2,3)->(2,4)->(3,4)->(4,4)`
   - Compressed segments:
@@ -71,16 +77,28 @@ For moves to/from `%` endpoints:
 
 ## Blocker Relocation Logic
 
-If required route is unavailable:
+For board-to-board moves:
 
-1. Score candidate blockers (occupied squares not protected) by:
-   - distance to source->target line segment
-   - total Manhattan distance to source and target
-2. Pick best candidate.
-3. Move blocker to next temporary slot.
-4. Mark blocker square as empty in planner occupancy.
-5. Retry route.
-6. Repeat up to `MAX_TEMP_RELOCATIONS`.
+1. Compute the lowest-blocker physical route from source to destination.
+2. Identify only the pieces in that route's collision cells.
+3. Move each blocker to a temporary parking location.
+4. Prefer temporary parking on an empty board square outside the intended route because it is faster and avoids off-board travel.
+   - The blocker may pass through empty future route cells while relocating; it just cannot park there.
+5. Use off-board percent temporary slots only when no safe board-square parking route exists.
+6. Recompute the route after every relocation.
+7. Move the original piece to its destination.
+8. Restore temporary blockers back to their original squares in reverse order.
+
+This means a knight move such as `g8 -> f6` can clear only the `g7` pawn:
+
+```text
+g7 -> g5
+g8 -> g6
+g6 -> f6
+g5 -> g7
+```
+
+The current sequence format still emits this as four pick/place commands. A future STM command that supports holding a piece through multiple waypoints could compress the knight's two movement lines into one physical pickup.
 
 Protected squares are never selected as blockers:
 - moving piece source and destination
@@ -130,6 +148,8 @@ Used only for short-term blocker parking, defaults:
 
 - Robustness > speed: routes are grid-safe and may use multiple pick/place segments.
 - Planner uses board occupancy, not geometric piece meshes.
+- Diagonal collision uses a conservative square-sweep model, not exact piece radius geometry.
+- Physical routes do not need to match the chess piece's legal movement shape. The game state validates legality; the motor planner finds a safe mechanical route.
 - For dense positions, many temporary relocations can increase move time.
 - If no grid route can be found after relocation attempts, planner emits a direct fallback segment (tracked in `fallback_direct_segments`).
 - Checkers multi-jump physical sequencing across one full turn is still emitted as multiple GUI turns.

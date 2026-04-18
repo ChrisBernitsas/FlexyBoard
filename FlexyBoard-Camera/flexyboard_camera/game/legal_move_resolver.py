@@ -285,6 +285,8 @@ class _ChessResolver:
         self,
         observed_move_obj: dict[str, Any],
         changed_squares: list[dict[str, Any]],
+        *,
+        max_score: float | None = None,
     ) -> ResolvedPlayer1Move | None:
         observed = _parse_observed_move(observed_move_obj)
         observed_changed = _changed_coords(changed_squares)
@@ -337,6 +339,9 @@ class _ChessResolver:
             return None
 
         score, move, expected_changed, is_capture, special = best
+        if max_score is not None and score > max_score:
+            return None
+
         self._board.push(move)
         state_after = self._snapshot(self._board)
 
@@ -608,6 +613,8 @@ class _CheckersState:
         self,
         observed_move_obj: dict[str, Any],
         changed_squares: list[dict[str, Any]],
+        *,
+        max_score: float | None = None,
     ) -> ResolvedPlayer1Move | None:
         observed = _parse_observed_move(observed_move_obj)
         observed_changed = _changed_coords(changed_squares)
@@ -645,6 +652,9 @@ class _CheckersState:
             return None
 
         score, sequence, capture, expected_changed = best
+        if max_score is not None and score > max_score:
+            return None
+
         for hop in sequence:
             self._apply_hop(hop, side="p1")
 
@@ -708,6 +718,8 @@ class Player1MoveResolver:
         self,
         observed_move_obj: dict[str, Any],
         changed_squares: list[dict[str, Any]],
+        *,
+        max_score: float | None = None,
     ) -> ResolvedPlayer1Move | None:
         if self._engine is None:
             return None
@@ -728,9 +740,17 @@ class Player1MoveResolver:
         }
         changed_squares = _map_changed_squares_to_game(changed_squares, self.camera_square_orientation)
         if self.game == "chess":
-            return self._engine.resolve_player1(observed_move_obj, changed_squares)
+            return self._engine.resolve_player1(
+                observed_move_obj,
+                changed_squares,
+                max_score=max_score,
+            )
         if self.game == "checkers":
-            return self._engine.resolve_player1(observed_move_obj, changed_squares)
+            return self._engine.resolve_player1(
+                observed_move_obj,
+                changed_squares,
+                max_score=max_score,
+            )
         return None
 
     def apply_player2(self, from_square: str, to_square: str) -> None:

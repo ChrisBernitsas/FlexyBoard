@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import re
+import shutil
 import socket
 import struct
 import subprocess
@@ -23,6 +25,47 @@ from flexyboard_camera.utils.logging_utils import setup_logging
 
 MOVE_FILE = ROOT / "sample_data" / "stm32_move_sequence.txt"
 DEFAULT_CONFIG_PATH = ROOT / "configs" / "default.yaml"
+
+
+def _next_game_debug_dir(debug_root: Path) -> Path:
+    debug_root.mkdir(parents=True, exist_ok=True)
+    max_index = 0
+    pattern = re.compile(r"^Game(\d+)$")
+    for child in debug_root.iterdir():
+        if not child.is_dir():
+            continue
+        match = pattern.fullmatch(child.name)
+        if match:
+            max_index = max(max_index, int(match.group(1)))
+    game_dir = debug_root / f"Game{max_index + 1}"
+    game_dir.mkdir(parents=True, exist_ok=False)
+    return game_dir
+
+
+def _write_game_session_metadata(game_dir: Path, *, game: str, args: argparse.Namespace) -> None:
+    payload = {
+        "game": game,
+        "capture_mode": args.capture_mode,
+        "wait_mode": args.wait_mode,
+        "bridge_port": args.port,
+        "startup_geometry_mode": args.startup_geometry_mode,
+        "slow_live_analysis": bool(args.slow_live_analysis),
+        "reopen_camera_each_capture": bool(args.reopen_camera_each_capture),
+        "min_significant_changes": args.min_significant_changes,
+        "max_resolved_score": args.max_resolved_score,
+        "allow_observed_fallback": bool(args.allow_observed_fallback),
+        "max_p1_detection_attempts": args.max_p1_detection_attempts,
+    }
+    (game_dir / "session_metadata.json").write_text(
+        json.dumps(payload, ensure_ascii=True, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _copy_frame_for_turn(src: Path, dst: Path) -> Path:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+    return dst
 
 
 def _parse_args() -> argparse.Namespace:
@@ -84,6 +127,35 @@ def _parse_args() -> argparse.Namespace:
         "--skip-geometry-confirmation",
         action="store_true",
         help="Auto geometry mode only: do not send the startup grid preview to Software-GUI for confirmation.",
+    )
+    parser.add_argument(
+        "--min-significant-changes",
+        type=int,
+        default=2,
+        help=(
+            "Minimum strong changed squares required before accepting a Player 1 move. "
+            "Below this, the bridge retries the same turn without advancing the reference."
+        ),
+    )
+    parser.add_argument(
+        "--max-resolved-score",
+        type=float,
+        default=20.0,
+        help=(
+            "Maximum legal-resolver mismatch score accepted for Player 1. "
+            "Higher scores are treated as noisy/invalid detections and retried."
+        ),
+    )
+    parser.add_argument(
+        "--allow-observed-fallback",
+        action="store_true",
+        help="Allow forwarding the raw CV observed move when no legal resolver match is accepted.",
+    )
+    parser.add_argument(
+        "--max-p1-detection-attempts",
+        type=int,
+        default=0,
+        help="Maximum rejected Player 1 detection attempts before stopping. 0 means retry forever.",
     )
     return parser.parse_args()
 
@@ -203,11 +275,12 @@ def _analyze_paths(
     analysis_config: Any,
     *,
     fast_locked_geometry: bool = False,
+    out_dir: Path | None = None,
 ) -> dict[str, Any]:
     analysis = _run_analysis(
         before_path=before_path,
         after_path=after_path,
-        out_dir=args.analysis_out_dir,
+        out_dir=str(out_dir) if out_dir is not None else args.analysis_out_dir,
         game=game,
         analysis_config=analysis_config,
         fast_locked_geometry=fast_locked_geometry,
@@ -496,6 +569,7 @@ def _capture_and_analyze_two_shot(
     args: argparse.Namespace,
     game: str,
     analysis_config: Any,
+    turn_debug_dir: Path | None,
 ) -> dict[str, Any]:
     before_path = controller.capture_before(reopen_stream=args.reopen_camera_each_capture)
     print(f"[Bridge] BEFORE captured: {before_path}")
@@ -505,7 +579,21 @@ def _capture_and_analyze_two_shot(
     after_path = controller.capture_after(reopen_stream=args.reopen_camera_each_capture)
     print(f"[Bridge] AFTER captured: {after_path}")
 
-    return _analyze_paths(before_path, after_path, args, game, analysis_config)
+    analysis_out_dir = turn_debug_dir if turn_debug_dir is not None else (
+        Path(args.analysis_out_dir) if args.analysis_out_dir else None
+    )
+    if turn_debug_dir is not None:
+        before_path = _copy_frame_for_turn(before_path, turn_debug_dir / "before.png")
+        after_path = _copy_frame_for_turn(after_path, turn_debug_dir / "after.png")
+
+    return _analyze_paths(
+        before_path,
+        after_path,
+        args,
+        game,
+        analysis_config,
+        out_dir=analysis_out_dir,
+    )
 
 
 def _capture_and_analyze_rolling(
@@ -515,6 +603,7 @@ def _capture_and_analyze_rolling(
     reference_path: Path,
     turn_index: int,
     analysis_config: Any,
+    turn_debug_dir: Path | None,
 ) -> dict[str, Any]:
     _wait_for_turn_trigger(
         args,
@@ -525,6 +614,13 @@ def _capture_and_analyze_rolling(
     print(f"[Bridge] CURRENT captured: {after_path}")
     print(f"[Bridge] Diffing previous reference -> current: {reference_path} -> {after_path}")
 
+    analysis_out_dir = turn_debug_dir if turn_debug_dir is not None else (
+        Path(args.analysis_out_dir) if args.analysis_out_dir else None
+    )
+    if turn_debug_dir is not None:
+        reference_path = _copy_frame_for_turn(reference_path, turn_debug_dir / "before.png")
+        after_path = _copy_frame_for_turn(after_path, turn_debug_dir / "after.png")
+
     return _analyze_paths(
         reference_path,
         after_path,
@@ -532,6 +628,7 @@ def _capture_and_analyze_rolling(
         game,
         analysis_config,
         fast_locked_geometry=not args.slow_live_analysis,
+        out_dir=analysis_out_dir,
     )
 
 
@@ -695,6 +792,92 @@ def _write_move_file(lines: list[str], game: str | None, p2_from: str | None, p2
     MOVE_FILE.write_text("\n".join([*header, *lines]) + "\n", encoding="utf-8")
 
 
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _significant_changed_count(
+    analysis_payload: dict[str, Any],
+    observed_move: dict[str, Any] | None,
+    changed_squares: list[dict[str, Any]],
+) -> int:
+    if isinstance(observed_move, dict):
+        metadata = observed_move.get("metadata")
+        if isinstance(metadata, dict):
+            raw_count = metadata.get("significant_changed_count")
+            if isinstance(raw_count, int):
+                return raw_count
+            if isinstance(raw_count, float):
+                return int(raw_count)
+
+    raw_count = analysis_payload.get("significant_changed_count")
+    if isinstance(raw_count, int):
+        return raw_count
+    if isinstance(raw_count, float):
+        return int(raw_count)
+
+    count = 0
+    for item in changed_squares:
+        pixel_ratio = _as_float(item.get("pixel_ratio"))
+        intensity_delta = abs(_as_float(item.get("signed_intensity_delta")))
+        if pixel_ratio >= 0.12 or intensity_delta >= 5.0:
+            count += 1
+    return count
+
+
+def _write_rejected_player1_attempt(
+    *,
+    analysis_wrap: dict[str, Any],
+    reason: str,
+    details: dict[str, Any],
+    resolver: Player1MoveResolver,
+    turn_debug_dir: Path,
+) -> Path:
+    out_dir = turn_debug_dir
+    analysis_dir_raw = analysis_wrap.get("analysis_dir")
+    if isinstance(analysis_dir_raw, str):
+        out_dir = Path(analysis_dir_raw)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "status": "rejected",
+        "reason": reason,
+        "details": details,
+        "before_image": analysis_wrap.get("before_image"),
+        "after_image": analysis_wrap.get("after_image"),
+        "player1_observed_move": analysis_wrap.get("player1_observed_move"),
+        "resolver_state_unchanged": resolver.debug_state(),
+    }
+    path = out_dir / "player1_rejected_attempt.json"
+    path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    return path
+
+
+def _print_rejected_player1_attempt(
+    *,
+    reason: str,
+    details: dict[str, Any],
+    rejection_path: Path,
+    attempt_index: int,
+    args: argparse.Namespace,
+) -> None:
+    print(f"[Bridge] WARNING: rejected Player 1 detection attempt {attempt_index}: {reason}")
+    if details:
+        print(f"[Bridge] Rejection details: {json.dumps(details, separators=(',', ':'))}")
+    print(f"[Bridge] Rejection record saved: {rejection_path}")
+    print("[Bridge] Keeping the same before/reference image. Correct the physical board, then retry this same turn.")
+    if args.max_p1_detection_attempts > 0:
+        remaining = args.max_p1_detection_attempts - attempt_index
+        print(f"[Bridge] Detection retry attempts remaining before stop: {max(0, remaining)}")
+
+
+def _p1_detection_attempts_exhausted(args: argparse.Namespace, attempt_index: int) -> bool:
+    return args.max_p1_detection_attempts > 0 and attempt_index >= args.max_p1_detection_attempts
+
+
 def _serve_client(
     args: argparse.Namespace,
     conn: socket.socket,
@@ -702,6 +885,7 @@ def _serve_client(
     game: str,
     resolver: Player1MoveResolver,
     analysis_config: Any,
+    game_debug_dir: Path,
 ) -> None:
     conn.settimeout(None)
     with conn:
@@ -713,6 +897,7 @@ def _serve_client(
             input("[Bridge] Make sure the physical board matches the software state, then press Enter to capture INITIAL reference...")
             reference_path = controller.capture_before(reopen_stream=args.reopen_camera_each_capture)
             print(f"[Bridge] Initial reference captured: {reference_path}")
+            _copy_frame_for_turn(reference_path, game_debug_dir / "initial_reference.png")
             if not args.slow_live_analysis:
                 if args.startup_geometry_mode == "manual":
                     session_geometry = _request_manual_startup_geometry(
@@ -747,45 +932,139 @@ def _serve_client(
                                 return
 
         while True:
-            print("")
-            if args.capture_mode == "rolling":
-                if reference_path is None:
-                    raise RuntimeError("rolling capture mode missing reference image")
-                analysis_wrap = _capture_and_analyze_rolling(
-                    controller=controller,
-                    args=args,
-                    game=game,
-                    reference_path=reference_path,
-                    turn_index=turn_index,
-                    analysis_config=analysis_config,
+            attempt_index = 1
+            while True:
+                print("")
+                turn_debug_dir = (
+                    game_debug_dir / f"Move{turn_index}"
+                    if attempt_index == 1
+                    else game_debug_dir / f"Move{turn_index}_Retry{attempt_index}"
                 )
-            else:
-                input(f"[Bridge] Turn {turn_index}: press Enter to capture BEFORE...")
-                analysis_wrap = _capture_and_analyze_two_shot(controller, args, game, analysis_config)
+                turn_debug_dir.mkdir(parents=True, exist_ok=True)
+                if args.capture_mode == "rolling":
+                    if reference_path is None:
+                        raise RuntimeError("rolling capture mode missing reference image")
+                    analysis_wrap = _capture_and_analyze_rolling(
+                        controller=controller,
+                        args=args,
+                        game=game,
+                        reference_path=reference_path,
+                        turn_index=turn_index,
+                        analysis_config=analysis_config,
+                        turn_debug_dir=turn_debug_dir,
+                    )
+                else:
+                    input(f"[Bridge] Turn {turn_index}: press Enter to capture BEFORE...")
+                    analysis_wrap = _capture_and_analyze_two_shot(
+                        controller,
+                        args,
+                        game,
+                        analysis_config,
+                        turn_debug_dir,
+                    )
 
-            observed_move = analysis_wrap.get("player1_observed_move")
-            analysis_payload = analysis_wrap.get("analysis", {})
-            if not isinstance(observed_move, dict):
-                print("[Bridge] Skipping turn: missing player1_observed_move.")
-                turn_index += 1
-                if args.once:
-                    return
-                continue
+                observed_move = analysis_wrap.get("player1_observed_move")
+                analysis_payload_raw = analysis_wrap.get("analysis", {})
+                analysis_payload = analysis_payload_raw if isinstance(analysis_payload_raw, dict) else {}
+                if not isinstance(observed_move, dict):
+                    details = {
+                        "observed_move_type": type(observed_move).__name__,
+                        "min_significant_changes": args.min_significant_changes,
+                        "max_resolved_score": args.max_resolved_score,
+                    }
+                    rejection_path = _write_rejected_player1_attempt(
+                        analysis_wrap=analysis_wrap,
+                        reason="missing_player1_observed_move",
+                        details=details,
+                        resolver=resolver,
+                        turn_debug_dir=turn_debug_dir,
+                    )
+                    _print_rejected_player1_attempt(
+                        reason="missing_player1_observed_move",
+                        details=details,
+                        rejection_path=rejection_path,
+                        attempt_index=attempt_index,
+                        args=args,
+                    )
+                    if _p1_detection_attempts_exhausted(args, attempt_index):
+                        print("[Bridge] Stopping after rejected Player 1 detection attempts.")
+                        return
+                    attempt_index += 1
+                    continue
 
-            changed_squares: list[dict[str, Any]] = []
-            raw_changed = analysis_payload.get("changed_squares")
-            if isinstance(raw_changed, list):
-                changed_squares = [item for item in raw_changed if isinstance(item, dict)]
+                changed_squares: list[dict[str, Any]] = []
+                raw_changed = analysis_payload.get("changed_squares")
+                if isinstance(raw_changed, list):
+                    changed_squares = [item for item in raw_changed if isinstance(item, dict)]
 
-            resolved = resolver.resolve_player1(observed_move, changed_squares)
-            if resolved is None:
-                resolved = resolver.fallback_from_observed(observed_move)
-            if resolved is None:
-                print("[Bridge] Skipping turn: could not resolve legal player-1 move.")
-                turn_index += 1
-                if args.once:
-                    return
-                continue
+                significant_count = _significant_changed_count(
+                    analysis_payload,
+                    observed_move,
+                    changed_squares,
+                )
+                if significant_count < args.min_significant_changes:
+                    details = {
+                        "significant_changed_count": significant_count,
+                        "changed_square_count": len(changed_squares),
+                        "min_significant_changes": args.min_significant_changes,
+                        "max_resolved_score": args.max_resolved_score,
+                    }
+                    rejection_path = _write_rejected_player1_attempt(
+                        analysis_wrap=analysis_wrap,
+                        reason="insufficient_significant_changed_squares",
+                        details=details,
+                        resolver=resolver,
+                        turn_debug_dir=turn_debug_dir,
+                    )
+                    _print_rejected_player1_attempt(
+                        reason="insufficient_significant_changed_squares",
+                        details=details,
+                        rejection_path=rejection_path,
+                        attempt_index=attempt_index,
+                        args=args,
+                    )
+                    if _p1_detection_attempts_exhausted(args, attempt_index):
+                        print("[Bridge] Stopping after rejected Player 1 detection attempts.")
+                        return
+                    attempt_index += 1
+                    continue
+
+                resolved = resolver.resolve_player1(
+                    observed_move,
+                    changed_squares,
+                    max_score=args.max_resolved_score,
+                )
+                if resolved is None and args.allow_observed_fallback:
+                    resolved = resolver.fallback_from_observed(observed_move)
+                if resolved is None:
+                    details = {
+                        "significant_changed_count": significant_count,
+                        "changed_square_count": len(changed_squares),
+                        "min_significant_changes": args.min_significant_changes,
+                        "max_resolved_score": args.max_resolved_score,
+                        "allow_observed_fallback": bool(args.allow_observed_fallback),
+                    }
+                    rejection_path = _write_rejected_player1_attempt(
+                        analysis_wrap=analysis_wrap,
+                        reason="legal_move_resolution_rejected",
+                        details=details,
+                        resolver=resolver,
+                        turn_debug_dir=turn_debug_dir,
+                    )
+                    _print_rejected_player1_attempt(
+                        reason="legal_move_resolution_rejected",
+                        details=details,
+                        rejection_path=rejection_path,
+                        attempt_index=attempt_index,
+                        args=args,
+                    )
+                    if _p1_detection_attempts_exhausted(args, attempt_index):
+                        print("[Bridge] Stopping after rejected Player 1 detection attempts.")
+                        return
+                    attempt_index += 1
+                    continue
+
+                break
 
             analysis_dir_raw = analysis_wrap.get("analysis_dir")
             analysis_dir: Path | None = None
@@ -822,6 +1101,11 @@ def _serve_client(
             p2_from = incoming.get("from")
             p2_to = incoming.get("to")
             print(f"[Bridge] Received P2 move from Software-GUI: {p2_from} -> {p2_to}")
+            if analysis_dir is not None:
+                (analysis_dir / "player2_move.json").write_text(
+                    json.dumps(incoming, ensure_ascii=True, indent=2),
+                    encoding="utf-8",
+                )
 
             if isinstance(p2_from, str) and isinstance(p2_to, str):
                 try:
@@ -837,6 +1121,8 @@ def _serve_client(
             sequence_lines = _normalize_sequence_lines_from_p2(incoming)
             _write_move_file(sequence_lines, incoming.get("game"), p2_from, p2_to)
             print(f"[Bridge] Wrote {len(sequence_lines)} STM sequence steps to {MOVE_FILE}")
+            if analysis_dir is not None:
+                shutil.copy2(MOVE_FILE, analysis_dir / "stm32_move_sequence.txt")
 
             if args.no_stm_send:
                 print("[Bridge] --no-stm-send enabled; skipping STM dispatch.")
@@ -847,9 +1133,20 @@ def _serve_client(
                 print("[Bridge] Sending sequence to STM32...")
                 stm_result = _send_moves_to_stm()
                 print(json.dumps({"bridge_stm_result": stm_result}, indent=2))
+                if analysis_dir is not None:
+                    (analysis_dir / "stm_result.json").write_text(
+                        json.dumps(stm_result, ensure_ascii=True, indent=2),
+                        encoding="utf-8",
+                    )
                 if args.capture_mode == "rolling":
                     print("[Bridge] Capturing updated reference after STM32 move...")
                     reference_path = controller.capture_before(reopen_stream=args.reopen_camera_each_capture)
+                    reference_copy_path = (
+                        analysis_dir / "reference_after_p2.png"
+                        if analysis_dir is not None
+                        else game_debug_dir / f"reference_after_move_{turn_index}.png"
+                    )
+                    _copy_frame_for_turn(reference_path, reference_copy_path)
                     print(f"[Bridge] Rolling reference refreshed: {reference_path}")
 
             turn_index += 1
@@ -870,12 +1167,18 @@ def main() -> int:
         config.app.game,
         camera_square_orientation=config.analysis.camera_square_orientation,
     )
+    game_debug_root = Path(args.analysis_out_dir) if args.analysis_out_dir else ROOT / "debug_output" / "Games"
+    game_debug_dir = _next_game_debug_dir(game_debug_root)
+    _write_game_session_metadata(game_debug_dir, game=config.app.game, args=args)
     print(
         "[Bridge] Analysis thresholds: "
         f"diff_threshold={config.analysis.diff_threshold} "
-        f"min_changed_ratio={config.analysis.min_changed_ratio}"
+        f"min_changed_ratio={config.analysis.min_changed_ratio} "
+        f"min_significant_changes={args.min_significant_changes} "
+        f"max_resolved_score={args.max_resolved_score}"
     )
     print(f"[Bridge] Stateful resolver initialized: {resolver.debug_state().get('persistent_state')}")
+    print(f"[Bridge] Game debug folder: {game_debug_dir}")
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -886,7 +1189,15 @@ def main() -> int:
         conn, addr = srv.accept()
         print(f"[Bridge] Software-GUI connected from {addr[0]}:{addr[1]}")
         try:
-            _serve_client(args, conn, controller, config.app.game, resolver, config.analysis)
+            _serve_client(
+                args,
+                conn,
+                controller,
+                config.app.game,
+                resolver,
+                config.analysis,
+                game_debug_dir,
+            )
         except ConnectionError as exc:
             print(f"[Bridge] Connection closed: {exc}")
             return 1

@@ -44,23 +44,47 @@ CAPTURE_STAGING_P2_BASE_Y_PCT = float(os.environ.get("P2_CAPTURE_STAGING_P2_BASE
 CAPTURE_STAGING_STEP_Y_PCT = float(os.environ.get("P2_CAPTURE_STAGING_STEP_Y_PCT", "4"))
 
 # Bottom-lane settings (used when CAPTURE_STAGING_MODE=bottom_lane).
-# Defaults are aligned to your current calibrated green/yellow geometry:
-# x ~ 19.7..77.1 in 8 slots, y rows in the bottom strip.
-CAPTURE_BOTTOM_COLUMNS = int(os.environ.get("P2_CAPTURE_BOTTOM_COLUMNS", "8"))
-CAPTURE_BOTTOM_X_START_PCT = float(os.environ.get("P2_CAPTURE_BOTTOM_X_START_PCT", "19.7"))
-CAPTURE_BOTTOM_X_STEP_PCT = float(os.environ.get("P2_CAPTURE_BOTTOM_X_STEP_PCT", "8.2"))
-CAPTURE_BOTTOM_P1_BASE_Y_PCT = float(os.environ.get("P2_CAPTURE_BOTTOM_P1_BASE_Y_PCT", "78"))
-CAPTURE_BOTTOM_P2_BASE_Y_PCT = float(os.environ.get("P2_CAPTURE_BOTTOM_P2_BASE_Y_PCT", "88"))
-CAPTURE_BOTTOM_ROW_STEP_Y_PCT = float(os.environ.get("P2_CAPTURE_BOTTOM_ROW_STEP_Y_PCT", "7.5"))
+# Motor 0,0 is the camera top-right/a8 corner. Increasing X moves visually
+# from right to left, so slot 1 starts at the bottom-right of the green grid.
+CAPTURE_BOTTOM_COLUMNS = int(os.environ.get("P2_CAPTURE_BOTTOM_COLUMNS", "10"))
+CAPTURE_BOTTOM_ROWS = int(os.environ.get("P2_CAPTURE_BOTTOM_ROWS", "2"))
+CAPTURE_BOTTOM_X_START_PCT = float(os.environ.get("P2_CAPTURE_BOTTOM_X_START_PCT", "5.0"))
+CAPTURE_BOTTOM_X_STEP_PCT = float(os.environ.get("P2_CAPTURE_BOTTOM_X_STEP_PCT", "10.0"))
+CAPTURE_BOTTOM_BASE_Y_PCT = float(os.environ.get("P2_CAPTURE_BOTTOM_BASE_Y_PCT", "95.4"))
+CAPTURE_BOTTOM_ROW_STEP_Y_PCT = float(os.environ.get("P2_CAPTURE_BOTTOM_ROW_STEP_Y_PCT", "8.2"))
+
+# Top overflow is used only after the bottom capture strip is full.
+CAPTURE_TOP_OVERFLOW_COLUMNS = int(os.environ.get("P2_CAPTURE_TOP_OVERFLOW_COLUMNS", "10"))
+CAPTURE_TOP_OVERFLOW_X_START_PCT = float(os.environ.get("P2_CAPTURE_TOP_OVERFLOW_X_START_PCT", "5.0"))
+CAPTURE_TOP_OVERFLOW_X_STEP_PCT = float(os.environ.get("P2_CAPTURE_TOP_OVERFLOW_X_STEP_PCT", "10.0"))
+CAPTURE_TOP_OVERFLOW_Y_PCT = float(os.environ.get("P2_CAPTURE_TOP_OVERFLOW_Y_PCT", "5.5"))
+
+# Percent waypoints just outside the yellow chess/checkers grid. Board pieces
+# leaving for capture/temp storage should exit through one of these outside
+# lanes before traveling across the green-grid staging area.
+BOARD_EXIT_TOP_Y_PCT = float(os.environ.get("P2_BOARD_EXIT_TOP_Y_PCT", "8.0"))
+BOARD_EXIT_BOTTOM_Y_PCT = float(os.environ.get("P2_BOARD_EXIT_BOTTOM_Y_PCT", "82.0"))
+BOARD_EXIT_RIGHT_X_PCT = float(os.environ.get("P2_BOARD_EXIT_RIGHT_X_PCT", "8.0"))
+BOARD_EXIT_LEFT_X_PCT = float(os.environ.get("P2_BOARD_EXIT_LEFT_X_PCT", "92.0"))
+OFFBOARD_CLEARANCE_PCT = float(os.environ.get("P2_OFFBOARD_CLEARANCE_PCT", "6.0"))
+
+# Legacy bottom-row names are still accepted by external scripts/env overrides,
+# but the planner now uses a shared global slot sequence instead of separate
+# P1/P2 rows. Keep these aliases for older debug tooling.
+CAPTURE_BOTTOM_P1_BASE_Y_PCT = CAPTURE_BOTTOM_BASE_Y_PCT
+CAPTURE_BOTTOM_P2_BASE_Y_PCT = CAPTURE_BOTTOM_BASE_Y_PCT - CAPTURE_BOTTOM_ROW_STEP_Y_PCT
 CAPTURE_BOTTOM_P2_REVERSE_X = (
-    os.environ.get("P2_CAPTURE_BOTTOM_P2_REVERSE_X", "1").strip() not in {"0", "false", "False"}
+    os.environ.get("P2_CAPTURE_BOTTOM_P2_REVERSE_X", "0").strip() not in {"0", "false", "False"}
 )
 
 # Temporary relocation staging area (used to clear blocker pieces, then restore them).
 TEMP_RELOCATE_X_PCT = float(os.environ.get("P2_TEMP_RELOCATE_X_PCT", "8"))
+TEMP_RELOCATE_LEFT_X_PCT = float(os.environ.get("P2_TEMP_RELOCATE_LEFT_X_PCT", "92"))
 TEMP_RELOCATE_BASE_Y_PCT = float(os.environ.get("P2_TEMP_RELOCATE_BASE_Y_PCT", "18"))
-TEMP_RELOCATE_STEP_Y_PCT = float(os.environ.get("P2_TEMP_RELOCATE_STEP_Y_PCT", "4"))
+TEMP_RELOCATE_STEP_Y_PCT = float(os.environ.get("P2_TEMP_RELOCATE_STEP_Y_PCT", "10"))
+TEMP_RELOCATE_SIDE_SLOTS = int(os.environ.get("P2_TEMP_RELOCATE_SIDE_SLOTS", "7"))
 MAX_TEMP_RELOCATIONS = int(os.environ.get("P2_MAX_TEMP_RELOCATIONS", "12"))
+MAX_RECURSIVE_BLOCKER_DEPTH = int(os.environ.get("P2_MAX_RECURSIVE_BLOCKER_DEPTH", "4"))
 RESTORE_TEMP_RELOCATIONS = (
     os.environ.get("P2_RESTORE_TEMP_RELOCATIONS", "1").strip() not in {"0", "false", "False"}
 )
