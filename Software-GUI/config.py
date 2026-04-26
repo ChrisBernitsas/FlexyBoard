@@ -12,8 +12,8 @@ TCP_PORT = int(os.environ.get("P2_TCP_PORT", "8765"))
 TCP_CONNECT_RETRIES = int(os.environ.get("P2_TCP_CONNECT_RETRIES", "180"))
 TCP_CONNECT_RETRY_DELAY_SEC = float(os.environ.get("P2_TCP_CONNECT_RETRY_DELAY_SEC", "1.0"))
 
-WINDOW_WIDTH = int(os.environ.get("P2_WINDOW_W", "1040"))
-WINDOW_HEIGHT = int(os.environ.get("P2_WINDOW_H", "760"))
+WINDOW_WIDTH = int(os.environ.get("P2_WINDOW_W", "1180"))
+WINDOW_HEIGHT = int(os.environ.get("P2_WINDOW_H", "860"))
 
 # "human" (drag-drop in UI) or "ai" (auto-pick legal P2 move)
 # Runtime can be toggled in the GUI via mode button.

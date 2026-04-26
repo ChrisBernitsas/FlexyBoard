@@ -37,15 +37,17 @@ class BoardUI:
         self.font = pygame.font.SysFont("sf pro display, helvetica, arial", 18)
         self._small_label_font = pygame.font.Font(None, 13)
 
-        self.margin = 36
+        self.margin = 40
+        self.header_height = 128
+        self.footer_height = 44
         self.sidebar_gap = 16
         content_w = max(1, width - 2 * self.margin)
         self.sidebar_w = min(220, max(130, width // 4))
         board_zone_w = max(1, content_w - self.sidebar_w - self.sidebar_gap)
-        inner_h = height - 2 * self.margin
+        inner_h = max(1, height - self.header_height - self.footer_height - self.margin)
         self.cell = max(1, min(board_zone_w, inner_h) // 8)
         self.board_px = self.cell * 8
-        self.origin_y = self.margin + (inner_h - self.board_px) // 2
+        self.origin_y = self.header_height + max(0, (inner_h - self.board_px) // 2)
         self.origin_x = self.margin + max(0, (board_zone_w - self.board_px) // 2)
         self.sidebar_x = self.margin + board_zone_w + self.sidebar_gap
 
@@ -123,8 +125,6 @@ class BoardUI:
             cx, cy = self.drag_mouse
             self._draw_piece_at(piece, cx, cy)
 
-        pygame.display.flip()
-
     def _draw_labels(self) -> None:
         for i in range(8):
             ch = FILES[i]
@@ -148,8 +148,8 @@ class BoardUI:
         return max(12, int(self.cell * 0.22))
 
     def _draw_capture_sidebar(self, state: CheckersState) -> None:
-        top = self.margin
-        h = self.screen.get_height() - 2 * self.margin
+        top = self.header_height
+        h = self.screen.get_height() - self.header_height - self.margin
         panel = pygame.Rect(self.sidebar_x - 6, top - 6, self.sidebar_w + 12, h + 12)
         pygame.draw.rect(self.screen, (40, 40, 46), panel)
         pygame.draw.rect(self.screen, (70, 70, 78), panel, width=1)

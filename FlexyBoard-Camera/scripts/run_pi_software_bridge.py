@@ -13,6 +13,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import cv2
+import numpy as np
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -52,6 +55,7 @@ def _write_game_session_metadata(game_dir: Path, *, game: str, args: argparse.Na
         "slow_live_analysis": bool(args.slow_live_analysis),
         "reopen_camera_each_capture": bool(args.reopen_camera_each_capture),
         "min_significant_changes": args.min_significant_changes,
+        "max_significant_changes": args.max_significant_changes,
         "max_resolved_score": args.max_resolved_score,
         "allow_observed_fallback": bool(args.allow_observed_fallback),
         "max_p1_detection_attempts": args.max_p1_detection_attempts,
@@ -147,6 +151,16 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--max-significant-changes",
+        type=int,
+        default=12,
+        help=(
+            "Reject captures with more than this many significant changed squares. "
+            "Large values usually indicate a hand/arm or scene obstruction rather than a real move. "
+            "0 disables this guard."
+        ),
+    )
+    parser.add_argument(
         "--allow-observed-fallback",
         action="store_true",
         help="Allow forwarding the raw CV observed move when no legal resolver match is accepted.",
@@ -184,6 +198,229 @@ def _repo_relative_path(path_text: str) -> str:
     if path.is_absolute():
         return str(path)
     return str(ROOT / path)
+
+
+def _order_quad(points: Any) -> np.ndarray:
+    pts = np.asarray(points, dtype=np.float32).reshape(-1, 2)
+    if pts.shape != (4, 2):
+        raise ValueError("quadrilateral must have 4 points")
+    sums = pts.sum(axis=1)
+    diffs = np.diff(pts, axis=1).reshape(-1)
+    ordered = np.zeros((4, 2), dtype=np.float32)
+    ordered[0] = pts[np.argmin(sums)]  # TL
+    ordered[2] = pts[np.argmax(sums)]  # BR
+    ordered[1] = pts[np.argmin(diffs)]  # TR
+    ordered[3] = pts[np.argmax(diffs)]  # BL
+    return ordered
+
+
+def _crop_for_analysis(
+    image: np.ndarray,
+    crop_info: dict[str, Any] | None,
+    which: str,
+) -> np.ndarray:
+    if not crop_info or not bool(crop_info.get("enabled")):
+        return image
+    region_raw = crop_info.get(which)
+    if not isinstance(region_raw, dict):
+        return image
+    h, w = image.shape[:2]
+    try:
+        x0 = int(region_raw.get("x0_px", 0))
+        x1 = int(region_raw.get("x1_px", w))
+        y0 = int(region_raw.get("y0_px", 0))
+        y1 = int(region_raw.get("y1_px", h))
+    except (TypeError, ValueError):
+        return image
+    x0 = max(0, min(w, x0))
+    x1 = max(0, min(w, x1))
+    y0 = max(0, min(h, y0))
+    y1 = max(0, min(h, y1))
+    if x1 <= x0 or y1 <= y0:
+        return image
+    return image[y0:y1, x0:x1].copy()
+
+
+def _green_ring_workspace_transform(outer_quad: np.ndarray) -> np.ndarray:
+    src = _order_quad(outer_quad).astype(np.float32)
+    dst = np.array(
+        [
+            [100.0, 0.0],   # top-left of image -> far-left / top of workspace
+            [0.0, 0.0],     # top-right of image -> motor origin
+            [0.0, 100.0],   # bottom-right
+            [100.0, 100.0], # bottom-left
+        ],
+        dtype=np.float32,
+    )
+    return cv2.getPerspectiveTransform(src, dst)
+
+
+def _resolve_analysis_image_path(path_text: str, analysis_dir: Path | None) -> Path:
+    raw_path = Path(path_text)
+    if raw_path.exists():
+        return raw_path
+    if analysis_dir is not None:
+        alt = analysis_dir / raw_path.name
+        if alt.exists():
+            return alt
+    if not raw_path.is_absolute():
+        repo_path = ROOT / raw_path
+        if repo_path.exists():
+            return repo_path
+    return raw_path
+
+
+def _expected_manual_green_capture_count(
+    *,
+    game: str,
+    resolved: Any,
+) -> int:
+    if not bool(getattr(resolved, "capture", False)):
+        return 0
+    steps = getattr(resolved, "steps", None)
+    if not isinstance(steps, list) or len(steps) != 1:
+        return 0
+    if game not in {"chess", "checkers"}:
+        return 0
+    return 1
+
+
+def _detect_manual_green_captures(
+    *,
+    analysis_payload: dict[str, Any],
+    diff_threshold: int,
+    expected_count: int,
+    analysis_dir: Path | None,
+) -> list[dict[str, Any]]:
+    detection_payload: dict[str, Any] = {
+        "expected_count": expected_count,
+        "detected": [],
+    }
+    if expected_count <= 0:
+        if analysis_dir is not None:
+            (analysis_dir / "manual_green_capture_detection.json").write_text(
+                json.dumps(detection_payload, ensure_ascii=True, indent=2),
+                encoding="utf-8",
+            )
+        return []
+
+    before_path_raw = analysis_payload.get("before_image")
+    after_path_raw = analysis_payload.get("after_image")
+    outer_raw = analysis_payload.get("outer_sheet_corners_px")
+    inner_raw = analysis_payload.get("chessboard_corners_px")
+    if not isinstance(before_path_raw, str) or not isinstance(after_path_raw, str):
+        detection_payload["error"] = "missing_before_after_paths"
+    elif outer_raw is None or inner_raw is None:
+        detection_payload["error"] = "missing_outer_or_inner_geometry"
+    else:
+        before_img = cv2.imread(str(_resolve_analysis_image_path(before_path_raw, analysis_dir)))
+        after_img = cv2.imread(str(_resolve_analysis_image_path(after_path_raw, analysis_dir)))
+        if before_img is None or after_img is None:
+            detection_payload["error"] = "failed_to_read_before_after_images"
+        else:
+            crop_info = analysis_payload.get("pre_detection_crop")
+            crop_dict = crop_info if isinstance(crop_info, dict) else None
+            before_img = _crop_for_analysis(before_img, crop_dict, "before")
+            after_img = _crop_for_analysis(after_img, crop_dict, "after")
+            if before_img.shape[:2] != after_img.shape[:2]:
+                common_h = min(before_img.shape[0], after_img.shape[0])
+                common_w = min(before_img.shape[1], after_img.shape[1])
+                before_img = before_img[:common_h, :common_w].copy()
+                after_img = after_img[:common_h, :common_w].copy()
+            try:
+                outer_quad = _order_quad(outer_raw)
+                inner_quad = _order_quad(inner_raw)
+            except Exception as exc:  # pragma: no cover - malformed payload only
+                detection_payload["error"] = f"invalid_geometry:{exc}"
+            else:
+                mask = np.zeros(before_img.shape[:2], dtype=np.uint8)
+                cv2.fillConvexPoly(mask, np.round(outer_quad).astype(np.int32), 255)
+                cv2.fillConvexPoly(mask, np.round(inner_quad).astype(np.int32), 0)
+
+                before_gray = cv2.cvtColor(before_img, cv2.COLOR_BGR2GRAY)
+                after_gray = cv2.cvtColor(after_img, cv2.COLOR_BGR2GRAY)
+                diff_img = cv2.absdiff(before_gray, after_gray)
+                masked_diff = cv2.bitwise_and(diff_img, diff_img, mask=mask)
+                _, thresh = cv2.threshold(
+                    masked_diff,
+                    max(10, int(diff_threshold)),
+                    255,
+                    cv2.THRESH_BINARY,
+                )
+                kernel = np.ones((5, 5), dtype=np.uint8)
+                thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+                thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                inner_area = abs(float(cv2.contourArea(inner_quad.reshape(-1, 1, 2))))
+                min_contour_area = max(80.0, inner_area / 64.0 * 0.05)
+                detection_payload["min_contour_area_px"] = min_contour_area
+                transform = _green_ring_workspace_transform(outer_quad)
+                candidates: list[dict[str, Any]] = []
+                overlay = after_img.copy()
+                cv2.polylines(overlay, [np.round(outer_quad).astype(np.int32)], True, (0, 180, 255), 2)
+                cv2.polylines(overlay, [np.round(inner_quad).astype(np.int32)], True, (0, 255, 255), 2)
+
+                for contour in contours:
+                    area = float(cv2.contourArea(contour))
+                    if area < min_contour_area:
+                        continue
+                    moments = cv2.moments(contour)
+                    if abs(moments.get("m00", 0.0)) < 1e-6:
+                        continue
+                    cx = float(moments["m10"] / moments["m00"])
+                    cy = float(moments["m01"] / moments["m00"])
+                    ix = int(round(cx))
+                    iy = int(round(cy))
+                    if iy < 0 or iy >= mask.shape[0] or ix < 0 or ix >= mask.shape[1] or mask[iy, ix] == 0:
+                        continue
+                    pct_point = cv2.perspectiveTransform(
+                        np.array([[[cx, cy]]], dtype=np.float32),
+                        transform,
+                    ).reshape(2)
+                    x, y, w, h = cv2.boundingRect(contour)
+                    candidate = {
+                        "x_pct": round(float(np.clip(pct_point[0], 0.0, 100.0)), 2),
+                        "y_pct": round(float(np.clip(pct_point[1], 0.0, 100.0)), 2),
+                        "area_px": round(area, 2),
+                        "centroid_px": [round(cx, 2), round(cy, 2)],
+                        "bbox_px": [int(x), int(y), int(w), int(h)],
+                    }
+                    candidates.append(candidate)
+                    cv2.rectangle(overlay, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                    cv2.circle(overlay, (ix, iy), 5, (0, 255, 0), -1)
+                    cv2.putText(
+                        overlay,
+                        f"{candidate['x_pct']:.2f}%,{candidate['y_pct']:.2f}%",
+                        (x, max(18, y - 8)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (0, 0, 255),
+                        1,
+                        cv2.LINE_AA,
+                    )
+
+                candidates.sort(key=lambda item: float(item["area_px"]), reverse=True)
+                detection_payload["detected"] = candidates[:expected_count]
+
+                if analysis_dir is not None:
+                    cv2.imwrite(str(analysis_dir / "manual_green_capture_mask.png"), thresh)
+                    cv2.imwrite(str(analysis_dir / "manual_green_capture_overlay.png"), overlay)
+
+    if analysis_dir is not None:
+        (analysis_dir / "manual_green_capture_detection.json").write_text(
+            json.dumps(detection_payload, ensure_ascii=True, indent=2),
+            encoding="utf-8",
+        )
+    return [
+        {
+            "x_pct": float(item["x_pct"]),
+            "y_pct": float(item["y_pct"]),
+            "area_px": float(item["area_px"]),
+        }
+        for item in detection_payload.get("detected", [])
+        if isinstance(item, dict)
+    ]
 
 
 def _run_analysis(
@@ -265,6 +502,49 @@ def _wait_for_turn_trigger(args: argparse.Namespace, prompt: str) -> None:
             raise RuntimeError("gpio trigger timeout")
     else:
         input(prompt)
+
+
+def _prompt_rolling_turn_action(
+    args: argparse.Namespace,
+    turn_index: int,
+    *,
+    show_recapture_hint: bool,
+) -> str:
+    if args.wait_mode == "gpio":
+        _wait_for_turn_trigger(
+            args,
+            f"[Bridge] Turn {turn_index}: make Player 1 move, then press Enter to capture current board...",
+        )
+        return "capture"
+
+    prompt = f"[Bridge] Turn {turn_index}: make Player 1 move, then press Enter to capture current board..."
+    if show_recapture_hint:
+        prompt += (
+            "\n[Bridge] Type 'r' then Enter to recapture the rolling reference "
+            "from the current board instead: "
+        )
+    else:
+        prompt += " "
+    raw = input(prompt).strip().lower()
+    if raw in {"r", "ref", "reference", "recapture"}:
+        return "recapture_reference"
+    return "capture"
+
+
+def _select_resolver_changed_squares(
+    *,
+    game: str,
+    analysis_payload: dict[str, Any],
+    changed_squares: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if str(game).lower() != "chess":
+        return changed_squares
+    raw = analysis_payload.get("resolver_changed_squares")
+    if isinstance(raw, list):
+        filtered = [item for item in raw if isinstance(item, dict)]
+        if filtered:
+            return filtered
+    return changed_squares
 
 
 def _analyze_paths(
@@ -604,11 +884,22 @@ def _capture_and_analyze_rolling(
     turn_index: int,
     analysis_config: Any,
     turn_debug_dir: Path | None,
+    show_recapture_hint: bool = False,
 ) -> dict[str, Any]:
-    _wait_for_turn_trigger(
+    action = _prompt_rolling_turn_action(
         args,
-        f"[Bridge] Turn {turn_index}: make Player 1 move, then press Enter to capture current board...",
+        turn_index,
+        show_recapture_hint=show_recapture_hint,
     )
+    if action == "recapture_reference":
+        new_reference_path = controller.capture_before(reopen_stream=args.reopen_camera_each_capture)
+        print(f"[Bridge] Rolling reference recaptured from current board: {new_reference_path}")
+        if turn_debug_dir is not None:
+            _copy_frame_for_turn(new_reference_path, turn_debug_dir / "reference_recaptured.png")
+        return {
+            "action": "recapture_reference",
+            "reference_path": str(new_reference_path),
+        }
 
     after_path = controller.capture_after(reopen_stream=args.reopen_camera_each_capture)
     print(f"[Bridge] CURRENT captured: {after_path}")
@@ -828,6 +1119,62 @@ def _significant_changed_count(
     return count
 
 
+def _player1_rejection_status_payload(
+    *,
+    reason: str,
+    details: dict[str, Any],
+    attempt_index: int,
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    if reason == "missing_player1_observed_move":
+        message = "CV did not produce an observed Player 1 move."
+    elif reason == "insufficient_significant_changed_squares":
+        actual = details.get("significant_changed_count")
+        needed = details.get("min_significant_changes")
+        message = (
+            f"Only {actual} significant changed square(s) were detected; need at least {needed}."
+        )
+    elif reason == "legal_move_resolution_rejected":
+        score = details.get("max_resolved_score")
+        message = (
+            "Detected board changes did not match a confident legal move "
+            f"(resolver threshold {score})."
+        )
+    elif reason == "excessive_significant_changed_squares":
+        actual = details.get("significant_changed_count")
+        limit = details.get("max_significant_changes")
+        message = (
+            f"{actual} significant changed squares were detected, exceeding the limit of {limit}. "
+            "This usually means a hand or large obstruction was in frame."
+        )
+    else:
+        message = f"Player 1 move was rejected: {reason}."
+
+    extra = [
+        "The previous clean reference image is still active; the rejected after-frame was not promoted to the new reference.",
+        "Remove any hand/arm or obstruction, leave the board in the intended state, and press Enter to retry the same turn.",
+    ]
+    if args.max_p1_detection_attempts > 0:
+        remaining = max(0, args.max_p1_detection_attempts - attempt_index)
+        extra.append(f"Retries remaining before stop: {remaining}.")
+    return {
+        "type": "status",
+        "level": "warning",
+        "title": "Player 1 Move Rejected",
+        "message": message,
+        "details": extra,
+        "sticky": True,
+    }
+
+
+def _send_status_message(conn_file: Any, payload: dict[str, Any]) -> None:
+    try:
+        _write_json_line(conn_file, payload)
+    except Exception:
+        # UI-side status messaging is best-effort only.
+        pass
+
+
 def _write_rejected_player1_attempt(
     *,
     analysis_wrap: dict[str, Any],
@@ -878,6 +1225,27 @@ def _p1_detection_attempts_exhausted(args: argparse.Namespace, attempt_index: in
     return args.max_p1_detection_attempts > 0 and attempt_index >= args.max_p1_detection_attempts
 
 
+def _extract_turn_steps(msg: dict[str, Any]) -> list[tuple[str, str]]:
+    raw_steps = msg.get("turn_steps")
+    steps: list[tuple[str, str]] = []
+    if isinstance(raw_steps, list):
+        for item in raw_steps:
+            if not isinstance(item, dict):
+                continue
+            frm = item.get("from")
+            to = item.get("to")
+            if isinstance(frm, str) and isinstance(to, str):
+                steps.append((frm, to))
+    if steps:
+        return steps
+
+    frm = msg.get("from")
+    to = msg.get("to")
+    if isinstance(frm, str) and isinstance(to, str):
+        return [(frm, to)]
+    return []
+
+
 def _serve_client(
     args: argparse.Namespace,
     conn: socket.socket,
@@ -892,6 +1260,7 @@ def _serve_client(
         conn_file = conn.makefile("rwb")
         turn_index = 1
         reference_path: Path | None = None
+        show_reference_recapture_hint = False
 
         if args.capture_mode == "rolling":
             input("[Bridge] Make sure the physical board matches the software state, then press Enter to capture INITIAL reference...")
@@ -952,7 +1321,15 @@ def _serve_client(
                         turn_index=turn_index,
                         analysis_config=analysis_config,
                         turn_debug_dir=turn_debug_dir,
+                        show_recapture_hint=show_reference_recapture_hint,
                     )
+                    if analysis_wrap.get("action") == "recapture_reference":
+                        ref_raw = analysis_wrap.get("reference_path")
+                        if isinstance(ref_raw, str):
+                            reference_path = Path(ref_raw)
+                        show_reference_recapture_hint = False
+                        print("[Bridge] Rolling reference updated. Retry the same turn when ready.")
+                        continue
                 else:
                     input(f"[Bridge] Turn {turn_index}: press Enter to capture BEFORE...")
                     analysis_wrap = _capture_and_analyze_two_shot(
@@ -986,9 +1363,19 @@ def _serve_client(
                         attempt_index=attempt_index,
                         args=args,
                     )
+                    _send_status_message(
+                        conn_file,
+                        _player1_rejection_status_payload(
+                            reason="missing_player1_observed_move",
+                            details=details,
+                            attempt_index=attempt_index,
+                            args=args,
+                        ),
+                    )
                     if _p1_detection_attempts_exhausted(args, attempt_index):
                         print("[Bridge] Stopping after rejected Player 1 detection attempts.")
                         return
+                    show_reference_recapture_hint = True
                     attempt_index += 1
                     continue
 
@@ -996,12 +1383,54 @@ def _serve_client(
                 raw_changed = analysis_payload.get("changed_squares")
                 if isinstance(raw_changed, list):
                     changed_squares = [item for item in raw_changed if isinstance(item, dict)]
+                resolver_changed_squares = _select_resolver_changed_squares(
+                    game=game,
+                    analysis_payload=analysis_payload,
+                    changed_squares=changed_squares,
+                )
 
                 significant_count = _significant_changed_count(
                     analysis_payload,
                     observed_move,
                     changed_squares,
                 )
+                if args.max_significant_changes > 0 and significant_count > args.max_significant_changes:
+                    details = {
+                        "significant_changed_count": significant_count,
+                        "changed_square_count": len(changed_squares),
+                        "min_significant_changes": args.min_significant_changes,
+                        "max_significant_changes": args.max_significant_changes,
+                        "max_resolved_score": args.max_resolved_score,
+                    }
+                    rejection_path = _write_rejected_player1_attempt(
+                        analysis_wrap=analysis_wrap,
+                        reason="excessive_significant_changed_squares",
+                        details=details,
+                        resolver=resolver,
+                        turn_debug_dir=turn_debug_dir,
+                    )
+                    _print_rejected_player1_attempt(
+                        reason="excessive_significant_changed_squares",
+                        details=details,
+                        rejection_path=rejection_path,
+                        attempt_index=attempt_index,
+                        args=args,
+                    )
+                    _send_status_message(
+                        conn_file,
+                        _player1_rejection_status_payload(
+                            reason="excessive_significant_changed_squares",
+                            details=details,
+                            attempt_index=attempt_index,
+                            args=args,
+                        ),
+                    )
+                    if _p1_detection_attempts_exhausted(args, attempt_index):
+                        print("[Bridge] Stopping after rejected Player 1 detection attempts.")
+                        return
+                    show_reference_recapture_hint = True
+                    attempt_index += 1
+                    continue
                 if significant_count < args.min_significant_changes:
                     details = {
                         "significant_changed_count": significant_count,
@@ -1023,17 +1452,36 @@ def _serve_client(
                         attempt_index=attempt_index,
                         args=args,
                     )
+                    _send_status_message(
+                        conn_file,
+                        _player1_rejection_status_payload(
+                            reason="insufficient_significant_changed_squares",
+                            details=details,
+                            attempt_index=attempt_index,
+                            args=args,
+                        ),
+                    )
                     if _p1_detection_attempts_exhausted(args, attempt_index):
                         print("[Bridge] Stopping after rejected Player 1 detection attempts.")
                         return
+                    show_reference_recapture_hint = True
                     attempt_index += 1
                     continue
 
                 resolved = resolver.resolve_player1(
                     observed_move,
-                    changed_squares,
+                    resolver_changed_squares,
                     max_score=args.max_resolved_score,
                 )
+                if (
+                    resolved is None
+                    and resolver_changed_squares is not changed_squares
+                ):
+                    resolved = resolver.resolve_player1(
+                        observed_move,
+                        changed_squares,
+                        max_score=args.max_resolved_score,
+                    )
                 if resolved is None and args.allow_observed_fallback:
                     resolved = resolver.fallback_from_observed(observed_move)
                 if resolved is None:
@@ -1058,9 +1506,19 @@ def _serve_client(
                         attempt_index=attempt_index,
                         args=args,
                     )
+                    _send_status_message(
+                        conn_file,
+                        _player1_rejection_status_payload(
+                            reason="legal_move_resolution_rejected",
+                            details=details,
+                            attempt_index=attempt_index,
+                            args=args,
+                        ),
+                    )
                     if _p1_detection_attempts_exhausted(args, attempt_index):
                         print("[Bridge] Stopping after rejected Player 1 detection attempts.")
                         return
+                    show_reference_recapture_hint = True
                     attempt_index += 1
                     continue
 
@@ -1070,6 +1528,11 @@ def _serve_client(
             analysis_dir: Path | None = None
             if isinstance(analysis_dir_raw, str):
                 analysis_dir = Path(analysis_dir_raw)
+                if resolver_changed_squares:
+                    (analysis_dir / "player1_resolver_changed_squares.json").write_text(
+                        json.dumps(resolver_changed_squares, ensure_ascii=True, indent=2),
+                        encoding="utf-8",
+                    )
                 (analysis_dir / "player1_resolved_move.json").write_text(
                     json.dumps(resolved.to_dict(), ensure_ascii=True, indent=2),
                     encoding="utf-8",
@@ -1084,9 +1547,39 @@ def _serve_client(
                 f"steps={len(resolved.steps)} capture={resolved.capture} "
                 f"special={resolved.special} score={resolved.score}"
             )
+            show_reference_recapture_hint = False
+            manual_green_captures = _detect_manual_green_captures(
+                analysis_payload=analysis_payload,
+                diff_threshold=int(analysis_config.diff_threshold),
+                expected_count=_expected_manual_green_capture_count(game=game, resolved=resolved),
+                analysis_dir=analysis_dir,
+            )
+            if manual_green_captures:
+                print(
+                    "[Bridge] Detected manual green-area capture source(s): "
+                    + ", ".join(
+                        f"{item['x_pct']:.2f}%,{item['y_pct']:.2f}%"
+                        for item in manual_green_captures
+                    )
+                )
+            _send_status_message(
+                conn_file,
+                {
+                    "type": "status",
+                    "level": "success",
+                    "title": "Player 1 Move Accepted",
+                    "message": (
+                        f"Accepted {len(resolved.steps)} logical step(s) with {resolved.resolver}."
+                    ),
+                    "details": [f"Resolver score: {resolved.score}"],
+                    "duration_ms": 1800,
+                },
+            )
             for idx, step in enumerate(resolved.steps, start=1):
                 p1_from, p1_to = resolver.step_to_square_pair(step)
                 p1_msg = {"type": "p1_move", "from": p1_from, "to": p1_to}
+                if manual_green_captures and idx == len(resolved.steps):
+                    p1_msg["manual_green_captures"] = manual_green_captures
                 _write_json_line(conn_file, p1_msg)
                 print(f"[Bridge] Sent P1 step {idx}/{len(resolved.steps)}: {p1_from} -> {p1_to}")
 
@@ -1100,16 +1593,22 @@ def _serve_client(
 
             p2_from = incoming.get("from")
             p2_to = incoming.get("to")
-            print(f"[Bridge] Received P2 move from Software-GUI: {p2_from} -> {p2_to}")
+            p2_steps = _extract_turn_steps(incoming)
+            if p2_steps and len(p2_steps) > 1:
+                chain = " | ".join(f"{frm}->{to}" for frm, to in p2_steps)
+                print(f"[Bridge] Received P2 move from Software-GUI: {chain}")
+            else:
+                print(f"[Bridge] Received P2 move from Software-GUI: {p2_from} -> {p2_to}")
             if analysis_dir is not None:
                 (analysis_dir / "player2_move.json").write_text(
                     json.dumps(incoming, ensure_ascii=True, indent=2),
                     encoding="utf-8",
                 )
 
-            if isinstance(p2_from, str) and isinstance(p2_to, str):
+            if p2_steps:
                 try:
-                    resolver.apply_player2(p2_from, p2_to)
+                    for step_from, step_to in p2_steps:
+                        resolver.apply_player2(step_from, step_to)
                     if analysis_dir is not None:
                         (analysis_dir / "pi_resolver_state_after_p2.json").write_text(
                             json.dumps(resolver.debug_state(), ensure_ascii=True, indent=2),
@@ -1175,6 +1674,7 @@ def main() -> int:
         f"diff_threshold={config.analysis.diff_threshold} "
         f"min_changed_ratio={config.analysis.min_changed_ratio} "
         f"min_significant_changes={args.min_significant_changes} "
+        f"max_significant_changes={args.max_significant_changes} "
         f"max_resolved_score={args.max_resolved_score}"
     )
     print(f"[Bridge] Stateful resolver initialized: {resolver.debug_state().get('persistent_state')}")

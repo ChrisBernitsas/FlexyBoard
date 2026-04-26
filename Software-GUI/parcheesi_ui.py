@@ -11,7 +11,7 @@ from parcheesi_state import ParcheesiState, Piece
 
 
 class ParcheesiUI:
-    LINE_ONLY_BOARD = True
+    LINE_ONLY_BOARD = False
     REFERENCE_LINE_ART = "parcheesi_reference_black_parts_only.png"
 
     BG = (36, 55, 83)
@@ -61,12 +61,16 @@ class ParcheesiUI:
         self.small_font = pygame.font.Font(None, 15)
 
         self.margin = 42
+        self.header_height = 128
+        self.footer_height = 44
         self.sidebar_w = min(250, max(190, width // 4))
         self.sidebar_gap = 20
-        self.board_px = min(width - self.sidebar_w - self.sidebar_gap - 2 * self.margin, height - 2 * self.margin)
+        board_zone_w = width - self.sidebar_w - self.sidebar_gap - 2 * self.margin
+        board_zone_h = max(360, height - self.header_height - self.footer_height - self.margin)
+        self.board_px = min(board_zone_w, board_zone_h)
         self.board_px = max(360, self.board_px)
         self.origin_x = self.margin
-        self.origin_y = (height - self.board_px) // 2
+        self.origin_y = self.header_height + max(0, (board_zone_h - self.board_px) // 2)
         self.sidebar_x = self.origin_x + self.board_px + self.sidebar_gap
         self.cell = self.board_px / 19.0
         self.reference_line_art = self._load_reference_line_art()

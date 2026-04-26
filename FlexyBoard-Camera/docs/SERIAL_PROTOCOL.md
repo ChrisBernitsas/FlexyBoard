@@ -18,6 +18,9 @@ Supported STM commands:
 - `GOTOPCT px py` (0..100% of green-grid workspace)
 - `MOVE sx sy dx dy` (board coords 0..7)
 - `MOVE_STEPS sx sy dx dy` (absolute workspace steps)
+- `PICKUP_STEPS sx sy` (move to source and engage Z)
+- `MOVEHELD_STEPS dx dy` (move while keeping magnet/piece engaged)
+- `RELEASE_STEPS dx dy` (move to destination and disengage Z)
 - `MOVEPCT spx spy dpx dpy` (percent endpoints)
 
 Pi move sender behavior (`scripts/send_moves_from_file.py`):
@@ -26,6 +29,11 @@ Pi move sender behavior (`scripts/send_moves_from_file.py`):
 - `configs/default.yaml` `motor.board_orientation` maps game board coordinates to motor board coordinates before step interpolation.
 - Current default: `game_a8_at_motor_00`, meaning game `a8` maps to motor board `(0,0)` because the motor home/rest side is at the top-right camera corner.
 - The script resolves endpoints to absolute step coordinates and sends `MOVE_STEPS ...`.
+- For consecutive file lines where `previous_dest == next_source`, the sender now groups them into one chained physical move:
+  - `PICKUP_STEPS ...`
+  - zero or more `MOVEHELD_STEPS ...`
+  - `RELEASE_STEPS ...`
+- If the connected STM firmware does not support the chained commands yet, the sender falls back to legacy per-line `MOVE_STEPS ...`.
 
 ## 1) Transport
 - Physical layer: UART (`115200 8N1` default)

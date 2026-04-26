@@ -37,15 +37,17 @@ class ChessUI:
         self.font = pygame.font.SysFont("sf pro display, helvetica, arial", 18)
         self.piece_font = pygame.font.SysFont("sf pro display, helvetica, arial", 26, bold=True)
 
-        self.margin = 36
+        self.margin = 40
+        self.header_height = 128
+        self.footer_height = 44
         self.sidebar_gap = 16
         content_w = max(1, width - 2 * self.margin)
         self.sidebar_w = min(240, max(140, width // 4))
         board_zone_w = max(1, content_w - self.sidebar_w - self.sidebar_gap)
-        inner_h = height - 2 * self.margin
+        inner_h = max(1, height - self.header_height - self.footer_height - self.margin)
         self.cell = max(1, min(board_zone_w, inner_h) // 8)
         self.board_px = self.cell * 8
-        self.origin_y = self.margin + (inner_h - self.board_px) // 2
+        self.origin_y = self.header_height + max(0, (inner_h - self.board_px) // 2)
         self.origin_x = self.margin + max(0, (board_zone_w - self.board_px) // 2)
         self.sidebar_x = self.margin + board_zone_w + self.sidebar_gap
 
@@ -133,8 +135,8 @@ class ChessUI:
         self.screen.blit(surf, surf.get_rect(center=rect.center))
 
     def _draw_capture_sidebar(self, state: ChessState) -> None:
-        top = self.margin
-        h = self.screen.get_height() - 2 * self.margin
+        top = self.header_height
+        h = self.screen.get_height() - self.header_height - self.margin
         panel = pygame.Rect(self.sidebar_x - 6, top - 6, self.sidebar_w + 12, h + 12)
         pygame.draw.rect(self.screen, self.PANEL_BG, panel)
         pygame.draw.rect(self.screen, self.PANEL_STROKE, panel, width=1)
@@ -218,8 +220,6 @@ class ChessUI:
                 if label:
                     surf = self.piece_font.render(label, True, self._piece_color(moving))
                     self.screen.blit(surf, surf.get_rect(center=self.drag_mouse))
-
-        pygame.display.flip()
 
     def handle_event(
         self, event: pygame.event.Event, state: ChessState, p2_turn: bool

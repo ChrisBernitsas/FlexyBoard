@@ -209,23 +209,82 @@ void set_z_dir(uint8_t dir)
     }
 }
 
+static uint32_t min_u32(uint32_t a, uint32_t b)
+{
+    return (a < b) ? a : b;
+}
+
+static uint32_t max_u32(uint32_t a, uint32_t b)
+{
+    return (a > b) ? a : b;
+}
+
+static uint32_t get_xy_cruise_delay(uint32_t x_steps, uint32_t y_steps)
+{
+    if (x_steps == 0U)
+    {
+        return Y_STEP_DELAY_CYCLES;
+    }
+
+    if (y_steps == 0U)
+    {
+        return X_STEP_DELAY_CYCLES;
+    }
+
+    return max_u32(X_STEP_DELAY_CYCLES, Y_STEP_DELAY_CYCLES);
+}
+
+static uint32_t get_xy_step_delay(uint32_t step_index, uint32_t total_steps, uint32_t cruise_delay)
+{
+    uint32_t start_delay;
+    uint32_t ramp_steps;
+    uint32_t distance_from_edge;
+    uint32_t delay_delta;
+
+    if (total_steps == 0U)
+    {
+        return cruise_delay;
+    }
+
+    start_delay = max_u32(XY_START_DELAY_CYCLES, cruise_delay);
+    if (start_delay <= cruise_delay)
+    {
+        return cruise_delay;
+    }
+
+    ramp_steps = min_u32(XY_RAMP_STEPS, total_steps / 2U);
+    if (ramp_steps == 0U)
+    {
+        return start_delay;
+    }
+
+    distance_from_edge = min_u32(step_index, (total_steps - 1U) - step_index);
+    if (distance_from_edge >= ramp_steps)
+    {
+        return cruise_delay;
+    }
+
+    delay_delta = start_delay - cruise_delay;
+    return start_delay - ((delay_delta * distance_from_edge) / ramp_steps);
+}
+
 void pulse_x_step(void)
 {
     gpio_set_pin(X_STEP_PORT, X_STEP_PIN);
-    delay_cycles(STEP_DELAY_CYCLES);
+    delay_cycles(X_STEP_DELAY_CYCLES);
 
     gpio_clear_pin(X_STEP_PORT, X_STEP_PIN);
-    delay_cycles(STEP_DELAY_CYCLES);
+    delay_cycles(X_STEP_DELAY_CYCLES);
 }
 
 void pulse_y_step(void)
 {
     /* Shared STEP signal for both Y drivers */
     gpio_set_pin(Y_STEP_PORT, Y_STEP_PIN);
-    delay_cycles(STEP_DELAY_CYCLES);
+    delay_cycles(Y_STEP_DELAY_CYCLES);
 
     gpio_clear_pin(Y_STEP_PORT, Y_STEP_PIN);
-    delay_cycles(STEP_DELAY_CYCLES);
+    delay_cycles(Y_STEP_DELAY_CYCLES);
 }
 
 void pulse_z_step(void)
@@ -240,7 +299,7 @@ void pulse_z_step(void)
 void step_x(uint32_t steps, uint8_t dir)
 {
     set_x_dir(dir);
-    delay_cycles(STEP_DELAY_CYCLES);
+    delay_cycles(X_STEP_DELAY_CYCLES);
 
     for (uint32_t i = 0; i < steps; i++)
     {
@@ -251,7 +310,7 @@ void step_x(uint32_t steps, uint8_t dir)
 void step_y(uint32_t steps, uint8_t dir)
 {
     set_y_dir(dir);
-    delay_cycles(STEP_DELAY_CYCLES);
+    delay_cycles(Y_STEP_DELAY_CYCLES);
 
     for (uint32_t i = 0; i < steps; i++)
     {
@@ -276,10 +335,12 @@ void move_xy(uint32_t x_steps, uint8_t x_dir, uint32_t y_steps, uint8_t y_dir)
     uint32_t max_steps;
     uint32_t x_acc = 0U;
     uint32_t y_acc = 0U;
+    uint32_t cruise_delay;
 
     set_x_dir(x_dir);
     set_y_dir(y_dir);
-    delay_cycles(STEP_DELAY_CYCLES);
+    cruise_delay = get_xy_cruise_delay(x_steps, y_steps);
+    delay_cycles(max_u32(XY_START_DELAY_CYCLES, cruise_delay));
 
     max_steps = (x_steps > y_steps) ? x_steps : y_steps;
 
@@ -318,7 +379,7 @@ void move_xy(uint32_t x_steps, uint8_t x_dir, uint32_t y_steps, uint8_t y_dir)
             gpio_set_pin(Y_STEP_PORT, Y_STEP_PIN);
         }
 
-        delay_cycles(STEP_DELAY_CYCLES);
+        delay_cycles(get_xy_step_delay(i, max_steps, cruise_delay));
 
         if (do_x)
         {
@@ -330,7 +391,7 @@ void move_xy(uint32_t x_steps, uint8_t x_dir, uint32_t y_steps, uint8_t y_dir)
             gpio_clear_pin(Y_STEP_PORT, Y_STEP_PIN);
         }
 
-        delay_cycles(STEP_DELAY_CYCLES);
+        delay_cycles(get_xy_step_delay(i, max_steps, cruise_delay));
     }
 }
 
@@ -447,16 +508,31 @@ static void z_release(void)
     step_z(Z_RELEASE_STEPS, Z_RELEASE_DIR);
 }
 
-static void execute_pick_and_place_steps(int32_t src_x_steps, int32_t src_y_steps, int32_t dst_x_steps,
-                                         int32_t dst_y_steps)
+static void execute_pickup_steps(int32_t src_x_steps, int32_t src_y_steps)
 {
     move_to_steps(src_x_steps, src_y_steps);
     delay_cycles(MOVE_PAUSE_CYCLES);
     z_pickup();
-    delay_cycles(MOVE_PAUSE_CYCLES);
+}
+
+static void execute_moveheld_steps(int32_t dst_x_steps, int32_t dst_y_steps)
+{
+    move_to_steps(dst_x_steps, dst_y_steps);
+}
+
+static void execute_release_steps(int32_t dst_x_steps, int32_t dst_y_steps)
+{
     move_to_steps(dst_x_steps, dst_y_steps);
     delay_cycles(MOVE_PAUSE_CYCLES);
     z_release();
+}
+
+static void execute_pick_and_place_steps(int32_t src_x_steps, int32_t src_y_steps, int32_t dst_x_steps,
+                                         int32_t dst_y_steps)
+{
+    execute_pickup_steps(src_x_steps, src_y_steps);
+    delay_cycles(MOVE_PAUSE_CYCLES);
+    execute_release_steps(dst_x_steps, dst_y_steps);
 }
 
 static void process_command(const char *cmd)
@@ -589,6 +665,54 @@ static void process_command(const char *cmd)
 
         execute_pick_and_place_steps(src_x_steps, src_y_steps, dst_x_steps, dst_y_steps);
         uart_write_line("OK MOVE_STEPS");
+        return;
+    }
+
+    if (sscanf(sanitized, "PICKUP_STEPS %d %d", &sx, &sy) == 2)
+    {
+        src_x_steps = (int32_t)sx;
+        src_y_steps = (int32_t)sy;
+
+        if (!workspace_steps_in_range(src_x_steps, src_y_steps))
+        {
+            uart_write_line("ERR SOURCE_STEP_RANGE");
+            return;
+        }
+
+        execute_pickup_steps(src_x_steps, src_y_steps);
+        uart_write_line("OK PICKUP_STEPS");
+        return;
+    }
+
+    if (sscanf(sanitized, "MOVEHELD_STEPS %d %d", &dx, &dy) == 2)
+    {
+        dst_x_steps = (int32_t)dx;
+        dst_y_steps = (int32_t)dy;
+
+        if (!workspace_steps_in_range(dst_x_steps, dst_y_steps))
+        {
+            uart_write_line("ERR DEST_STEP_RANGE");
+            return;
+        }
+
+        execute_moveheld_steps(dst_x_steps, dst_y_steps);
+        uart_write_line("OK MOVEHELD_STEPS");
+        return;
+    }
+
+    if (sscanf(sanitized, "RELEASE_STEPS %d %d", &dx, &dy) == 2)
+    {
+        dst_x_steps = (int32_t)dx;
+        dst_y_steps = (int32_t)dy;
+
+        if (!workspace_steps_in_range(dst_x_steps, dst_y_steps))
+        {
+            uart_write_line("ERR DEST_STEP_RANGE");
+            return;
+        }
+
+        execute_release_steps(dst_x_steps, dst_y_steps);
+        uart_write_line("OK RELEASE_STEPS");
         return;
     }
 

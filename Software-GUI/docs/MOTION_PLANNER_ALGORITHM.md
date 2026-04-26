@@ -152,7 +152,7 @@ Used only for short-term blocker parking, defaults:
 - Physical routes do not need to match the chess piece's legal movement shape. The game state validates legality; the motor planner finds a safe mechanical route.
 - For dense positions, many temporary relocations can increase move time.
 - If no grid route can be found after relocation attempts, planner emits a direct fallback segment (tracked in `fallback_direct_segments`).
-- Checkers multi-jump physical sequencing across one full turn is still emitted as multiple GUI turns.
+- Checkers multi-jump physical sequencing is bundled into one GUI/bridge turn using `turn_steps`, while still emitting the full STM path list for the complete sequence.
 - Promotion physical replacement is optional and disabled by default unless configured.
 
 ## Chess Special Cases (Physical Planning)

@@ -52,6 +52,22 @@ Current bridge mode also includes planner output in the same message:
 }
 ```
 
+Checkers multi-jump turns can now be bundled into one `p2_move` using `turn_steps`:
+
+```json
+{
+  "type":"p2_move",
+  "from":"g5",
+  "to":"c1",
+  "game":"checkers",
+  "turn_steps":[
+    {"from":"g5","to":"e3"},
+    {"from":"e3","to":"c1"}
+  ],
+  "stm_sequence":["6,4 -> 4,2","4,2 -> 2,0"]
+}
+```
+
 ## New integration behavior (CV/physical-board pipeline)
 
 When P2 makes a move (human drag-drop or AI mode), the app can now auto-generate an STM move sequence file for motors:
@@ -188,8 +204,6 @@ Press **Esc** to return to the **game select** menu.
 3. P2 uses the mouse: pick up a P2 piece, drop on a square; the move is validated locally; on success a `p2_move` is sent and the app waits for P1 again.
 
 ## Limitations (v1)
-
-- One step or one jump per message (no multi-hop chain in one tuple).
 - Checkers now enforces:
   - mandatory capture when available
   - forced same-piece continuation for multi-jump sequences (P1 and P2)

@@ -115,13 +115,33 @@ typedef struct
  */
 #define WORKSPACE_PERCENT_SCALE 100
 
-/* Step pulse timing (higher delay = slower speed). */
-#define STEP_DELAY_CYCLES     1400
-#define STEP_DELAY_CYCLES_Z   3000
-#define MOVE_PAUSE_CYCLES     1200000
+/* Step pulse timing (higher delay = slower speed).
+ * X and Y are split because the dual-motor gantry axis typically tops out
+ * below the single-motor axis. Combined XY moves respect the slower axis and
+ * ramp down from XY_START_DELAY_CYCLES to the cruise delay.
+ */
+#define X_STEP_DELAY_CYCLES   1000
+#define Y_STEP_DELAY_CYCLES   1200
+#define XY_START_DELAY_CYCLES 1800
+#define XY_RAMP_STEPS         96U
+#define STEP_DELAY_CYCLES_Z   1500
+#define MOVE_PAUSE_CYCLES     120000
+
+// #define X_STEP_DELAY_CYCLES   600 // 1400
+// #define Y_STEP_DELAY_CYCLES   800 // dual-motor axis needs more margin
+// #define XY_START_DELAY_CYCLES 1800
+// #define XY_RAMP_STEPS         96U
+// #define STEP_DELAY_CYCLES_Z   3000
+// #define MOVE_PAUSE_CYCLES     1200 // 1200000
 
 /* Z actuation profile for pickup/release around a piece move.
  * TODO: flip *_DIR values if your physical Z direction is reversed.
+ *
+ * UART movement commands:
+ *   MOVE_STEPS sx sy dx dy     -> full pick/place
+ *   PICKUP_STEPS sx sy         -> move to source and engage Z
+ *   MOVEHELD_STEPS dx dy       -> move while keeping piece attached
+ *   RELEASE_STEPS dx dy        -> move to destination and disengage Z
  */
 #define Z_PICKUP_STEPS        30
 #define Z_RELEASE_STEPS       30

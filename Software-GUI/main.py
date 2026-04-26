@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+from dataclasses import dataclass, field
 import io
 import json
 from pathlib import Path
@@ -24,9 +25,19 @@ from parcheesi_ui import ParcheesiUI
 from ipc.mock_transport import MockTransport
 from ipc.protocol import P1MoveMessage, P2MoveMessage, decode_line
 from ipc.transport_tcp import TcpClientTransport
-from motor_sequence import CaptureInventory, generate_p2_sequence, write_sequence_file
+from motor_sequence import (
+    CaptureInventory,
+    GeneratedSequence,
+    PercentEndpoint,
+    generate_p2_sequence,
+    write_sequence_file,
+)
 
 ROOT = Path(__file__).resolve().parent
+
+
+def _piece_name(piece: object) -> str:
+    return str(getattr(piece, "name", piece))
 
 
 def _stdin_p1_injector(mock: MockTransport) -> None:
@@ -40,7 +51,11 @@ def _stdin_p1_injector(mock: MockTransport) -> None:
             print("stdin: skip line:", e, file=sys.stderr)
             continue
         if isinstance(decoded, P1MoveMessage):
-            mock.inject_p1_move(decoded.frm, decoded.to)
+            mock.inject_p1_move(
+                decoded.frm,
+                decoded.to,
+                manual_green_captures=decoded.manual_green_captures,
+            )
             print("stdin: queued P1 move", decoded.frm, "->", decoded.to, file=sys.stderr)
 
 
@@ -119,8 +134,45 @@ class _GeometryCalibration:
         self.inner_points.clear()
 
 
+@dataclass
+class _StatusNotice:
+    level: str
+    title: str
+    message: str
+    details: list[str] = field(default_factory=list)
+    sticky: bool = False
+    expires_at_ms: int = 0
+
+
+@dataclass
+class _QueuedCheckersTurn:
+    steps: list[tuple[str, str]] = field(default_factory=list)
+    stm_lines: list[str] = field(default_factory=list)
+    manual_actions: list[str] = field(default_factory=list)
+    capture_slots_used: list[str] = field(default_factory=list)
+    temporary_relocations: int = 0
+    fallback_direct_segments: int = 0
+
+    def append(self, start_id: str, end_id: str, generated: GeneratedSequence) -> None:
+        self.steps.append((start_id, end_id))
+        self.stm_lines.extend(generated.lines)
+        self.manual_actions.extend(generated.manual_actions)
+        self.capture_slots_used.extend(generated.capture_slots_used)
+        self.temporary_relocations += int(generated.temporary_relocations)
+        self.fallback_direct_segments += int(generated.fallback_direct_segments)
+
+    def clear(self) -> None:
+        self.steps.clear()
+        self.stm_lines.clear()
+        self.manual_actions.clear()
+        self.capture_slots_used.clear()
+        self.temporary_relocations = 0
+        self.fallback_direct_segments = 0
+
+
 def _back_button_rect(ui: object) -> pygame.Rect:
-    return pygame.Rect(12, 12, 96, 36)
+    margin = int(getattr(ui, "margin", 16))
+    return pygame.Rect(margin // 2, 14, 96, 36)
 
 
 def _draw_back_button(ui: object) -> None:
@@ -141,7 +193,7 @@ def _mode_button_rect(ui: object) -> pygame.Rect:
     screen = ui.screen
     w = 180
     h = 36
-    margin = 12
+    margin = max(12, int(getattr(ui, "margin", 16)) // 2)
     return pygame.Rect(screen.get_width() - w - margin, margin, w, h)
 
 
@@ -169,7 +221,6 @@ def _draw_mode_button(ui: object, ai_mode: bool, game_kind: str) -> None:
 
     label = ui.font.render(text, True, (244, 244, 248))
     ui.screen.blit(label, label.get_rect(center=rect.center))
-    pygame.display.update(rect)
 
 
 def _draw_capture_inventory_overlay(ui: object, inventory_lines: list[str], manual_actions: list[str]) -> None:
@@ -217,18 +268,55 @@ def _draw_capture_inventory_overlay(ui: object, inventory_lines: list[str], manu
         screen.blit(surf, (x + 8, y + 6 + i * line_h))
 
 
+def _make_status_notice(
+    *,
+    level: str,
+    title: str,
+    message: str,
+    details: list[str] | None = None,
+    sticky: bool = False,
+    duration_ms: int = 0,
+) -> _StatusNotice:
+    now_ms = pygame.time.get_ticks()
+    expires_at_ms = 0 if sticky or duration_ms <= 0 else now_ms + duration_ms
+    return _StatusNotice(
+        level=level,
+        title=title,
+        message=message,
+        details=list(details or []),
+        sticky=sticky,
+        expires_at_ms=expires_at_ms,
+    )
+
+
+def _status_notice_from_control_message(msg: dict[str, object]) -> _StatusNotice:
+    raw_details = msg.get("details")
+    details: list[str] = []
+    if isinstance(raw_details, list):
+        details = [str(item) for item in raw_details if str(item).strip()]
+    return _make_status_notice(
+        level=str(msg.get("level", "info")),
+        title=str(msg.get("title", "Status")),
+        message=str(msg.get("message", "")),
+        details=details,
+        sticky=bool(msg.get("sticky", False)),
+        duration_ms=int(msg.get("duration_ms", 0) or 0),
+    )
+
+
 def _poll_geometry_controls(
     transport: object,
     preview: _GeometryPreview | None,
     calibration: _GeometryCalibration | None,
-) -> tuple[_GeometryPreview | None, _GeometryCalibration | None]:
+    status_notice: _StatusNotice | None,
+) -> tuple[_GeometryPreview | None, _GeometryCalibration | None, _StatusNotice | None]:
     poll = getattr(transport, "poll_control_message", None)
     if not callable(poll):
-        return preview, calibration
+        return preview, calibration, status_notice
     while True:
         msg = poll()
         if msg is None:
-            return preview, calibration
+            return preview, calibration, status_notice
         msg_type = msg.get("type")
         if msg_type == "geometry_preview":
             try:
@@ -240,6 +328,12 @@ def _poll_geometry_controls(
                 if callable(sender):
                     sender({"type": "geometry_confirm", "accepted": False, "error": str(exc)})
                 preview = None
+            continue
+        if msg_type == "status":
+            try:
+                status_notice = _status_notice_from_control_message(msg)
+            except Exception as exc:  # noqa: BLE001
+                print(f"Could not display status message: {exc}", file=sys.stderr)
             continue
         if msg_type == "geometry_calibration_request":
             preview = None
@@ -283,6 +377,115 @@ def _send_geometry_calibration_payload(
     sender = getattr(transport, "send_control_message", None)
     if callable(sender):
         sender(payload)
+
+
+def _current_status_notice(
+    kind: str,
+    state: object,
+    waiting_for_p1: bool,
+    ai_mode: bool,
+    notice: _StatusNotice | None,
+) -> _StatusNotice:
+    now_ms = pygame.time.get_ticks()
+    if notice is not None:
+        if notice.sticky or notice.expires_at_ms <= 0 or now_ms < notice.expires_at_ms:
+            return notice
+
+    if waiting_for_p1:
+        if kind == "checkers" and hasattr(state, "p1_must_continue_jump") and state.p1_must_continue_jump():
+            forced = state.p1_forced_square_id() if hasattr(state, "p1_forced_square_id") else None
+            suffix = f" Continue with {forced}." if forced else ""
+            return _make_status_notice(
+                level="info",
+                title="Waiting For Player 1",
+                message=f"Physical multi-jump is still in progress.{suffix}",
+                duration_ms=0,
+            )
+        return _make_status_notice(
+            level="info",
+            title="Waiting For Player 1",
+            message="Make the physical move on the board, then let the Pi capture and validate it.",
+            duration_ms=0,
+        )
+
+    if kind == "checkers" and hasattr(state, "p2_must_continue_jump") and state.p2_must_continue_jump():
+        forced = state.p2_forced_square_id() if hasattr(state, "p2_forced_square_id") else None
+        return _make_status_notice(
+            level="warning",
+            title="Continue Jump",
+            message=(
+                f"Player 2 must continue the jump with {forced} before the turn can end."
+                if forced
+                else "Player 2 must continue the jump before the turn can end."
+            ),
+            duration_ms=0,
+        )
+
+    if ai_mode:
+        return _make_status_notice(
+            level="success",
+            title="Player 2 Turn",
+            message="AI is selecting and dispatching the next move.",
+            duration_ms=0,
+        )
+
+    return _make_status_notice(
+        level="success",
+        title="Player 2 Turn",
+        message="Drag and drop the next software move.",
+        duration_ms=0,
+    )
+
+
+def _draw_status_notice(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    notice: _StatusNotice,
+    ui: object | None = None,
+) -> None:
+    palette = {
+        "info": ((18, 28, 44, 220), (108, 163, 230), (235, 242, 250), (180, 205, 230)),
+        "success": ((20, 42, 28, 220), (93, 196, 132), (236, 248, 239), (177, 221, 190)),
+        "warning": ((55, 38, 14, 220), (236, 178, 70), (250, 242, 225), (235, 205, 150)),
+        "error": ((58, 19, 20, 220), (224, 102, 102), (250, 235, 235), (235, 180, 180)),
+    }
+    bg_rgba, border, title_color, body_color = palette.get(notice.level, palette["info"])
+
+    lines = [notice.message, *notice.details]
+    header_margin = 12
+    header_left = header_margin
+    header_right = screen.get_width() - header_margin
+    header_top = 52
+    if ui is not None:
+        back_rect = _back_button_rect(ui)
+        mode_rect = _mode_button_rect(ui)
+        header_left = back_rect.right + 18
+        header_right = mode_rect.left - 18
+        header_top = back_rect.top
+    available_w = max(280, header_right - header_left)
+    panel_w = min(available_w, 720)
+    line_h = 18
+    panel_h = 18 + 22 + (line_h * len(lines)) + 12
+    x = header_left + max(0, (available_w - panel_w) // 2)
+    y = header_top
+
+    panel = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+    panel.fill(bg_rgba)
+    screen.blit(panel, (x, y))
+    pygame.draw.rect(screen, border, pygame.Rect(x, y, panel_w, panel_h), width=2, border_radius=12)
+
+    title = font.render(notice.title, True, title_color)
+    screen.blit(title, (x + 12, y + 10))
+
+    for idx, text in enumerate(lines):
+        surf = font.render(text, True, body_color)
+        max_text_w = panel_w - 24
+        if surf.get_width() > max_text_w:
+            clipped = text
+            while len(clipped) > 4 and font.render(clipped + "...", True, body_color).get_width() > max_text_w:
+                clipped = clipped[:-1]
+            surf = font.render(clipped + "...", True, body_color)
+        screen.blit(surf, (x + 12, y + 36 + idx * line_h))
 
 
 def _run_external_geometry_selector(msg: dict[str, object], transport: object) -> None:
@@ -658,6 +861,46 @@ def _run_game_loop(kind: str, transport: object) -> None:
 
     geometry_preview: _GeometryPreview | None = None
     geometry_calibration: _GeometryCalibration | None = None
+    status_notice: _StatusNotice | None = None
+    pending_checkers_turn = _QueuedCheckersTurn()
+
+    def _new_captured_by_p1(state_before: object, state_after: object) -> list[object]:
+        before = getattr(state_before, "captured_by_p1", None)
+        after = getattr(state_after, "captured_by_p1", None)
+        if not isinstance(before, list) or not isinstance(after, list):
+            return []
+        if len(after) < len(before):
+            return []
+        return after[len(before):]
+
+    def _record_manual_green_captures(
+        state_before: object,
+        state_after: object,
+        msg: P1MoveMessage,
+    ) -> tuple[int, int]:
+        new_captured = _new_captured_by_p1(state_before, state_after)
+        if not new_captured:
+            return (0, 0)
+
+        raw_captures = msg.manual_green_captures or []
+        if not raw_captures and kind != "chess":
+            return (0, 0)
+        tracked = 0
+        for piece, raw in zip(new_captured, raw_captures):
+            if not isinstance(raw, dict):
+                continue
+            try:
+                x_pct = float(raw["x_pct"])
+                y_pct = float(raw["y_pct"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            capture_inventory.add_manual_capture(
+                "p2",
+                _piece_name(piece),
+                PercentEndpoint(x_pct=x_pct, y_pct=y_pct),
+            )
+            tracked += 1
+        return (tracked, len(new_captured))
 
     # Add a "Roll Dice" button for Parcheesi.
     roll_dice_button_rect = pygame.Rect(
@@ -667,8 +910,87 @@ def _run_game_loop(kind: str, transport: object) -> None:
         40,
     )
 
+    def _dispatch_p2_turn(
+        msg: P2MoveMessage,
+        *,
+        capture_slots_used: list[str],
+        temporary_relocations: int,
+        fallback_direct_segments: int,
+        manual_actions: list[str],
+    ) -> None:
+        nonlocal waiting_for_p1, ai_pending, last_move, latest_manual_actions, status_notice
+
+        latest_manual_actions = manual_actions[:]
+        transport.send_p2_move(msg)
+        if config.TRANSPORT == "mock":
+            print(json.dumps(msg.to_obj(), separators=(",", ":")), flush=True, file=sys.stderr)
+
+        if config.WRITE_STM_SEQUENCE:
+            out_path = write_sequence_file(
+                config.STM_SEQUENCE_FILE,
+                msg.stm_sequence or [],
+                game=kind,
+                start_id=msg.frm,
+                end_id=msg.to,
+                capture_slots_used=capture_slots_used,
+                capture_inventory_summary=capture_inventory.to_summary_strings(),
+                manual_actions=manual_actions,
+            )
+            print(
+                "STM sequence updated:"
+                f" {out_path} (capture={bool(capture_slots_used)},"
+                f" temp_relocations={temporary_relocations},"
+                f" fallback_direct={fallback_direct_segments},"
+                f" steps={len(msg.stm_sequence or [])},"
+                f" capture_slots={len(capture_slots_used)})",
+                file=sys.stderr,
+            )
+            if manual_actions:
+                for act in manual_actions:
+                    print(f"[MANUAL] {act}", file=sys.stderr)
+            print(
+                "[INVENTORY] " + ", ".join(capture_inventory.to_summary_strings()) if capture_inventory.to_summary_strings() else "[INVENTORY] <empty>",
+                file=sys.stderr,
+            )
+
+        if kind == "checkers" and msg.turn_steps and len(msg.turn_steps) > 1:
+            chain = " | ".join(f"{step['from']}->{step['to']}" for step in msg.turn_steps)
+            print(f"P2 checkers turn: {chain}", file=sys.stderr)
+
+        if kind == "chess" and hasattr(state, "is_checkmate"):
+            if state.is_checkmate():
+                print(f"Game over: checkmate. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}", file=sys.stderr)
+            elif state.is_stalemate():
+                print("Game over: stalemate.", file=sys.stderr)
+            elif state.is_check():
+                print(f"Check on {state.turn_side().upper()}.", file=sys.stderr)
+
+        if kind == "parcheesi":
+            if state.check_win_condition(2):
+                print("Game over: Player 2 wins.", file=sys.stderr)
+                waiting_for_p1 = True
+                ai_pending = False
+            elif state.rolls_remaining and state.get_possible_moves(2):
+                waiting_for_p1 = False
+                ai_pending = ai_mode
+            else:
+                state.current_player = 1
+                state.clear_dice()
+                waiting_for_p1 = True
+                ai_pending = False
+            return
+
+        waiting_for_p1 = True
+        ai_pending = False
+        status_notice = _make_status_notice(
+            level="success",
+            title="Player 2 Move Sent",
+            message="Move dispatched to the Pi bridge and STM planner.",
+            duration_ms=1800,
+        )
+
     def _apply_and_dispatch_p2_move(start_id: str, end_id: str) -> None:
-        nonlocal waiting_for_p1, ai_pending, last_move, latest_manual_actions
+        nonlocal waiting_for_p1, ai_pending, last_move, latest_manual_actions, status_notice
 
         state_before = state.copy()
         err = state.try_apply_p2_move(start_id, end_id)
@@ -686,7 +1008,49 @@ def _run_game_loop(kind: str, transport: object) -> None:
             end_id,
             capture_inventory=capture_inventory,
         )
-        latest_manual_actions = generated.manual_actions[:]
+        if kind == "checkers":
+            pending_checkers_turn.append(start_id, end_id, generated)
+            latest_manual_actions = pending_checkers_turn.manual_actions[:]
+        else:
+            latest_manual_actions = generated.manual_actions[:]
+
+        if kind == "checkers" and hasattr(state, "p2_must_continue_jump") and state.p2_must_continue_jump():
+            forced = state.p2_forced_square_id() if hasattr(state, "p2_forced_square_id") else None
+            if forced:
+                print(f"Checkers: must continue jump with {forced}", file=sys.stderr)
+                status_notice = _make_status_notice(
+                    level="warning",
+                    title="Continue Jump",
+                    message=f"Player 2 must continue the jump with {forced}.",
+                    duration_ms=2200,
+                )
+            waiting_for_p1 = False
+            ai_pending = ai_mode
+            return
+
+        if kind == "checkers" and pending_checkers_turn.steps:
+            turn_steps = [
+                {"from": frm, "to": to}
+                for frm, to in pending_checkers_turn.steps
+            ]
+            msg = P2MoveMessage(
+                frm=pending_checkers_turn.steps[0][0],
+                to=pending_checkers_turn.steps[-1][1],
+                game=kind,
+                stm_sequence=pending_checkers_turn.stm_lines[:],
+                manual_actions=(pending_checkers_turn.manual_actions[:] if pending_checkers_turn.manual_actions else None),
+                turn_steps=turn_steps,
+            )
+            _dispatch_p2_turn(
+                msg,
+                capture_slots_used=pending_checkers_turn.capture_slots_used[:],
+                temporary_relocations=pending_checkers_turn.temporary_relocations,
+                fallback_direct_segments=pending_checkers_turn.fallback_direct_segments,
+                manual_actions=pending_checkers_turn.manual_actions[:],
+            )
+            pending_checkers_turn.clear()
+            return
+
         msg = P2MoveMessage(
             frm=start_id,
             to=end_id,
@@ -694,69 +1058,17 @@ def _run_game_loop(kind: str, transport: object) -> None:
             stm_sequence=generated.lines,
             manual_actions=(generated.manual_actions[:] if generated.manual_actions else None),
         )
-        transport.send_p2_move(msg)
-        if config.TRANSPORT == "mock":
-            print(json.dumps(msg.to_obj(), separators=(",", ":")), flush=True, file=sys.stderr)
-
-        if config.WRITE_STM_SEQUENCE:
-            out_path = write_sequence_file(
-                config.STM_SEQUENCE_FILE,
-                generated.lines,
-                game=kind,
-                start_id=start_id,
-                end_id=end_id,
-                capture_slots_used=generated.capture_slots_used,
-                capture_inventory_summary=capture_inventory.to_summary_strings(),
-                manual_actions=generated.manual_actions,
-            )
-            print(
-                "STM sequence updated:"
-                f" {out_path} (capture={generated.capture_detected},"
-                f" temp_relocations={generated.temporary_relocations},"
-                f" fallback_direct={generated.fallback_direct_segments},"
-                f" steps={len(generated.lines)},"
-                f" capture_slots={len(generated.capture_slots_used)})",
-                file=sys.stderr,
-            )
-            if generated.manual_actions:
-                for act in generated.manual_actions:
-                    print(f"[MANUAL] {act}", file=sys.stderr)
-            print(
-                "[INVENTORY] " + ", ".join(capture_inventory.to_summary_strings()) if capture_inventory.to_summary_strings() else "[INVENTORY] <empty>",
-                file=sys.stderr,
-            )
-
-        if kind == "chess" and hasattr(state, "is_checkmate"):
-            if state.is_checkmate():
-                print(f"Game over: checkmate. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}", file=sys.stderr)
-            elif state.is_stalemate():
-                print("Game over: stalemate.", file=sys.stderr)
-            elif state.is_check():
-                print(f"Check on {state.turn_side().upper()}.", file=sys.stderr)
-
-        if kind == "checkers" and hasattr(state, "p2_must_continue_jump") and state.p2_must_continue_jump():
-            forced = state.p2_forced_square_id() if hasattr(state, "p2_forced_square_id") else None
-            if forced:
-                print(f"Checkers: must continue jump with {forced}", file=sys.stderr)
-            waiting_for_p1 = False
-            ai_pending = ai_mode
-        elif kind == "parcheesi":
-            if state.check_win_condition(2):
-                print("Game over: Player 2 wins.", file=sys.stderr)
-                waiting_for_p1 = True
-            elif state.rolls_remaining and state.get_possible_moves(2):
-                waiting_for_p1 = False
-                ai_pending = ai_mode
-            else:
-                state.current_player = 1
-                state.clear_dice()
-                waiting_for_p1 = True
-        else:
-            waiting_for_p1 = True
+        _dispatch_p2_turn(
+            msg,
+            capture_slots_used=generated.capture_slots_used,
+            temporary_relocations=generated.temporary_relocations,
+            fallback_direct_segments=generated.fallback_direct_segments,
+            manual_actions=generated.manual_actions,
+        )
 
     while True:
-        geometry_preview, geometry_calibration = _poll_geometry_controls(
-            transport, geometry_preview, geometry_calibration
+        geometry_preview, geometry_calibration, status_notice = _poll_geometry_controls(
+            transport, geometry_preview, geometry_calibration, status_notice
         )
 
         for event in pygame.event.get():
@@ -817,11 +1129,18 @@ def _run_game_loop(kind: str, transport: object) -> None:
                     transport.drain_p1_moves()
                 state.reset()
                 capture_inventory.clear()
+                pending_checkers_turn.clear()
                 latest_manual_actions = []
                 ui.clear_drag()
                 waiting_for_p1 = True
                 ai_pending = False
                 last_move = None
+                status_notice = _make_status_notice(
+                    level="info",
+                    title="Board Reset",
+                    message="Returned to the opening position and cleared queued moves.",
+                    duration_ms=1800,
+                )
                 print("Board reset to starting position.", file=sys.stderr)
 
             if not waiting_for_p1:
@@ -837,6 +1156,11 @@ def _run_game_loop(kind: str, transport: object) -> None:
             if msg is not None:
                 state_before = state.copy()
                 state.apply_move_trusted(msg.frm, msg.to)
+                tracked_manual, expected_manual = _record_manual_green_captures(
+                    state_before,
+                    state,
+                    msg,
+                )
                 
                 # Capture inventory logic needs to be adapted for Parcheesi
                 # if kind == "chess":
@@ -853,7 +1177,39 @@ def _run_game_loop(kind: str, transport: object) -> None:
                 #         capture_inventory.add_captured_piece("p2", piece.name)
                 latest_manual_actions = []
                 last_move = (msg.frm, msg.to)
+                if expected_manual > 0 and tracked_manual < expected_manual:
+                    status_notice = _make_status_notice(
+                        level="warning",
+                        title="Player 1 Move Accepted",
+                        message=(
+                            f"Applied {msg.frm} -> {msg.to}, but only tracked "
+                            f"{tracked_manual}/{expected_manual} manual captured piece(s) in the green area."
+                        ),
+                        duration_ms=2800,
+                    )
+                elif tracked_manual > 0:
+                    status_notice = _make_status_notice(
+                        level="success",
+                        title="Player 1 Move Accepted",
+                        message=(
+                            f"Applied {msg.frm} -> {msg.to}. Tracked {tracked_manual} "
+                            "manual captured piece(s) in the green area."
+                        ),
+                        duration_ms=2200,
+                    )
+                else:
+                    status_notice = _make_status_notice(
+                        level="success",
+                        title="Player 1 Move Accepted",
+                        message=f"Applied {msg.frm} -> {msg.to}.",
+                        duration_ms=1800,
+                    )
                 print(f"P1 move: {msg.frm} -> {msg.to}", file=sys.stderr)
+                if expected_manual > 0:
+                    print(
+                        f"[MANUAL_CAPTURE] tracked={tracked_manual}/{expected_manual}",
+                        file=sys.stderr,
+                    )
                 print(
                     "[INVENTORY] " + ", ".join(capture_inventory.to_summary_strings()) if capture_inventory.to_summary_strings() else "[INVENTORY] <empty>",
                     file=sys.stderr,
@@ -893,6 +1249,12 @@ def _run_game_loop(kind: str, transport: object) -> None:
         _draw_back_button(ui)
         # _draw_capture_inventory_overlay(ui, capture_inventory.to_summary_strings(), latest_manual_actions)
         _draw_mode_button(ui, ai_mode, kind)
+        _draw_status_notice(
+            ui.screen,
+            ui.font,
+            _current_status_notice(kind, state, waiting_for_p1, ai_mode, status_notice),
+            ui,
+        )
 
         # Draw "Roll Dice" button for Parcheesi
         if kind == "parcheesi":
@@ -942,11 +1304,12 @@ def main() -> None:
     ]
     geometry_preview: _GeometryPreview | None = None
     geometry_calibration: _GeometryCalibration | None = None
+    status_notice: _StatusNotice | None = None
 
     try:
         while True:
-            geometry_preview, geometry_calibration = _poll_geometry_controls(
-                transport, geometry_preview, geometry_calibration
+            geometry_preview, geometry_calibration, status_notice = _poll_geometry_controls(
+                transport, geometry_preview, geometry_calibration, status_notice
             )
 
             for event in pygame.event.get():
@@ -975,6 +1338,10 @@ def main() -> None:
                             _run_game_loop(kind, transport)
 
             _draw_menu(screen, font, buttons)
+            if geometry_preview is None and geometry_calibration is None and status_notice is not None:
+                now_ms = pygame.time.get_ticks()
+                if status_notice.sticky or status_notice.expires_at_ms <= 0 or now_ms < status_notice.expires_at_ms:
+                    _draw_status_notice(screen, font, status_notice)
             if geometry_preview is not None:
                 _draw_geometry_preview(screen, font, geometry_preview)
                 pygame.display.flip()

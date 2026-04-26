@@ -94,6 +94,32 @@ def _load_moves(path: Path) -> list[dict[str, Any]]:
     return moves
 
 
+def _endpoints_equal(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    if a.get("kind") != b.get("kind"):
+        return False
+    if a.get("kind") == "board":
+        return int(a["x"]) == int(b["x"]) and int(a["y"]) == int(b["y"])
+    if a.get("kind") == "pct":
+        return (
+            abs(float(a["x_pct"]) - float(b["x_pct"])) < 1e-6
+            and abs(float(a["y_pct"]) - float(b["y_pct"])) < 1e-6
+        )
+    return False
+
+
+def _group_continuous_moves(planned_moves: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    if not planned_moves:
+        return []
+    groups: list[list[dict[str, Any]]] = [[planned_moves[0]]]
+    for move in planned_moves[1:]:
+        last_group = groups[-1]
+        if _endpoints_equal(last_group[-1]["dest"], move["source"]):
+            last_group.append(move)
+        else:
+            groups.append([move])
+    return groups
+
+
 def _read_line(ser: Any, timeout_sec: float) -> str | None:
     old_timeout = ser.timeout
     ser.timeout = timeout_sec
@@ -273,18 +299,22 @@ def _build_stage_summary(planned_moves: list[dict[str, Any]], c: dict[str, int],
     prev_x = 0
     prev_y = 0
 
-    for idx, move in enumerate(planned_moves, start=1):
-        src = move["source"]
-        dst = move["dest"]
-        src_x, src_y = _endpoint_to_steps(src, c, orientation)
-        dst_x, dst_y = _endpoint_to_steps(dst, c, orientation)
-
+    groups = _group_continuous_moves(planned_moves)
+    move_idx = 0
+    for group_idx, group in enumerate(groups, start=1):
+        first_src = group[0]["source"]
+        src_x, src_y = _endpoint_to_steps(first_src, c, orientation)
         stage_points = [
-            (f"move_{idx}_to_source", src_x, src_y),
-            (f"move_{idx}_pickup_delay", src_x, src_y),
-            (f"move_{idx}_to_dest", dst_x, dst_y),
-            (f"move_{idx}_release_delay", dst_x, dst_y),
+            (f"group_{group_idx}_to_source", src_x, src_y),
+            (f"group_{group_idx}_pickup", src_x, src_y),
         ]
+
+        for move in group:
+            move_idx += 1
+            dst_x, dst_y = _endpoint_to_steps(move["dest"], c, orientation)
+            stage_points.append((f"move_{move_idx}_to_dest", dst_x, dst_y))
+
+        stage_points.append((f"group_{group_idx}_release", dst_x, dst_y))
 
         for label, x, y in stage_points:
             stages.append(
@@ -309,6 +339,104 @@ def _build_stage_summary(planned_moves: list[dict[str, Any]], c: dict[str, int],
         }
     )
     return stages
+
+
+def _run_legacy_move(
+    ser: Any,
+    move: dict[str, Any],
+    *,
+    mapping_constants: dict[str, int],
+    motor_board_orientation: str,
+) -> tuple[list[dict[str, Any]], tuple[int, int]]:
+    src_steps_x, src_steps_y = _endpoint_to_steps(
+        move["source"],
+        mapping_constants,
+        motor_board_orientation,
+    )
+    dst_steps_x, dst_steps_y = _endpoint_to_steps(
+        move["dest"],
+        mapping_constants,
+        motor_board_orientation,
+    )
+    cmd = f"MOVE_STEPS {src_steps_x} {src_steps_y} {dst_steps_x} {dst_steps_y}"
+    reply = _send_command(ser, cmd)
+    move_status = _send_command(ser, "STATUS")
+    status_x, status_y = _parse_status_xy(move_status)
+    return (
+        [
+            {
+                "command_type": "MOVE_STEPS",
+                "cmd": cmd,
+                "reply": reply,
+                "status_after_command": move_status,
+                "source_steps": {"x": src_steps_x, "y": src_steps_y},
+                "dest_steps_planned": {"x": dst_steps_x, "y": dst_steps_y},
+                "dest_steps_status": {"x": status_x, "y": status_y},
+            }
+        ],
+        (status_x, status_y),
+    )
+
+
+def _run_chained_group(
+    ser: Any,
+    group: list[dict[str, Any]],
+    *,
+    mapping_constants: dict[str, int],
+    motor_board_orientation: str,
+) -> tuple[list[dict[str, Any]], tuple[int, int]]:
+    executed: list[dict[str, Any]] = []
+    first_src = group[0]["source"]
+    src_steps_x, src_steps_y = _endpoint_to_steps(
+        first_src,
+        mapping_constants,
+        motor_board_orientation,
+    )
+
+    pickup_cmd = f"PICKUP_STEPS {src_steps_x} {src_steps_y}"
+    pickup_reply = _send_command(ser, pickup_cmd)
+    executed.append(
+        {
+            "command_type": "PICKUP_STEPS",
+            "cmd": pickup_cmd,
+            "reply": pickup_reply,
+            "source_steps": {"x": src_steps_x, "y": src_steps_y},
+        }
+    )
+
+    final_planned_x = src_steps_x
+    final_planned_y = src_steps_y
+    for idx, move in enumerate(group, start=1):
+        dst_steps_x, dst_steps_y = _endpoint_to_steps(
+            move["dest"],
+            mapping_constants,
+            motor_board_orientation,
+        )
+        final_planned_x = dst_steps_x
+        final_planned_y = dst_steps_y
+        if idx < len(group):
+            cmd = f"MOVEHELD_STEPS {dst_steps_x} {dst_steps_y}"
+            command_type = "MOVEHELD_STEPS"
+        else:
+            cmd = f"RELEASE_STEPS {dst_steps_x} {dst_steps_y}"
+            command_type = "RELEASE_STEPS"
+        reply = _send_command(ser, cmd)
+        executed.append(
+            {
+                "command_type": command_type,
+                "cmd": cmd,
+                "reply": reply,
+                "dest_steps_planned": {"x": dst_steps_x, "y": dst_steps_y},
+            }
+        )
+
+    move_status = _send_command(ser, "STATUS")
+    status_x, status_y = _parse_status_xy(move_status)
+    executed[-1]["status_after_command"] = move_status
+    executed[-1]["dest_steps_status"] = {"x": status_x, "y": status_y}
+    if status_x != final_planned_x or status_y != final_planned_y:
+        executed[-1]["status_mismatch"] = True
+    return executed, (status_x, status_y)
 
 
 def main() -> int:
@@ -403,70 +531,130 @@ def main() -> int:
             }
         )
 
-        last_dest: dict[str, int] | None = None
-        for idx, move in enumerate(planned_moves, start=1):
-            src_steps_x, src_steps_y = _endpoint_to_steps(
-                move["source"],
-                mapping_constants,
-                motor_board_orientation,
-            )
-            dst_steps_x, dst_steps_y = _endpoint_to_steps(
-                move["dest"],
-                mapping_constants,
-                motor_board_orientation,
-            )
+        planned_move_groups = _group_continuous_moves(planned_moves)
+        result["planned_move_groups"] = [
+            {
+                "group_index": group_idx,
+                "move_count": len(group),
+                "start": _endpoint_label(group[0]["source"]),
+                "end": _endpoint_label(group[-1]["dest"]),
+            }
+            for group_idx, group in enumerate(planned_move_groups, start=1)
+        ]
 
-            cmd = f"MOVE_STEPS {src_steps_x} {src_steps_y} {dst_steps_x} {dst_steps_y}"
-            reply = _send_command(ser, cmd)
-            move_status = _send_command(ser, "STATUS")
-            status_x, status_y = _parse_status_xy(move_status)
+        last_dest: dict[str, int] | None = None
+        chain_commands_supported: bool | None = None
+        move_idx = 0
+        for group_idx, group in enumerate(planned_move_groups, start=1):
+            group_executed: list[dict[str, Any]]
+            final_status_x: int
+            final_status_y: int
+
+            if len(group) == 1:
+                group_executed, (final_status_x, final_status_y) = _run_legacy_move(
+                    ser,
+                    group[0],
+                    mapping_constants=mapping_constants,
+                    motor_board_orientation=motor_board_orientation,
+                )
+            elif chain_commands_supported is False:
+                group_executed = []
+                for move in group:
+                    move_executed, (final_status_x, final_status_y) = _run_legacy_move(
+                        ser,
+                        move,
+                        mapping_constants=mapping_constants,
+                        motor_board_orientation=motor_board_orientation,
+                    )
+                    group_executed.extend(move_executed)
+            else:
+                try:
+                    group_executed, (final_status_x, final_status_y) = _run_chained_group(
+                        ser,
+                        group,
+                        mapping_constants=mapping_constants,
+                        motor_board_orientation=motor_board_orientation,
+                    )
+                    chain_commands_supported = True
+                except RuntimeError as exc:
+                    if "ERR CMD" not in str(exc):
+                        raise
+                    chain_commands_supported = False
+                    group_executed = []
+                    for move in group:
+                        move_executed, (final_status_x, final_status_y) = _run_legacy_move(
+                            ser,
+                            move,
+                            mapping_constants=mapping_constants,
+                            motor_board_orientation=motor_board_orientation,
+                        )
+                        group_executed.extend(move_executed)
+
             result["executed"].append(
                 {
-                    "index": idx,
-                    "move": move,
-                    "cmd": cmd,
-                    "reply": reply,
-                    "status_after_move": move_status,
-                    "source_steps": {"x": src_steps_x, "y": src_steps_y},
-                    "dest_steps_planned": {"x": dst_steps_x, "y": dst_steps_y},
-                    "dest_steps_status": {"x": status_x, "y": status_y},
+                    "group_index": group_idx,
+                    "move_count": len(group),
+                    "move_indices": list(range(move_idx + 1, move_idx + len(group) + 1)),
+                    "commands": group_executed,
+                    "magnet_continuous": len(group) > 1 and chain_commands_supported is True,
                 }
             )
-            result["status_checkpoints"].append(
-                {
-                    "stage": f"after_move_{idx}",
-                    "status": move_status,
-                }
-            )
-            result["position_report"].append(
-                {
-                    "stage": f"move_{idx}_source",
-                    "endpoint": dict(move["source"]),
-                    "endpoint_label": _endpoint_label(move["source"]),
-                    "motor_board_endpoint": _endpoint_to_motor_board(
-                        move["source"],
-                        mapping_constants,
-                        motor_board_orientation,
-                    ),
-                    "x": src_steps_x,
-                    "y": src_steps_y,
-                }
-            )
-            result["position_report"].append(
-                {
-                    "stage": f"move_{idx}_dest",
-                    "endpoint": dict(move["dest"]),
-                    "endpoint_label": _endpoint_label(move["dest"]),
-                    "motor_board_endpoint": _endpoint_to_motor_board(
-                        move["dest"],
-                        mapping_constants,
-                        motor_board_orientation,
-                    ),
-                    "x": status_x,
-                    "y": status_y,
-                }
-            )
-            last_dest = {"x": status_x, "y": status_y}
+
+            for move in group:
+                move_idx += 1
+                src_steps_x, src_steps_y = _endpoint_to_steps(
+                    move["source"],
+                    mapping_constants,
+                    motor_board_orientation,
+                )
+                dst_steps_x, dst_steps_y = _endpoint_to_steps(
+                    move["dest"],
+                    mapping_constants,
+                    motor_board_orientation,
+                )
+                result["position_report"].append(
+                    {
+                        "stage": f"move_{move_idx}_source",
+                        "endpoint": dict(move["source"]),
+                        "endpoint_label": _endpoint_label(move["source"]),
+                        "motor_board_endpoint": _endpoint_to_motor_board(
+                            move["source"],
+                            mapping_constants,
+                            motor_board_orientation,
+                        ),
+                        "x": src_steps_x,
+                        "y": src_steps_y,
+                    }
+                )
+                is_last_move_in_group = move is group[-1]
+                report_x = final_status_x if is_last_move_in_group else dst_steps_x
+                report_y = final_status_y if is_last_move_in_group else dst_steps_y
+                result["position_report"].append(
+                    {
+                        "stage": f"move_{move_idx}_dest",
+                        "endpoint": dict(move["dest"]),
+                        "endpoint_label": _endpoint_label(move["dest"]),
+                        "motor_board_endpoint": _endpoint_to_motor_board(
+                            move["dest"],
+                            mapping_constants,
+                            motor_board_orientation,
+                        ),
+                        "x": report_x,
+                        "y": report_y,
+                    }
+                )
+
+            group_status = group_executed[-1].get("status_after_command") if group_executed else None
+            if group_status:
+                result["status_checkpoints"].append(
+                    {
+                        "stage": f"after_group_{group_idx}",
+                        "status": group_status,
+                    }
+                )
+            last_dest = {"x": final_status_x, "y": final_status_y}
+
+        result["chain_commands_supported"] = chain_commands_supported
 
         if last_dest is not None and (last_dest["x"] != 0 or last_dest["y"] != 0):
             return_zero_move = {

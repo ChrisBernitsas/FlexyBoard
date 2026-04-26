@@ -11,6 +11,7 @@ from ipc.protocol import P1MoveMessage, P2MoveMessage
 class MockTransport:
     def __init__(self) -> None:
         self._incoming: Queue[P1MoveMessage] = Queue()
+        self._control: Queue[dict[str, Any]] = Queue()
         self.sent_p2: List[P2MoveMessage] = []
 
     def connect(self) -> None:
@@ -19,8 +20,18 @@ class MockTransport:
     def close(self) -> None:
         pass
 
-    def inject_p1_move(self, frm: str, to: str) -> None:
-        self._incoming.put(P1MoveMessage(frm=frm, to=to))
+    def inject_p1_move(
+        self,
+        frm: str,
+        to: str,
+        manual_green_captures: list[dict[str, Any]] | None = None,
+    ) -> None:
+        self._incoming.put(
+            P1MoveMessage(frm=frm, to=to, manual_green_captures=manual_green_captures)
+        )
+
+    def inject_control_message(self, obj: dict[str, Any]) -> None:
+        self._control.put(dict(obj))
 
     def poll_p1_move(self, block: bool = False, timeout: float = 0.0) -> Optional[P1MoveMessage]:
         try:
@@ -36,7 +47,10 @@ class MockTransport:
                 break
 
     def poll_control_message(self, block: bool = False, timeout: float = 0.0) -> Optional[dict[str, Any]]:
-        return None
+        try:
+            return self._control.get(block=block, timeout=timeout if block else 0)
+        except Empty:
+            return None
 
     def send_p2_move(self, msg: P2MoveMessage) -> None:
         self.sent_p2.append(msg)

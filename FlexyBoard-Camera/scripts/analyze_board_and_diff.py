@@ -549,6 +549,7 @@ def _write_analysis_summary_text(
     *,
     out_path: Path,
     changed_squares: list[dict[str, object]],
+    resolver_changed_squares: list[dict[str, object]] | None,
     inferred_move: dict[str, object],
 ) -> None:
     lines: list[str] = []
@@ -572,6 +573,26 @@ def _write_analysis_summary_text(
     else:
         lines.append("  - none")
 
+    if resolver_changed_squares is not None:
+        lines.append("")
+        lines.append(f"resolver_changed_square_count: {len(resolver_changed_squares)}")
+        lines.append("resolver_changed_squares:")
+        if resolver_changed_squares:
+            for item in resolver_changed_squares:
+                lines.append(
+                    "  - "
+                    f"index={item.get('index')} "
+                    f"coord=({item.get('x')},{item.get('y')}) "
+                    f"label={item.get('label')} "
+                    f"raw_camera_label={item.get('raw_camera_label', item.get('label'))} "
+                    f"pixel_ratio={float(item.get('pixel_ratio', 0.0)):.4f} "
+                    f"delta={float(item.get('signed_intensity_delta', 0.0)):.3f} "
+                    f"sources={','.join(str(x) for x in item.get('detection_sources', []))}"
+                    f"{' contour_rank=' + str(item.get('contour_rank')) if item.get('contour_rank') is not None else ''}"
+                )
+        else:
+            lines.append("  - none")
+
     src = inferred_move.get("source")
     dst = inferred_move.get("destination")
     src_text = f"({src.get('x')},{src.get('y')})" if isinstance(src, dict) else "None"
@@ -590,6 +611,68 @@ def _write_analysis_summary_text(
     lines.append("")
 
     out_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _as_float(raw: object, default: float = 0.0) -> float:
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _select_chess_resolver_changed_squares(
+    changed_squares: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    if len(changed_squares) <= 2:
+        return [dict(item) for item in changed_squares]
+
+    indexed: list[tuple[int, dict[str, object], float, float]] = []
+    for idx, item in enumerate(changed_squares):
+        ratio = _as_float(item.get("pixel_ratio"))
+        delta = abs(_as_float(item.get("signed_intensity_delta")))
+        indexed.append((idx, dict(item), ratio, delta))
+
+    indexed.sort(key=lambda entry: (entry[2], entry[3]), reverse=True)
+    keep: list[tuple[int, dict[str, object], float, float]] = indexed[:2]
+    second_ratio = keep[1][2]
+    keep_threshold = max(0.22, second_ratio * 0.60)
+
+    def _label_rank(item: dict[str, object]) -> str | None:
+        label = str(item.get("label", "")).strip().lower()
+        if len(label) != 2 or label[0] < "a" or label[0] > "h" or label[1] < "1" or label[1] > "8":
+            return None
+        return label[1]
+
+    def _label_file_index(item: dict[str, object]) -> int | None:
+        label = str(item.get("label", "")).strip().lower()
+        if len(label) != 2 or label[0] < "a" or label[0] > "h" or label[1] < "1" or label[1] > "8":
+            return None
+        return ord(label[0]) - ord("a")
+
+    top_rank_0 = _label_rank(keep[0][1])
+    top_rank_1 = _label_rank(keep[1][1])
+    top_file_0 = _label_file_index(keep[0][1])
+    top_file_1 = _label_file_index(keep[1][1])
+    top_two_same_rank = top_rank_0 is not None and top_rank_0 == top_rank_1
+    top_two_castling_span = (
+        top_file_0 is not None
+        and top_file_1 is not None
+        and abs(top_file_0 - top_file_1) == 2
+    )
+    allow_castling_extras = top_two_same_rank and top_two_castling_span
+    castling_rank = top_rank_0
+
+    for entry in indexed[2:]:
+        _orig_idx, item, ratio, delta = entry
+        contour_rank = item.get("contour_rank")
+        has_contour = isinstance(contour_rank, int)
+        if not (ratio >= keep_threshold and (delta >= 8.0 or has_contour)):
+            continue
+        if allow_castling_extras and _label_rank(item) == castling_rank:
+            keep.append(entry)
+
+    keep.sort(key=lambda entry: entry[0])
+    return [item for _orig_idx, item, _ratio, _delta in keep]
 
 
 def _camera_coord_to_game_coord(x: int, y: int, orientation: str) -> tuple[int, int]:
@@ -1506,6 +1589,10 @@ def main() -> int:
             _square_change_payload(candidate, index=index, orientation=args.camera_square_orientation)
         )
 
+    resolver_changed_squares: list[dict[str, object]] | None = None
+    if str(args.game).lower() == "chess":
+        resolver_changed_squares = _select_chess_resolver_changed_squares(changed_squares)
+
     inferred = infer_move(
         InferenceInputs(
             game=str(args.game),
@@ -1566,6 +1653,7 @@ def main() -> int:
     _write_analysis_summary_text(
         out_path=Path(outputs["analysis_summary_txt"]),
         changed_squares=changed_squares,
+        resolver_changed_squares=resolver_changed_squares,
         inferred_move=inferred.to_dict(),
     )
     before_debug_meta = _save_detector_debug_images(
@@ -1682,6 +1770,8 @@ def main() -> int:
         "squares": squares_payload,
         "changed_squares": changed_squares,
         "changed_square_count": len(changed_squares),
+        "resolver_changed_squares": resolver_changed_squares,
+        "resolver_changed_square_count": len(resolver_changed_squares) if resolver_changed_squares is not None else None,
         "contour_changed_squares": contour_changed_squares,
         "contour_changed_square_count": len(contour_changed_squares),
         "inferred_move": inferred.to_dict(),
