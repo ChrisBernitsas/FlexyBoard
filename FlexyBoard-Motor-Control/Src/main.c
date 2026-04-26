@@ -6,6 +6,46 @@
 
 static int32_t g_current_x_steps = 0;
 static int32_t g_current_y_steps = 0;
+static int32_t g_current_y_left_steps = 0;
+static int32_t g_current_z_steps = 0;
+
+#define NVIC_ISER0            (*(volatile uint32_t *)0xE000E100UL)
+#define NVIC_ISER1            (*(volatile uint32_t *)0xE000E104UL)
+
+#define RCC_APB1ENR_TIM4EN    (1U << 2)
+#define TIM_CR1_CEN           (1U << 0)
+#define TIM_DIER_UIE          (1U << 0)
+#define TIM_SR_UIF            (1U << 0)
+#define TIM_EGR_UG            (1U << 0)
+#define TIM4_IRQ_NUM          30U
+
+typedef enum
+{
+    MOTION_KIND_IDLE = 0,
+    MOTION_KIND_XY = 1,
+    MOTION_KIND_Z = 2,
+} motion_kind_t;
+
+typedef struct
+{
+    volatile uint8_t active;
+    volatile uint8_t pending_x;
+    volatile uint8_t pending_y_right;
+    volatile uint8_t pending_y_left;
+    volatile uint8_t kind;
+    volatile uint32_t step_index;
+    volatile uint32_t total_steps;
+    volatile uint32_t x_steps;
+    volatile uint32_t y_right_steps;
+    volatile uint32_t y_left_steps;
+    volatile uint32_t x_acc;
+    volatile uint32_t y_right_acc;
+    volatile uint32_t y_left_acc;
+    volatile uint32_t cruise_delay_us;
+    volatile uint32_t z_delay_us;
+} motion_state_t;
+
+static volatile motion_state_t g_motion = {0};
 
 /* Called from startup before main(). Provide a local implementation so
  * bare-metal builds do not jump to an undefined weak symbol.
@@ -59,6 +99,119 @@ static void gpio_clear_pin(GPIO_TypeDef *port, uint8_t pin)
     port->ODR &= ~(1U << pin);
 }
 
+static void pulse_step_pin(GPIO_TypeDef *port, uint8_t pin)
+{
+    uint32_t loops_per_us = (CORE_CLOCK_HZ / 1000000U) / 4U;
+    if (loops_per_us == 0U)
+    {
+        loops_per_us = 1U;
+    }
+    gpio_set_pin(port, pin);
+    delay_cycles(loops_per_us * STEP_PULSE_HIGH_US);
+    gpio_clear_pin(port, pin);
+}
+
+static void nvic_enable_irq(uint8_t irq_num)
+{
+    if (irq_num < 32U)
+    {
+        NVIC_ISER0 = (1UL << irq_num);
+    }
+    else
+    {
+        NVIC_ISER1 = (1UL << (irq_num - 32U));
+    }
+}
+
+static void clear_all_step_pins(void)
+{
+    gpio_clear_pin(X_STEP_PORT, X_STEP_PIN);
+    gpio_clear_pin(Y_RIGHT_STEP_PORT, Y_RIGHT_STEP_PIN);
+    gpio_clear_pin(Y_LEFT_STEP_PORT, Y_LEFT_STEP_PIN);
+    gpio_clear_pin(Z_STEP_PORT, Z_STEP_PIN);
+}
+
+static uint32_t clamp_step_period_us(uint32_t period_us)
+{
+    if (period_us <= STEP_PULSE_HIGH_US)
+    {
+        return STEP_PULSE_HIGH_US + 1U;
+    }
+    return period_us;
+}
+
+static uint32_t pulse_high_delay_count(void)
+{
+    uint32_t loops_per_us = (CORE_CLOCK_HZ / 1000000U) / 4U;
+    if (loops_per_us == 0U)
+    {
+        loops_per_us = 1U;
+    }
+    return loops_per_us * STEP_PULSE_HIGH_US;
+}
+
+static void motion_timer_set_interval_us(uint32_t interval_us)
+{
+    interval_us = clamp_step_period_us(interval_us);
+
+    TIM4->ARR = interval_us - 1U;
+}
+
+static void motion_timer_stop(void)
+{
+    TIM4->CR1 &= ~TIM_CR1_CEN;
+    TIM4->DIER &= ~TIM_DIER_UIE;
+    TIM4->CNT = 0U;
+    TIM4->SR = 0U;
+    clear_all_step_pins();
+
+    g_motion.active = 0U;
+    g_motion.pending_x = 0U;
+    g_motion.pending_y_right = 0U;
+    g_motion.pending_y_left = 0U;
+    g_motion.kind = MOTION_KIND_IDLE;
+}
+
+static void motion_timer_prime(uint32_t interval_us)
+{
+    motion_timer_set_interval_us(interval_us);
+    TIM4->CNT = 0U;
+    TIM4->EGR = TIM_EGR_UG;
+    TIM4->SR = 0U;
+    TIM4->DIER |= TIM_DIER_UIE;
+    TIM4->CR1 |= TIM_CR1_CEN;
+}
+
+static void motion_timer_init(void)
+{
+    uint32_t prescaler;
+
+    RCC_APB1ENR |= RCC_APB1ENR_TIM4EN;
+
+    TIM4->CR1 = 0U;
+    TIM4->CR2 = 0U;
+    TIM4->SMCR = 0U;
+    TIM4->DIER = 0U;
+    TIM4->CCMR1 = 0U;
+    TIM4->CCMR2 = 0U;
+    TIM4->CCER = 0U;
+
+    prescaler = (CORE_CLOCK_HZ / MOTION_TIMER_HZ);
+    if (prescaler == 0U)
+    {
+        prescaler = 1U;
+    }
+
+    TIM4->PSC = prescaler - 1U;
+    TIM4->ARR = 1000U - 1U;
+    TIM4->CNT = 0U;
+    TIM4->EGR = TIM_EGR_UG;
+    TIM4->SR = 0U;
+
+    clear_all_step_pins();
+    nvic_enable_irq(TIM4_IRQ_NUM);
+}
+
 void gpio_init(void)
 {
     /* Enable GPIOA clock (bit 0) and GPIOB clock (bit 1) */
@@ -68,7 +221,8 @@ void gpio_init(void)
     gpio_pin_output_init(X_STEP_PORT, X_STEP_PIN);
     gpio_pin_output_init(X_DIR_PORT, X_DIR_PIN);
 
-    gpio_pin_output_init(Y_STEP_PORT, Y_STEP_PIN);
+    gpio_pin_output_init(Y_RIGHT_STEP_PORT, Y_RIGHT_STEP_PIN);
+    gpio_pin_output_init(Y_LEFT_STEP_PORT, Y_LEFT_STEP_PIN);
     gpio_pin_output_init(Y1_DIR_PORT, Y1_DIR_PIN);
     gpio_pin_output_init(Y2_DIR_PORT, Y2_DIR_PIN);
 
@@ -197,6 +351,21 @@ void set_y_dir(uint8_t dir)
     }
 }
 
+static void step_y_side_only(GPIO_TypeDef *step_port, uint8_t step_pin, uint32_t steps, uint8_t dir)
+{
+    uint32_t step_delay_us = clamp_step_period_us(Y_STEP_DELAY_CYCLES);
+    uint32_t low_delay_us = step_delay_us - STEP_PULSE_HIGH_US;
+    uint32_t low_delay_cycles = ((CORE_CLOCK_HZ / 1000000U) / 4U) * low_delay_us;
+
+    set_y_dir(dir);
+
+    for (uint32_t i = 0; i < steps; ++i)
+    {
+        pulse_step_pin(step_port, step_pin);
+        delay_cycles(low_delay_cycles);
+    }
+}
+
 void set_z_dir(uint8_t dir)
 {
     if (dir)
@@ -217,6 +386,23 @@ static uint32_t min_u32(uint32_t a, uint32_t b)
 static uint32_t max_u32(uint32_t a, uint32_t b)
 {
     return (a > b) ? a : b;
+}
+
+static int32_t scale_logical_y_to_left_steps(int32_t logical_y_steps)
+{
+    int64_t scaled = (int64_t)logical_y_steps * (int64_t)Y_LEFT_MAX_STEPS;
+    int64_t divisor = (int64_t)Y_RIGHT_MAX_STEPS;
+
+    if (scaled >= 0)
+    {
+        scaled = (scaled + (divisor / 2)) / divisor;
+    }
+    else
+    {
+        scaled = (scaled - (divisor / 2)) / divisor;
+    }
+
+    return (int32_t)scaled;
 }
 
 static uint32_t get_xy_cruise_delay(uint32_t x_steps, uint32_t y_steps)
@@ -255,7 +441,7 @@ static uint32_t get_xy_step_delay(uint32_t step_index, uint32_t total_steps, uin
     ramp_steps = min_u32(XY_RAMP_STEPS, total_steps / 2U);
     if (ramp_steps == 0U)
     {
-        return start_delay;
+        return cruise_delay;
     }
 
     distance_from_edge = min_u32(step_index, (total_steps - 1U) - step_index);
@@ -268,147 +454,229 @@ static uint32_t get_xy_step_delay(uint32_t step_index, uint32_t total_steps, uin
     return start_delay - ((delay_delta * distance_from_edge) / ramp_steps);
 }
 
-void pulse_x_step(void)
+static void wait_for_motion_complete(void)
 {
-    gpio_set_pin(X_STEP_PORT, X_STEP_PIN);
-    delay_cycles(X_STEP_DELAY_CYCLES);
-
-    gpio_clear_pin(X_STEP_PORT, X_STEP_PIN);
-    delay_cycles(X_STEP_DELAY_CYCLES);
-}
-
-void pulse_y_step(void)
-{
-    /* Shared STEP signal for both Y drivers */
-    gpio_set_pin(Y_STEP_PORT, Y_STEP_PIN);
-    delay_cycles(Y_STEP_DELAY_CYCLES);
-
-    gpio_clear_pin(Y_STEP_PORT, Y_STEP_PIN);
-    delay_cycles(Y_STEP_DELAY_CYCLES);
-}
-
-void pulse_z_step(void)
-{
-    gpio_set_pin(Z_STEP_PORT, Z_STEP_PIN);
-    delay_cycles(STEP_DELAY_CYCLES_Z);
-
-    gpio_clear_pin(Z_STEP_PORT, Z_STEP_PIN);
-    delay_cycles(STEP_DELAY_CYCLES_Z);
-}
-
-void step_x(uint32_t steps, uint8_t dir)
-{
-    set_x_dir(dir);
-    delay_cycles(X_STEP_DELAY_CYCLES);
-
-    for (uint32_t i = 0; i < steps; i++)
+    while (g_motion.active != 0U)
     {
-        pulse_x_step();
+        __asm__ volatile("wfi");
     }
 }
 
-void step_y(uint32_t steps, uint8_t dir)
+static void motion_begin_xy(uint32_t x_steps, uint8_t x_dir, uint32_t y_right_steps, uint32_t y_left_steps, uint8_t y_dir)
 {
-    set_y_dir(dir);
-    delay_cycles(Y_STEP_DELAY_CYCLES);
-
-    for (uint32_t i = 0; i < steps; i++)
-    {
-        pulse_y_step();
-    }
-}
-
-void step_z(uint32_t steps, uint8_t dir)
-{
-    set_z_dir(dir);
-    delay_cycles(STEP_DELAY_CYCLES_Z);
-
-    for (uint32_t i = 0; i < steps; i++)
-    {
-        pulse_z_step();
-    }
-}
-
-void move_xy(uint32_t x_steps, uint8_t x_dir, uint32_t y_steps, uint8_t y_dir)
-{
-    uint32_t i;
-    uint32_t max_steps;
-    uint32_t x_acc = 0U;
-    uint32_t y_acc = 0U;
-    uint32_t cruise_delay;
-
-    set_x_dir(x_dir);
-    set_y_dir(y_dir);
-    cruise_delay = get_xy_cruise_delay(x_steps, y_steps);
-    delay_cycles(max_u32(XY_START_DELAY_CYCLES, cruise_delay));
-
-    max_steps = (x_steps > y_steps) ? x_steps : y_steps;
+    uint32_t max_steps = max_u32(max_u32(x_steps, y_right_steps), y_left_steps);
 
     if (max_steps == 0U)
     {
         return;
     }
 
-    for (i = 0U; i < max_steps; i++)
+    set_x_dir(x_dir);
+    set_y_dir(y_dir);
+
+    g_motion.active = 1U;
+    g_motion.pending_x = 0U;
+    g_motion.pending_y_right = 0U;
+    g_motion.pending_y_left = 0U;
+    g_motion.kind = MOTION_KIND_XY;
+    g_motion.step_index = 0U;
+    g_motion.total_steps = max_steps;
+    g_motion.x_steps = x_steps;
+    g_motion.y_right_steps = y_right_steps;
+    g_motion.y_left_steps = y_left_steps;
+    g_motion.x_acc = 0U;
+    g_motion.y_right_acc = 0U;
+    g_motion.y_left_acc = 0U;
+    g_motion.cruise_delay_us = get_xy_cruise_delay(x_steps, y_right_steps);
+    g_motion.z_delay_us = 0U;
+
+    motion_timer_prime(get_xy_step_delay(0U, max_steps, g_motion.cruise_delay_us));
+}
+
+static void motion_begin_z(uint32_t steps, uint8_t dir)
+{
+    if (steps == 0U)
     {
-        uint8_t do_x = 0U;
-        uint8_t do_y = 0U;
-
-        x_acc += x_steps;
-        y_acc += y_steps;
-
-        if (x_acc >= max_steps)
-        {
-            x_acc -= max_steps;
-            do_x = 1U;
-        }
-
-        if (y_acc >= max_steps)
-        {
-            y_acc -= max_steps;
-            do_y = 1U;
-        }
-
-        if (do_x)
-        {
-            gpio_set_pin(X_STEP_PORT, X_STEP_PIN);
-        }
-
-        if (do_y)
-        {
-            gpio_set_pin(Y_STEP_PORT, Y_STEP_PIN);
-        }
-
-        delay_cycles(get_xy_step_delay(i, max_steps, cruise_delay));
-
-        if (do_x)
-        {
-            gpio_clear_pin(X_STEP_PORT, X_STEP_PIN);
-        }
-
-        if (do_y)
-        {
-            gpio_clear_pin(Y_STEP_PORT, Y_STEP_PIN);
-        }
-
-        delay_cycles(get_xy_step_delay(i, max_steps, cruise_delay));
+        return;
     }
+
+    set_z_dir(dir);
+
+    g_motion.active = 1U;
+    g_motion.pending_x = 0U;
+    g_motion.pending_y_right = 0U;
+    g_motion.pending_y_left = 0U;
+    g_motion.kind = MOTION_KIND_Z;
+    g_motion.step_index = 0U;
+    g_motion.total_steps = steps;
+    g_motion.x_steps = 0U;
+    g_motion.y_right_steps = 0U;
+    g_motion.y_left_steps = 0U;
+    g_motion.x_acc = 0U;
+    g_motion.y_right_acc = 0U;
+    g_motion.y_left_acc = 0U;
+    g_motion.cruise_delay_us = 0U;
+    g_motion.z_delay_us = STEP_DELAY_CYCLES_Z;
+
+    motion_timer_prime(g_motion.z_delay_us);
+}
+
+static void motion_handle_xy_irq(void)
+{
+    g_motion.pending_x = 0U;
+    g_motion.pending_y_right = 0U;
+    g_motion.pending_y_left = 0U;
+
+    g_motion.x_acc += g_motion.x_steps;
+    g_motion.y_right_acc += g_motion.y_right_steps;
+    g_motion.y_left_acc += g_motion.y_left_steps;
+
+    if (g_motion.x_acc >= g_motion.total_steps)
+    {
+        g_motion.x_acc -= g_motion.total_steps;
+        g_motion.pending_x = 1U;
+        gpio_set_pin(X_STEP_PORT, X_STEP_PIN);
+    }
+
+    if (g_motion.y_right_acc >= g_motion.total_steps)
+    {
+        g_motion.y_right_acc -= g_motion.total_steps;
+        g_motion.pending_y_right = 1U;
+        gpio_set_pin(Y_RIGHT_STEP_PORT, Y_RIGHT_STEP_PIN);
+    }
+
+    if (g_motion.y_left_acc >= g_motion.total_steps)
+    {
+        g_motion.y_left_acc -= g_motion.total_steps;
+        g_motion.pending_y_left = 1U;
+        gpio_set_pin(Y_LEFT_STEP_PORT, Y_LEFT_STEP_PIN);
+    }
+
+    delay_cycles(pulse_high_delay_count());
+
+    if (g_motion.pending_x != 0U)
+    {
+        gpio_clear_pin(X_STEP_PORT, X_STEP_PIN);
+    }
+
+    if (g_motion.pending_y_right != 0U)
+    {
+        gpio_clear_pin(Y_RIGHT_STEP_PORT, Y_RIGHT_STEP_PIN);
+    }
+
+    if (g_motion.pending_y_left != 0U)
+    {
+        gpio_clear_pin(Y_LEFT_STEP_PORT, Y_LEFT_STEP_PIN);
+    }
+
+    g_motion.step_index++;
+    if (g_motion.step_index >= g_motion.total_steps)
+    {
+        motion_timer_stop();
+        return;
+    }
+
+    motion_timer_set_interval_us(get_xy_step_delay(g_motion.step_index, g_motion.total_steps, g_motion.cruise_delay_us));
+}
+
+static void motion_handle_z_irq(void)
+{
+    gpio_set_pin(Z_STEP_PORT, Z_STEP_PIN);
+    delay_cycles(pulse_high_delay_count());
+    gpio_clear_pin(Z_STEP_PORT, Z_STEP_PIN);
+
+    g_motion.step_index++;
+    if (g_motion.step_index >= g_motion.total_steps)
+    {
+        motion_timer_stop();
+        return;
+    }
+
+    motion_timer_set_interval_us(g_motion.z_delay_us);
+}
+
+void TIM4_IRQHandler(void)
+{
+    if ((TIM4->SR & TIM_SR_UIF) == 0U)
+    {
+        return;
+    }
+
+    TIM4->SR &= ~TIM_SR_UIF;
+
+    if (g_motion.active == 0U)
+    {
+        return;
+    }
+
+    switch (g_motion.kind)
+    {
+        case MOTION_KIND_XY:
+            motion_handle_xy_irq();
+            break;
+        case MOTION_KIND_Z:
+            motion_handle_z_irq();
+            break;
+        default:
+            motion_timer_stop();
+            break;
+    }
+}
+
+void step_x(uint32_t steps, uint8_t dir)
+{
+    motion_begin_xy(steps, dir, 0U, 0U, 0U);
+    wait_for_motion_complete();
+}
+
+void step_y(uint32_t steps, uint8_t dir)
+{
+    uint32_t left_steps = (uint32_t)scale_logical_y_to_left_steps((int32_t)steps);
+    motion_begin_xy(0U, 0U, steps, left_steps, dir);
+    wait_for_motion_complete();
+}
+
+void step_z(uint32_t steps, uint8_t dir)
+{
+    motion_begin_z(steps, dir);
+    wait_for_motion_complete();
+
+    if (dir != 0U)
+    {
+        g_current_z_steps += (int32_t)steps;
+    }
+    else
+    {
+        g_current_z_steps -= (int32_t)steps;
+    }
+}
+
+void move_xy(uint32_t x_steps, uint8_t x_dir, uint32_t y_steps, uint8_t y_dir)
+{
+    uint32_t left_steps = (uint32_t)scale_logical_y_to_left_steps((int32_t)y_steps);
+    motion_begin_xy(x_steps, x_dir, y_steps, left_steps, y_dir);
+    wait_for_motion_complete();
 }
 
 void move_to_steps(int32_t target_x_steps, int32_t target_y_steps)
 {
     int32_t dx = target_x_steps - g_current_x_steps;
+    int32_t target_y_left_steps = scale_logical_y_to_left_steps(target_y_steps);
     int32_t dy = target_y_steps - g_current_y_steps;
+    int32_t dy_left = target_y_left_steps - g_current_y_left_steps;
 
     uint8_t x_dir = (dx >= 0) ? 1U : 0U;
     uint8_t y_dir = (dy >= 0) ? 1U : 0U;
     uint32_t x_steps = (dx >= 0) ? (uint32_t)dx : (uint32_t)(-dx);
     uint32_t y_steps = (dy >= 0) ? (uint32_t)dy : (uint32_t)(-dy);
+    uint32_t y_left_steps = (dy_left >= 0) ? (uint32_t)dy_left : (uint32_t)(-dy_left);
 
-    move_xy(x_steps, x_dir, y_steps, y_dir);
+    motion_begin_xy(x_steps, x_dir, y_steps, y_left_steps, y_dir);
+    wait_for_motion_complete();
 
     g_current_x_steps = target_x_steps;
     g_current_y_steps = target_y_steps;
+    g_current_y_left_steps = target_y_left_steps;
 }
 
 bool board_coord_to_steps(int32_t board_x, int32_t board_y, int32_t *out_x_steps, int32_t *out_y_steps)
@@ -492,9 +760,9 @@ static bool workspace_percent_to_steps(int32_t pct_x, int32_t pct_y, int32_t *ou
 
 static void send_status(void)
 {
-    char line[96];
-    (void)snprintf(line, sizeof(line), "STATUS cur_x=%ld cur_y=%ld", (long)g_current_x_steps,
-                   (long)g_current_y_steps);
+    char line[128];
+    (void)snprintf(line, sizeof(line), "STATUS cur_x=%ld cur_y=%ld cur_z=%ld", (long)g_current_x_steps,
+                   (long)g_current_y_steps, (long)g_current_z_steps);
     uart_write_line(line);
 }
 
@@ -511,8 +779,9 @@ static void z_release(void)
 static void execute_pickup_steps(int32_t src_x_steps, int32_t src_y_steps)
 {
     move_to_steps(src_x_steps, src_y_steps);
-    delay_cycles(MOVE_PAUSE_CYCLES);
+    delay_cycles(Z_PRE_MOVE_PAUSE_CYCLES);
     z_pickup();
+    delay_cycles(Z_POST_MOVE_PAUSE_CYCLES);
 }
 
 static void execute_moveheld_steps(int32_t dst_x_steps, int32_t dst_y_steps)
@@ -523,8 +792,9 @@ static void execute_moveheld_steps(int32_t dst_x_steps, int32_t dst_y_steps)
 static void execute_release_steps(int32_t dst_x_steps, int32_t dst_y_steps)
 {
     move_to_steps(dst_x_steps, dst_y_steps);
-    delay_cycles(MOVE_PAUSE_CYCLES);
+    delay_cycles(Z_PRE_MOVE_PAUSE_CYCLES);
     z_release();
+    delay_cycles(Z_POST_MOVE_PAUSE_CYCLES);
 }
 
 static void execute_pick_and_place_steps(int32_t src_x_steps, int32_t src_y_steps, int32_t dst_x_steps,
@@ -589,6 +859,8 @@ static void process_command(const char *cmd)
     {
         g_current_x_steps = 0;
         g_current_y_steps = 0;
+        g_current_y_left_steps = 0;
+        g_current_z_steps = 0;
         uart_write_line("OK ZERO");
         return;
     }
@@ -608,14 +880,67 @@ static void process_command(const char *cmd)
 
     if (sscanf(sanitized, "GOTO_STEPS %d %d", &gx, &gy) == 2)
     {
-        if (!workspace_steps_in_range((int32_t)gx, (int32_t)gy))
-        {
-            uart_write_line("ERR STEP_RANGE");
-            return;
-        }
-
         move_to_steps((int32_t)gx, (int32_t)gy);
         uart_write_line("OK GOTO_STEPS");
+        return;
+    }
+
+    if (sscanf(sanitized, "JOG_STEPS %d %d", &gx, &gy) == 2)
+    {
+        int32_t target_x = g_current_x_steps + (int32_t)gx;
+        int32_t target_y = g_current_y_steps + (int32_t)gy;
+
+        move_to_steps(target_x, target_y);
+        uart_write_line("OK JOG_STEPS");
+        return;
+    }
+
+    if (sscanf(sanitized, "JOG_Y_RIGHT %d", &gx) == 1)
+    {
+        int32_t delta = (int32_t)gx;
+        if (delta >= 0)
+        {
+            step_y_side_only(Y_RIGHT_STEP_PORT, Y_RIGHT_STEP_PIN, (uint32_t)delta, 1U);
+        }
+        else
+        {
+            step_y_side_only(Y_RIGHT_STEP_PORT, Y_RIGHT_STEP_PIN, (uint32_t)(-delta), 0U);
+        }
+
+        uart_write_line("OK JOG_Y_RIGHT");
+        return;
+    }
+
+    if (sscanf(sanitized, "JOG_Y_LEFT %d", &gx) == 1)
+    {
+        int32_t delta = (int32_t)gx;
+        if (delta >= 0)
+        {
+            step_y_side_only(Y_LEFT_STEP_PORT, Y_LEFT_STEP_PIN, (uint32_t)delta, 1U);
+        }
+        else
+        {
+            step_y_side_only(Y_LEFT_STEP_PORT, Y_LEFT_STEP_PIN, (uint32_t)(-delta), 0U);
+        }
+
+        uart_write_line("OK JOG_Y_LEFT");
+        return;
+    }
+
+    if (sscanf(sanitized, "JOG_Z %d", &gx) == 1)
+    {
+        int32_t delta_z = (int32_t)gx;
+
+        if (delta_z >= 0)
+        {
+            step_z((uint32_t)delta_z, 1U);
+        }
+        else
+        {
+            step_z((uint32_t)(-delta_z), 0U);
+        }
+
+        uart_write_line("OK JOG_Z");
         return;
     }
 
@@ -760,7 +1085,9 @@ int main(void)
     char cmd_line[96];
 
     gpio_init();
+    motion_timer_init();
     uart_init();
+    __asm__ volatile("cpsie i");
 
     uart_write_line("READY");
 

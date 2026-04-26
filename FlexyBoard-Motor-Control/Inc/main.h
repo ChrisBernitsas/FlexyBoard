@@ -12,6 +12,7 @@
 #define GPIOA_BASE            (AHB1PERIPH_BASE + 0x0000UL)
 #define GPIOB_BASE            (AHB1PERIPH_BASE + 0x0400UL)
 #define USART2_BASE           (APB1PERIPH_BASE + 0x4400UL)
+#define TIM4_BASE             (APB1PERIPH_BASE + 0x0800UL)
 
 /* GPIO register layout */
 typedef struct
@@ -39,6 +40,32 @@ typedef struct
     volatile uint32_t GTPR;
 } USART_TypeDef;
 
+/* TIM2-5 register layout */
+typedef struct
+{
+    volatile uint32_t CR1;
+    volatile uint32_t CR2;
+    volatile uint32_t SMCR;
+    volatile uint32_t DIER;
+    volatile uint32_t SR;
+    volatile uint32_t EGR;
+    volatile uint32_t CCMR1;
+    volatile uint32_t CCMR2;
+    volatile uint32_t CCER;
+    volatile uint32_t CNT;
+    volatile uint32_t PSC;
+    volatile uint32_t ARR;
+    volatile uint32_t RESERVED1;
+    volatile uint32_t CCR1;
+    volatile uint32_t CCR2;
+    volatile uint32_t CCR3;
+    volatile uint32_t CCR4;
+    volatile uint32_t RESERVED2;
+    volatile uint32_t DCR;
+    volatile uint32_t DMAR;
+    volatile uint32_t OR;
+} TIM_TypeDef;
+
 /* RCC registers */
 #define RCC_AHB1ENR           (*(volatile uint32_t *)(RCC_BASE + 0x30UL))
 #define RCC_APB1ENR           (*(volatile uint32_t *)(RCC_BASE + 0x40UL))
@@ -47,6 +74,7 @@ typedef struct
 #define GPIOA                 ((GPIO_TypeDef *)GPIOA_BASE)
 #define GPIOB                 ((GPIO_TypeDef *)GPIOB_BASE)
 #define USART2                ((USART_TypeDef *)USART2_BASE)
+#define TIM4                  ((TIM_TypeDef *)TIM4_BASE)
 
 /* X axis on PA pins */
 #define X_STEP_PORT           GPIOA
@@ -55,9 +83,16 @@ typedef struct
 #define X_DIR_PORT            GPIOA
 #define X_DIR_PIN             1   /* PA1, Arduino A1 */
 
-/* Y axis on Arduino D pins */
-#define Y_STEP_PORT           GPIOA
-#define Y_STEP_PIN            10  /* PA10, board-labeled D2 */
+/* Y axis on Arduino D pins.
+ * Right-side driver uses D2 (PA10), left-side driver uses D7 (PA8).
+ * Both are currently pulsed together by the firmware; this split only
+ * separates the wiring, not the commanded step counts.
+ */
+#define Y_RIGHT_STEP_PORT     GPIOA
+#define Y_RIGHT_STEP_PIN      10  /* PA10, board-labeled D2 */
+
+#define Y_LEFT_STEP_PORT      GPIOA
+#define Y_LEFT_STEP_PIN       8   /* PA8, board-labeled D7 */
 
 #define Y1_DIR_PORT           GPIOB
 #define Y1_DIR_PIN            3   /* PB3, board-labeled D3 */
@@ -103,11 +138,15 @@ typedef struct
 
 /* Full reachable workspace (green-grid / gantry area) in motor steps.
  * Used for off-board staging moves (captured pieces, detours).
+ * Y uses the smaller of the two physical gantry-side limits as the shared
+ * safe workspace bound, since both Y motors are stepped together.
  */
 #define WORKSPACE_MIN_X_STEPS 0
-#define WORKSPACE_MAX_X_STEPS 2055
+#define WORKSPACE_MAX_X_STEPS 2060
 #define WORKSPACE_MIN_Y_STEPS 0
-#define WORKSPACE_MAX_Y_STEPS 2280
+#define Y_RIGHT_MAX_STEPS     2278
+#define Y_LEFT_MAX_STEPS      2318
+#define WORKSPACE_MAX_Y_STEPS Y_RIGHT_MAX_STEPS
 
 /* Percentage command scale:
  * 0   -> 0%
@@ -115,17 +154,24 @@ typedef struct
  */
 #define WORKSPACE_PERCENT_SCALE 100
 
-/* Step pulse timing (higher delay = slower speed).
+/* Timer-driven motion profile.
+ * The *_DELAY_CYCLES names are legacy, but now represent full step periods
+ * in microseconds for the timer scheduler. Lower values increase speed.
+ *
  * X and Y are split because the dual-motor gantry axis typically tops out
  * below the single-motor axis. Combined XY moves respect the slower axis and
- * ramp down from XY_START_DELAY_CYCLES to the cruise delay.
+ * ramp down from XY_START_DELAY_CYCLES to the cruise period.
  */
-#define X_STEP_DELAY_CYCLES   1000
-#define Y_STEP_DELAY_CYCLES   1200
-#define XY_START_DELAY_CYCLES 1800
-#define XY_RAMP_STEPS         96U
-#define STEP_DELAY_CYCLES_Z   1500
-#define MOVE_PAUSE_CYCLES     120000
+#define MOTION_TIMER_HZ       1000000U
+#define STEP_PULSE_HIGH_US    10U
+#define X_STEP_DELAY_CYCLES   900
+#define Y_STEP_DELAY_CYCLES   1000
+#define XY_START_DELAY_CYCLES 1500
+#define XY_RAMP_STEPS         48U
+#define STEP_DELAY_CYCLES_Z   4000
+#define MOVE_PAUSE_CYCLES     1200000
+#define Z_PRE_MOVE_PAUSE_CYCLES  1600000
+#define Z_POST_MOVE_PAUSE_CYCLES 1600000
 
 // #define X_STEP_DELAY_CYCLES   600 // 1400
 // #define Y_STEP_DELAY_CYCLES   800 // dual-motor axis needs more margin
@@ -143,7 +189,7 @@ typedef struct
  *   MOVEHELD_STEPS dx dy       -> move while keeping piece attached
  *   RELEASE_STEPS dx dy        -> move to destination and disengage Z
  */
-#define Z_PICKUP_STEPS        30
+#define Z_PICKUP_STEPS        35
 #define Z_RELEASE_STEPS       30
 #define Z_PICKUP_DIR          1U
 #define Z_RELEASE_DIR         0U
@@ -155,10 +201,6 @@ void uart_init(void);
 void set_x_dir(uint8_t dir);
 void set_y_dir(uint8_t dir);
 void set_z_dir(uint8_t dir);
-
-void pulse_x_step(void);
-void pulse_y_step(void);
-void pulse_z_step(void);
 
 void step_x(uint32_t steps, uint8_t dir);
 void step_y(uint32_t steps, uint8_t dir);

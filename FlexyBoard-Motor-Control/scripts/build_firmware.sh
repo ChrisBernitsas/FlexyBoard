@@ -17,7 +17,7 @@ COMMON_FLAGS=(
   -mfloat-abi=hard
   -std=gnu11
   -g3
-  -O0
+  -O2
   -ffunction-sections
   -fdata-sections
   -Wall

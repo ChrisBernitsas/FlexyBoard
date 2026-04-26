@@ -11,10 +11,14 @@ The current Pi<->STM bring-up path uses simple newline-terminated ASCII commands
 Supported STM commands:
 - `PING` -> `PONG`
 - `ZERO` -> `OK ZERO`
-- `STATUS` -> `STATUS cur_x=<steps> cur_y=<steps>`
+- `STATUS` -> `STATUS cur_x=<steps> cur_y=<steps> cur_z=<steps>`
 - `RETURN_START` -> `OK RETURN_START`
 - `GOTO gx gy` (board coords 0..7)
 - `GOTO_STEPS x y` (absolute workspace steps)
+- `JOG_STEPS dx dy` (relative workspace jog in steps, no firmware range clamp)
+- `JOG_Y_RIGHT dy` (pulse only the right Y step line, diagnostic only)
+- `JOG_Y_LEFT dy` (pulse only the left Y step line, diagnostic only)
+- `JOG_Z dz` (relative Z jog in steps)
 - `GOTOPCT px py` (0..100% of green-grid workspace)
 - `MOVE sx sy dx dy` (board coords 0..7)
 - `MOVE_STEPS sx sy dx dy` (absolute workspace steps)
@@ -34,6 +38,10 @@ Pi move sender behavior (`scripts/send_moves_from_file.py`):
   - zero or more `MOVEHELD_STEPS ...`
   - `RELEASE_STEPS ...`
 - If the connected STM firmware does not support the chained commands yet, the sender falls back to legacy per-line `MOVE_STEPS ...`.
+
+Manual jog helper:
+- `python scripts/jog_stm32.py`
+- Supports `status`, `zero`, `goto x y`, `goto a1`, `jog dx dy`, `jog left n`, `jog right n`, `z dz`, `pickup`, and `release`.
 
 ## 1) Transport
 - Physical layer: UART (`115200 8N1` default)
