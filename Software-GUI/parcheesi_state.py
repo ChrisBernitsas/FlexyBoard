@@ -67,8 +67,8 @@ class ParcheesiState:
     MAIN_TRACK_LENGTH = 68
     HOME_PATH_LENGTH = 7
 
-    PLAYER_START_SQUARES = {1: 0, 2: 17, 3: 34, 4: 51}
-    PLAYER_HOME_ENTRY_SQUARES = {1: 67, 2: 16, 3: 33, 4: 50}
+    PLAYER_START_SQUARES = {1: 64, 2: 13, 3: 23, 4: 47}
+    PLAYER_HOME_ENTRY_SQUARES = {1: 63, 2: 12, 3: 22, 4: 46}
     SAFE_SQUARES = {6, 13, 23, 30, 40, 47, 57, 64}
 
     # Virtual 19x19 board used by the UI and percent motor projection.

@@ -998,6 +998,7 @@ def _run_game_loop(kind: str, transport: object) -> None:
             print("Illegal P2 move:", err, file=sys.stderr)
             return
 
+        ui.clear_drag()
         last_move = (start_id, end_id)
         print(f"P2 move: {start_id} -> {end_id}", file=sys.stderr)
 
@@ -1161,6 +1162,7 @@ def _run_game_loop(kind: str, transport: object) -> None:
                     state,
                     msg,
                 )
+                ui.clear_drag()
                 
                 # Capture inventory logic needs to be adapted for Parcheesi
                 # if kind == "chess":
