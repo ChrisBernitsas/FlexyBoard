@@ -12,6 +12,20 @@ static int32_t g_prev_moveheld_dx_steps = 0;
 static int32_t g_prev_moveheld_dy_steps = 0;
 static uint8_t g_has_prev_moveheld_direction = 0U;
 
+typedef struct
+{
+    uint32_t x_step_delay_us;
+    uint32_t y_step_delay_us;
+    uint32_t xy_start_delay_us;
+    uint32_t xy_ramp_steps;
+    uint32_t z_step_delay_us;
+    uint32_t step_pulse_high_us;
+    uint32_t z_pre_pickup_pause_cycles;
+    uint32_t moveheld_settle_cycles;
+    uint32_t z_post_release_pause_cycles;
+    uint32_t return_start_seat_steps;
+} motion_runtime_config_t;
+
 #define NVIC_ISER0            (*(volatile uint32_t *)0xE000E100UL)
 #define NVIC_ISER1            (*(volatile uint32_t *)0xE000E104UL)
 
@@ -49,6 +63,20 @@ typedef struct
 } motion_state_t;
 
 static volatile motion_state_t g_motion = {0};
+static motion_runtime_config_t g_motion_cfg = {
+    .x_step_delay_us = X_STEP_DELAY_CYCLES,
+    .y_step_delay_us = Y_STEP_DELAY_CYCLES,
+    .xy_start_delay_us = XY_START_DELAY_CYCLES,
+    .xy_ramp_steps = XY_RAMP_STEPS,
+    .z_step_delay_us = STEP_DELAY_CYCLES_Z,
+    .step_pulse_high_us = STEP_PULSE_HIGH_US,
+    .z_pre_pickup_pause_cycles = Z_PRE_PICKUP_PAUSE_CYCLES,
+    .moveheld_settle_cycles = MOVEHELD_SETTLE_CYCLES,
+    .z_post_release_pause_cycles = Z_POST_RELEASE_PAUSE_CYCLES,
+    .return_start_seat_steps = RETURN_START_SEAT_STEPS,
+};
+
+static void move_to_steps_common(int32_t target_x_steps, int32_t target_y_steps);
 
 /* Called from startup before main(). Provide a local implementation so
  * bare-metal builds do not jump to an undefined weak symbol.
@@ -126,6 +154,12 @@ static void nvic_enable_irq(uint8_t irq_num)
     }
 }
 
+static void nvic_set_priority(uint8_t irq_num, uint8_t priority)
+{
+    volatile uint8_t *nvic_ipr = (volatile uint8_t *)0xE000E400UL;
+    nvic_ipr[irq_num] = (priority << 4);
+}
+
 static void clear_all_step_pins(void)
 {
     gpio_clear_pin(X_STEP_PORT, X_STEP_PIN);
@@ -136,9 +170,16 @@ static void clear_all_step_pins(void)
 
 static uint32_t clamp_step_period_us(uint32_t period_us)
 {
-    if (period_us <= STEP_PULSE_HIGH_US)
+    uint32_t pulse_high_us = g_motion_cfg.step_pulse_high_us;
+
+    if (pulse_high_us == 0U)
     {
-        return STEP_PULSE_HIGH_US + 1U;
+        pulse_high_us = 1U;
+    }
+
+    if (period_us <= pulse_high_us)
+    {
+        return pulse_high_us + 1U;
     }
     return period_us;
 }
@@ -146,11 +187,16 @@ static uint32_t clamp_step_period_us(uint32_t period_us)
 static uint32_t pulse_high_delay_count(void)
 {
     uint32_t loops_per_us = (CORE_CLOCK_HZ / 1000000U) / 4U;
+    uint32_t pulse_high_us = g_motion_cfg.step_pulse_high_us;
     if (loops_per_us == 0U)
     {
         loops_per_us = 1U;
     }
-    return loops_per_us * STEP_PULSE_HIGH_US;
+    if (pulse_high_us == 0U)
+    {
+        pulse_high_us = 1U;
+    }
+    return loops_per_us * pulse_high_us;
 }
 
 static void motion_timer_set_interval_us(uint32_t interval_us)
@@ -212,6 +258,7 @@ static void motion_timer_init(void)
     TIM4->SR = 0U;
 
     clear_all_step_pins();
+    nvic_set_priority(TIM4_IRQ_NUM, 0); /* Highest priority for motor timing */
     nvic_enable_irq(TIM4_IRQ_NUM);
 }
 
@@ -250,6 +297,8 @@ void uart_init(void)
 
     /* UE + TE + RE */
     USART2->CR1 = (1U << 13) | (1U << 3) | (1U << 2);
+
+    nvic_set_priority(38U, 1); /* USART2 IRQ priority 1 */
 }
 
 static void uart_write_char(char c)
@@ -356,8 +405,9 @@ void set_y_dir(uint8_t dir)
 
 static void step_y_side_only(GPIO_TypeDef *step_port, uint8_t step_pin, uint32_t steps, uint8_t dir)
 {
-    uint32_t step_delay_us = clamp_step_period_us(Y_STEP_DELAY_CYCLES);
-    uint32_t low_delay_us = step_delay_us - STEP_PULSE_HIGH_US;
+    uint32_t pulse_high_us = g_motion_cfg.step_pulse_high_us;
+    uint32_t step_delay_us = clamp_step_period_us(g_motion_cfg.y_step_delay_us);
+    uint32_t low_delay_us = step_delay_us - pulse_high_us;
     uint32_t low_delay_cycles = ((CORE_CLOCK_HZ / 1000000U) / 4U) * low_delay_us;
 
     set_y_dir(dir);
@@ -381,11 +431,6 @@ void set_z_dir(uint8_t dir)
     }
 }
 
-static uint32_t min_u32(uint32_t a, uint32_t b)
-{
-    return (a < b) ? a : b;
-}
-
 static uint32_t max_u32(uint32_t a, uint32_t b)
 {
     return (a > b) ? a : b;
@@ -400,26 +445,26 @@ static uint32_t get_xy_cruise_delay(uint32_t x_steps, uint32_t y_steps)
 {
     if (x_steps == 0U)
     {
-        return Y_STEP_DELAY_CYCLES;
+        return g_motion_cfg.y_step_delay_us;
     }
 
     if (y_steps == 0U)
     {
-        return X_STEP_DELAY_CYCLES;
+        return g_motion_cfg.x_step_delay_us;
     }
 
-    return max_u32(X_STEP_DELAY_CYCLES, Y_STEP_DELAY_CYCLES);
+    return max_u32(g_motion_cfg.x_step_delay_us, g_motion_cfg.y_step_delay_us);
 }
 
 static uint32_t get_xy_step_delay(uint32_t step_index, uint32_t total_steps, uint32_t cruise_delay)
 {
-    uint32_t start_delay = max_u32(XY_START_DELAY_CYCLES, cruise_delay);
-    if (start_delay <= cruise_delay || XY_RAMP_STEPS == 0U || total_steps <= 1U)
+    uint32_t start_delay = max_u32(g_motion_cfg.xy_start_delay_us, cruise_delay);
+    if (start_delay <= cruise_delay || g_motion_cfg.xy_ramp_steps == 0U || total_steps <= 1U)
     {
         return cruise_delay;
     }
 
-    uint32_t ramp_steps = XY_RAMP_STEPS;
+    uint32_t ramp_steps = g_motion_cfg.xy_ramp_steps;
     uint32_t half_steps = total_steps / 2U;
     if (half_steps == 0U)
     {
@@ -511,7 +556,7 @@ static void motion_begin_z(uint32_t steps, uint8_t dir)
     g_motion.y_right_acc = 0U;
     g_motion.y_left_acc = 0U;
     g_motion.cruise_delay_us = 0U;
-    g_motion.z_delay_us = STEP_DELAY_CYCLES_Z;
+    g_motion.z_delay_us = g_motion_cfg.z_step_delay_us;
 
     motion_timer_prime(g_motion.z_delay_us);
 }
@@ -655,76 +700,12 @@ void move_xy(uint32_t x_steps, uint8_t x_dir, uint32_t y_steps, uint8_t y_dir)
 
 static void move_to_steps_unladen(int32_t target_x_steps, int32_t target_y_steps)
 {
-    int32_t dx = target_x_steps - g_current_x_steps;
-    int32_t target_y_left_steps = scale_logical_y_to_left_steps(target_y_steps);
-    int32_t dy = target_y_steps - g_current_y_steps;
-    int32_t dy_left = target_y_left_steps - g_current_y_left_steps;
-
-    uint8_t x_dir = (dx >= 0) ? 1U : 0U;
-    uint8_t y_dir = (dy >= 0) ? 1U : 0U;
-    uint32_t x_steps = (dx >= 0) ? (uint32_t)dx : (uint32_t)(-dx);
-    uint32_t y_steps = (dy >= 0) ? (uint32_t)dy : (uint32_t)(-dy);
-    uint32_t y_left_steps = (dy_left >= 0) ? (uint32_t)dy_left : (uint32_t)(-dy_left);
-    uint32_t shared_steps = min_u32(x_steps, y_steps);
-
-    if (shared_steps > 0U)
-    {
-        int32_t shared_target_y_steps = g_current_y_steps + ((y_dir != 0U) ? (int32_t)shared_steps : -(int32_t)shared_steps);
-        int32_t shared_target_y_left_steps = scale_logical_y_to_left_steps(shared_target_y_steps);
-        int32_t shared_dy_left = shared_target_y_left_steps - g_current_y_left_steps;
-        uint32_t shared_y_left_steps =
-            (shared_dy_left >= 0) ? (uint32_t)shared_dy_left : (uint32_t)(-shared_dy_left);
-        motion_begin_xy(shared_steps, x_dir, shared_steps, shared_y_left_steps, y_dir);
-        wait_for_motion_complete();
-
-        g_current_x_steps += (x_dir != 0U) ? (int32_t)shared_steps : -(int32_t)shared_steps;
-        g_current_y_steps += (y_dir != 0U) ? (int32_t)shared_steps : -(int32_t)shared_steps;
-        g_current_y_left_steps = shared_target_y_left_steps;
-
-        x_steps -= shared_steps;
-        y_steps -= shared_steps;
-        y_left_steps -= shared_y_left_steps;
-    }
-
-    if (x_steps > 0U)
-    {
-        motion_begin_xy(x_steps, x_dir, 0U, 0U, 0U);
-        wait_for_motion_complete();
-        g_current_x_steps = target_x_steps;
-    }
-
-    if (y_steps > 0U || y_left_steps > 0U)
-    {
-        motion_begin_xy(0U, 0U, y_steps, y_left_steps, y_dir);
-        wait_for_motion_complete();
-        g_current_y_steps = target_y_steps;
-        g_current_y_left_steps = target_y_left_steps;
-    }
-
-    g_current_x_steps = target_x_steps;
-    g_current_y_steps = target_y_steps;
-    g_current_y_left_steps = target_y_left_steps;
+    move_to_steps_common(target_x_steps, target_y_steps);
 }
 
 void move_to_steps(int32_t target_x_steps, int32_t target_y_steps)
 {
-    int32_t dx = target_x_steps - g_current_x_steps;
-    int32_t target_y_left_steps = scale_logical_y_to_left_steps(target_y_steps);
-    int32_t dy = target_y_steps - g_current_y_steps;
-    int32_t dy_left = target_y_left_steps - g_current_y_left_steps;
-
-    uint8_t x_dir = (dx >= 0) ? 1U : 0U;
-    uint8_t y_dir = (dy >= 0) ? 1U : 0U;
-    uint32_t x_steps = (dx >= 0) ? (uint32_t)dx : (uint32_t)(-dx);
-    uint32_t y_steps = (dy >= 0) ? (uint32_t)dy : (uint32_t)(-dy);
-    uint32_t y_left_steps = (dy_left >= 0) ? (uint32_t)dy_left : (uint32_t)(-dy_left);
-
-    motion_begin_xy(x_steps, x_dir, y_steps, y_left_steps, y_dir);
-    wait_for_motion_complete();
-
-    g_current_x_steps = target_x_steps;
-    g_current_y_steps = target_y_steps;
-    g_current_y_left_steps = target_y_left_steps;
+    move_to_steps_common(target_x_steps, target_y_steps);
 }
 
 bool board_coord_to_steps(int32_t board_x, int32_t board_y, int32_t *out_x_steps, int32_t *out_y_steps)
@@ -864,11 +845,72 @@ static uint8_t moveheld_direction_changed(int32_t dx_steps, int32_t dy_steps)
     return 1U;
 }
 
+static void reset_motion_runtime_config(void)
+{
+    g_motion_cfg.x_step_delay_us = X_STEP_DELAY_CYCLES;
+    g_motion_cfg.y_step_delay_us = Y_STEP_DELAY_CYCLES;
+    g_motion_cfg.xy_start_delay_us = XY_START_DELAY_CYCLES;
+    g_motion_cfg.xy_ramp_steps = XY_RAMP_STEPS;
+    g_motion_cfg.z_step_delay_us = STEP_DELAY_CYCLES_Z;
+    g_motion_cfg.step_pulse_high_us = STEP_PULSE_HIGH_US;
+    g_motion_cfg.z_pre_pickup_pause_cycles = Z_PRE_PICKUP_PAUSE_CYCLES;
+    g_motion_cfg.moveheld_settle_cycles = MOVEHELD_SETTLE_CYCLES;
+    g_motion_cfg.z_post_release_pause_cycles = Z_POST_RELEASE_PAUSE_CYCLES;
+    g_motion_cfg.return_start_seat_steps = RETURN_START_SEAT_STEPS;
+}
+
+static void send_motion_config(void)
+{
+    char line[256];
+    (void)snprintf(
+        line,
+        sizeof(line),
+        "MOTIONCFG x_delay=%lu y_delay=%lu xy_start=%lu xy_ramp=%lu z_delay=%lu pulse_high=%lu pre_pickup=%lu moveheld_settle=%lu post_release=%lu return_seat=%lu",
+        (unsigned long)g_motion_cfg.x_step_delay_us,
+        (unsigned long)g_motion_cfg.y_step_delay_us,
+        (unsigned long)g_motion_cfg.xy_start_delay_us,
+        (unsigned long)g_motion_cfg.xy_ramp_steps,
+        (unsigned long)g_motion_cfg.z_step_delay_us,
+        (unsigned long)g_motion_cfg.step_pulse_high_us,
+        (unsigned long)g_motion_cfg.z_pre_pickup_pause_cycles,
+        (unsigned long)g_motion_cfg.moveheld_settle_cycles,
+        (unsigned long)g_motion_cfg.z_post_release_pause_cycles,
+        (unsigned long)g_motion_cfg.return_start_seat_steps
+    );
+    uart_write_line(line);
+}
+
+static uint8_t motion_cfg_valid_delay(uint32_t delay_us)
+{
+    return (delay_us > 0U) ? 1U : 0U;
+}
+
+static void move_to_steps_common(int32_t target_x_steps, int32_t target_y_steps)
+{
+    int32_t dx = target_x_steps - g_current_x_steps;
+    int32_t target_y_left_steps = scale_logical_y_to_left_steps(target_y_steps);
+    int32_t dy = target_y_steps - g_current_y_steps;
+    int32_t dy_left = target_y_left_steps - g_current_y_left_steps;
+
+    uint8_t x_dir = (dx >= 0) ? 1U : 0U;
+    uint8_t y_dir = (dy >= 0) ? 1U : 0U;
+    uint32_t x_steps = (dx >= 0) ? (uint32_t)dx : (uint32_t)(-dx);
+    uint32_t y_steps = (dy >= 0) ? (uint32_t)dy : (uint32_t)(-dy);
+    uint32_t y_left_steps = (dy_left >= 0) ? (uint32_t)dy_left : (uint32_t)(-dy_left);
+
+    motion_begin_xy(x_steps, x_dir, y_steps, y_left_steps, y_dir);
+    wait_for_motion_complete();
+
+    g_current_x_steps = target_x_steps;
+    g_current_y_steps = target_y_steps;
+    g_current_y_left_steps = target_y_left_steps;
+}
+
 static void execute_pickup_steps(int32_t src_x_steps, int32_t src_y_steps)
 {
     reset_moveheld_direction_tracking();
     move_to_steps_unladen(src_x_steps, src_y_steps);
-    delay_cycles(Z_PRE_PICKUP_PAUSE_CYCLES);
+    delay_cycles(g_motion_cfg.z_pre_pickup_pause_cycles);
     z_pickup();
 }
 
@@ -880,7 +922,7 @@ static void execute_moveheld_steps(int32_t dst_x_steps, int32_t dst_y_steps)
     move_to_steps(dst_x_steps, dst_y_steps);
     if (moveheld_direction_changed(dx_steps, dy_steps) != 0U)
     {
-        delay_cycles(MOVEHELD_SETTLE_CYCLES);
+        delay_cycles(g_motion_cfg.moveheld_settle_cycles);
     }
     if (MOVEHELD_REGRIP_STEPS > 0U)
     {
@@ -896,7 +938,7 @@ static void execute_release_steps(int32_t dst_x_steps, int32_t dst_y_steps)
     move_to_steps(dst_x_steps, dst_y_steps);
     z_release();
     reset_moveheld_direction_tracking();
-    delay_cycles(Z_POST_RELEASE_PAUSE_CYCLES);
+    delay_cycles(g_motion_cfg.z_post_release_pause_cycles);
 }
 
 static void execute_pick_and_place_steps(int32_t src_x_steps, int32_t src_y_steps, int32_t dst_x_steps,
@@ -927,6 +969,10 @@ static void process_command(const char *cmd)
     int32_t src_y_steps;
     int32_t dst_x_steps;
     int32_t dst_y_steps;
+    unsigned long ux0;
+    unsigned long ux1;
+    unsigned long ux2;
+    unsigned long ux3;
 
     if (cmd == NULL)
     {
@@ -973,12 +1019,63 @@ static void process_command(const char *cmd)
         return;
     }
 
+    if (strcmp(sanitized, "MOTIONCFG") == 0)
+    {
+        send_motion_config();
+        return;
+    }
+
+    if (strcmp(sanitized, "RESET_MOTIONCFG") == 0)
+    {
+        reset_motion_runtime_config();
+        uart_write_line("OK RESET_MOTIONCFG");
+        return;
+    }
+
+    if (sscanf(sanitized, "SET_XY_MOTION %lu %lu %lu %lu", &ux0, &ux1, &ux2, &ux3) == 4)
+    {
+        if (motion_cfg_valid_delay((uint32_t)ux0) == 0U || motion_cfg_valid_delay((uint32_t)ux1) == 0U || motion_cfg_valid_delay((uint32_t)ux2) == 0U)
+        {
+            uart_write_line("ERR MOTIONCFG_RANGE");
+            return;
+        }
+        g_motion_cfg.x_step_delay_us = (uint32_t)ux0;
+        g_motion_cfg.y_step_delay_us = (uint32_t)ux1;
+        g_motion_cfg.xy_start_delay_us = (uint32_t)ux2;
+        g_motion_cfg.xy_ramp_steps = (uint32_t)ux3;
+        uart_write_line("OK SET_XY_MOTION");
+        return;
+    }
+
+    if (sscanf(sanitized, "SET_Z_MOTION %lu %lu", &ux0, &ux1) == 2)
+    {
+        if (motion_cfg_valid_delay((uint32_t)ux0) == 0U || motion_cfg_valid_delay((uint32_t)ux1) == 0U)
+        {
+            uart_write_line("ERR MOTIONCFG_RANGE");
+            return;
+        }
+        g_motion_cfg.z_step_delay_us = (uint32_t)ux0;
+        g_motion_cfg.step_pulse_high_us = (uint32_t)ux1;
+        uart_write_line("OK SET_Z_MOTION");
+        return;
+    }
+
+    if (sscanf(sanitized, "SET_SETTLE %lu %lu %lu %lu", &ux0, &ux1, &ux2, &ux3) == 4)
+    {
+        g_motion_cfg.z_pre_pickup_pause_cycles = (uint32_t)ux0;
+        g_motion_cfg.moveheld_settle_cycles = (uint32_t)ux1;
+        g_motion_cfg.z_post_release_pause_cycles = (uint32_t)ux2;
+        g_motion_cfg.return_start_seat_steps = (uint32_t)ux3;
+        uart_write_line("OK SET_SETTLE");
+        return;
+    }
+
     if (strcmp(sanitized, "RETURN_START") == 0)
     {
         move_to_steps_unladen(0, 0);
-        if (RETURN_START_SEAT_STEPS > 0U)
+        if (g_motion_cfg.return_start_seat_steps > 0U)
         {
-            move_xy(RETURN_START_SEAT_STEPS, 0U, RETURN_START_SEAT_STEPS, 0U);
+            move_xy(g_motion_cfg.return_start_seat_steps, 0U, g_motion_cfg.return_start_seat_steps, 0U);
             g_current_x_steps = 0;
             g_current_y_steps = 0;
             g_current_y_left_steps = 0;

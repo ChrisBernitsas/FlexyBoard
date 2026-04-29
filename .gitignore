@@ -8,3 +8,4 @@ FlexyBoard-Camera/debug_output/board_analysis_*/
 FlexyBoard-Camera/debug_output/latest_live_review/
 Software-GUI/debug_output/
 FlexyBoard-Camera/flexyboard_camera/vision/__pycache__/
+FlexyBoard-Camera/flexyboard_camera/app/__pycache__/

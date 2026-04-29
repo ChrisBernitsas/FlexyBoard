@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import heapq
 from pathlib import Path
 import re
+import time
 from typing import Callable, Iterable, List, Sequence
 
 import config
@@ -47,6 +48,7 @@ class GeneratedSequence:
     fallback_direct_segments: int = 0
     capture_slots_used: List[str] = field(default_factory=list)
     manual_actions: List[str] = field(default_factory=list)
+    debug_metrics: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,13 @@ class CaptureSlotRecord:
     piece_name: str
 
 
+@dataclass
+class _CaptureInventorySlot:
+    captured_side: str
+    piece_name: str
+    current_slot: PercentEndpoint
+
+
 @dataclass(frozen=True)
 class ManualCaptureRecord:
     record_id: int
@@ -72,47 +81,19 @@ class ManualCaptureRecord:
 
 
 @dataclass(frozen=True)
-class BoardExit:
-    edge: BoardCoord
-    outside: PercentEndpoint
-
-
-@dataclass(frozen=True)
-class BoardToPctPlan:
-    route: tuple[BoardCoord, ...]
-    blockers: frozenset[BoardCoord]
-    board_exit: BoardExit
-    offboard_path: tuple[PercentEndpoint, ...]
-
-
-@dataclass(frozen=True)
-class PctToBoardPlan:
-    board_exit: BoardExit
-    offboard_path: tuple[PercentEndpoint, ...]
-    route: tuple[BoardCoord, ...]
-    blockers: frozenset[BoardCoord]
-
-
-@dataclass(frozen=True)
-class BoardToBoardPlan:
-    route: tuple[BoardCoord, ...]
-    blockers: frozenset[BoardCoord]
-
-
-@dataclass(frozen=True)
-class BoardViaOffboardPlan:
-    start_route: tuple[BoardCoord, ...]
-    start_exit: BoardExit
-    offboard_path: tuple[PercentEndpoint, ...]
-    end_exit: BoardExit
-    end_route: tuple[BoardCoord, ...]
-    blockers: frozenset[BoardCoord]
-
-
-@dataclass(frozen=True)
 class MixedRoutePlan:
     nodes: tuple[MixedNode, ...]
-    blockers: frozenset[BoardCoord]
+    blockers: frozenset[MixedNode]
+
+
+@dataclass
+class OffboardOccupant:
+    label: str
+    restore_origin: BoardCoord | None = None
+    capture_slot_index: int | None = None
+    captured_side: str | None = None
+    piece_name: str | None = None
+    manual_record_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -139,9 +120,9 @@ class CaptureInventory:
 
     def __init__(self, game: str) -> None:
         self.game = game
-        # Global slot index -> (captured side, piece name). A shared sequence
-        # prevents P1/P2 captures from colliding in the same physical tray slot.
-        self._slots: dict[int, tuple[str, str]] = {}
+        # Global slot index -> capture entry. A shared sequence prevents P1/P2
+        # captures from colliding in the same physical tray slot.
+        self._slots: dict[int, _CaptureInventorySlot] = {}
         self._manual_pending: dict[int, tuple[str, str, PercentEndpoint]] = {}
         self._next_manual_id = 1
 
@@ -166,8 +147,12 @@ class CaptureInventory:
         if captured_side not in {"p1", "p2"}:
             raise ValueError(f"invalid captured_side: {captured_side}")
         idx = self._next_free_index(blocked_indices)
-        self._slots[idx] = (captured_side, piece_name)
         slot = _capture_slot_by_index(idx)
+        self._slots[idx] = _CaptureInventorySlot(
+            captured_side=captured_side,
+            piece_name=piece_name,
+            current_slot=slot,
+        )
         return CaptureSlotRecord(
             captured_side=captured_side,
             slot_index=idx,
@@ -232,33 +217,43 @@ class CaptureInventory:
         if captured_side not in {"p1", "p2"}:
             raise ValueError(f"invalid captured_side: {captured_side}")
         candidates = [
-            idx for idx, (side, name) in self._slots.items()
-            if side == captured_side and name == piece_name
+            idx for idx, entry in self._slots.items()
+            if entry.captured_side == captured_side and entry.piece_name == piece_name
         ]
         if not candidates:
             return None
         idx = min(candidates)
-        stored_side, stored = self._slots.pop(idx)
-        slot = _capture_slot_by_index(idx)
+        entry = self._slots.pop(idx)
         return CaptureSlotRecord(
-            captured_side=stored_side,
+            captured_side=entry.captured_side,
             slot_index=idx,
-            slot=slot,
-            piece_name=stored,
+            slot=entry.current_slot,
+            piece_name=entry.piece_name,
         )
+
+    def move_slot(self, slot_index: int, new_slot: PercentEndpoint) -> None:
+        if slot_index not in self._slots:
+            raise KeyError(f"unknown capture slot index: {slot_index}")
+        self._slots[slot_index].current_slot = new_slot
+
+    def update_manual_capture_source(self, record_id: int, new_source: PercentEndpoint) -> None:
+        if record_id not in self._manual_pending:
+            raise KeyError(f"unknown manual capture record: {record_id}")
+        side, piece_name, _old_source = self._manual_pending[record_id]
+        self._manual_pending[record_id] = (side, piece_name, new_source)
 
     def count(self, captured_side: str) -> int:
         if captured_side not in {"p1", "p2"}:
             raise ValueError(f"invalid captured_side: {captured_side}")
-        return sum(1 for side, _piece_name in self._slots.values() if side == captured_side)
+        return sum(1 for entry in self._slots.values() if entry.captured_side == captured_side)
 
     def to_summary_strings(self) -> list[str]:
         out: list[str] = []
         for idx in sorted(self._slots):
-            captured_side, piece_name = self._slots[idx]
-            slot = _capture_slot_by_index(idx)
+            entry = self._slots[idx]
+            slot = entry.current_slot
             out.append(
-                f"{captured_side}[{idx}]={slot.x_pct:.2f}%,{slot.y_pct:.2f}%:{piece_name}"
+                f"{entry.captured_side}[{idx}]={slot.x_pct:.2f}%,{slot.y_pct:.2f}%:{entry.piece_name}"
             )
         for record_id in sorted(self._manual_pending):
             captured_side, piece_name, source = self._manual_pending[record_id]
@@ -270,13 +265,13 @@ class CaptureInventory:
     def occupied_records(self) -> list[CaptureSlotRecord]:
         out: list[CaptureSlotRecord] = []
         for idx in sorted(self._slots):
-            captured_side, piece_name = self._slots[idx]
+            entry = self._slots[idx]
             out.append(
                 CaptureSlotRecord(
-                    captured_side=captured_side,
+                    captured_side=entry.captured_side,
                     slot_index=idx,
-                    slot=_capture_slot_by_index(idx),
-                    piece_name=piece_name,
+                    slot=entry.current_slot,
+                    piece_name=entry.piece_name,
                 )
             )
         return out
@@ -864,24 +859,53 @@ class MotionPlanner:
         self._fallback_direct_segments = 0
         self._capture_slots_used: list[str] = []
         self._reserved_capture_slot_indices: set[int] = set()
+        self._total_distance_pct = 0.0
+        self._relocated_blocker_count = 0
+        self._restored_blocker_count = 0
+        self._direct_route_hits = 0
+        self._direct_route_rejections: list[str] = []
+        self._estimated_route_cost_total = 0.0
         self._board_square_x_pct, self._board_square_y_pct = self._estimate_board_square_size_pct()
-        self.offboard_occupied: dict[tuple[float, float], str] = {}
+        self.offboard_occupied: dict[tuple[float, float], OffboardOccupant] = {}
         if capture_inventory is not None:
             for rec in capture_inventory.occupied_records():
-                self._mark_offboard_occupied(rec.slot, f"captured:{rec.captured_side}:{rec.piece_name}")
+                self._mark_offboard_occupied(
+                    rec.slot,
+                    f"captured:{rec.captured_side}:{rec.piece_name}",
+                    capture_slot_index=rec.slot_index,
+                    captured_side=rec.captured_side,
+                    piece_name=rec.piece_name,
+                )
             for rec in capture_inventory.pending_manual_records():
-                self._mark_offboard_occupied(rec.source, f"manual_pending:{rec.captured_side}:{rec.piece_name}")
+                self._mark_offboard_occupied(
+                    rec.source,
+                    f"manual_pending:{rec.captured_side}:{rec.piece_name}",
+                    manual_record_id=rec.record_id,
+                    captured_side=rec.captured_side,
+                    piece_name=rec.piece_name,
+                )
         else:
             for idx in range(captured_count_p1):
-                self._mark_offboard_occupied(_capture_slot("p1", idx), "captured:p1")
+                self._mark_offboard_occupied(
+                    _capture_slot("p1", idx),
+                    "captured:p1",
+                    capture_slot_index=idx,
+                    captured_side="p1",
+                )
             for idx in range(captured_count_p2):
-                self._mark_offboard_occupied(_capture_slot("p2", idx), "captured:p2")
+                self._mark_offboard_occupied(
+                    _capture_slot("p2", idx),
+                    "captured:p2",
+                    capture_slot_index=idx,
+                    captured_side="p2",
+                )
 
     def build(self) -> GeneratedSequence:
         return GeneratedSequence(
             lines=self.lines[:],
             capture_detected=False,
             temporary_relocations=len(self._temp_relocations),
+            debug_metrics=self.debug_metrics(capture_detected=False, planning_ms=0.0),
         )
 
     def capture_slot_next(self, captured_side: str, piece_name: str) -> PercentEndpoint:
@@ -907,19 +931,114 @@ class MotionPlanner:
         return slot
 
     def append_segment(self, src: Endpoint, dst: Endpoint) -> None:
+        self._total_distance_pct += _pct_distance(self._endpoint_to_pct(src), self._endpoint_to_pct(dst))
         self.lines.append(f"{_endpoint_token(src)} -> {_endpoint_token(dst)}")
 
     def record_note(self, text: str) -> None:
         self._capture_slots_used.append(text)
 
-    def _mark_offboard_occupied(self, slot: PercentEndpoint, label: str) -> None:
-        self.offboard_occupied[_pct_key(slot)] = label
+    def debug_metrics(self, *, capture_detected: bool, planning_ms: float) -> dict[str, object]:
+        return {
+            "segments": len(self.lines),
+            "xy_distance_pct": round(self._total_distance_pct, 3),
+            "xy_distance_board_squares": round(
+                self._total_distance_pct / max(self._board_square_x_pct, self._board_square_y_pct),
+                3,
+            ),
+            "blockers_relocated": self._relocated_blocker_count,
+            "blockers_restored": self._restored_blocker_count,
+            "estimated_piece_moves": 1 + int(capture_detected) + self._relocated_blocker_count,
+            "fallback_used": self._fallback_direct_segments > 0,
+            "fallback_segments": self._fallback_direct_segments,
+            "direct_route_hits": self._direct_route_hits,
+            "direct_route_rejected_reasons": self._direct_route_rejections[:],
+            "estimated_route_cost_pct": round(self._estimated_route_cost_total, 3),
+            "planning_time_ms": round(planning_ms, 3),
+        }
 
-    def _unmark_offboard_occupied(self, slot: PercentEndpoint) -> None:
-        self.offboard_occupied.pop(_pct_key(slot), None)
+    def _mark_offboard_occupied(
+        self,
+        slot: PercentEndpoint,
+        label: str,
+        *,
+        restore_origin: BoardCoord | None = None,
+        capture_slot_index: int | None = None,
+        captured_side: str | None = None,
+        piece_name: str | None = None,
+        manual_record_id: int | None = None,
+    ) -> None:
+        self.offboard_occupied[_pct_key(slot)] = OffboardOccupant(
+            label=label,
+            restore_origin=restore_origin,
+            capture_slot_index=capture_slot_index,
+            captured_side=captured_side,
+            piece_name=piece_name,
+            manual_record_id=manual_record_id,
+        )
+
+    def _unmark_offboard_occupied(self, slot: PercentEndpoint) -> OffboardOccupant | None:
+        return self.offboard_occupied.pop(_pct_key(slot), None)
 
     def _is_offboard_occupied(self, slot: PercentEndpoint) -> bool:
         return _pct_key(slot) in self.offboard_occupied
+
+    def _get_offboard_occupant(self, slot: PercentEndpoint) -> OffboardOccupant | None:
+        return self.offboard_occupied.get(_pct_key(slot))
+
+    def _temp_relocation_origin_for_node(self, node: MixedNode) -> BoardCoord | None:
+        for relocation in self._temp_relocations:
+            slot = relocation.slot
+            if isinstance(slot, PercentEndpoint):
+                if isinstance(node, PercentEndpoint) and _pct_key(slot) == _pct_key(node):
+                    return relocation.origin
+                continue
+            if _is_board_node(node) and (slot.x, slot.y) == node:
+                return relocation.origin
+        return None
+
+    def _is_node_occupied(self, node: MixedNode) -> bool:
+        if isinstance(node, PercentEndpoint):
+            return self._is_offboard_occupied(node)
+        return node in self.occupied
+
+    def _blocker_identity(self, node: MixedNode) -> object:
+        temp_origin = self._temp_relocation_origin_for_node(node)
+        if temp_origin is not None:
+            return ("temp", temp_origin)
+        if _is_board_node(node):
+            return ("board", node)
+        assert isinstance(node, PercentEndpoint)
+        occupant = self._get_offboard_occupant(node)
+        if occupant is None:
+            return ("offboard", _pct_key(node))
+        if occupant.capture_slot_index is not None:
+            return ("capture", occupant.capture_slot_index)
+        if occupant.restore_origin is not None:
+            return ("temp", occupant.restore_origin)
+        if occupant.manual_record_id is not None:
+            return ("manual", occupant.manual_record_id)
+        return ("offboard", _pct_key(node))
+
+    def _free_mixed_parking_nodes(self, protected: set[MixedNode]) -> list[MixedNode]:
+        candidates: list[MixedNode] = []
+        protected_board = {node for node in protected if _is_board_node(node)}
+        protected_slots = {_pct_key(node) for node in protected if isinstance(node, PercentEndpoint)}
+
+        for y in range(8):
+            for x in range(8):
+                cell = (x, y)
+                if cell in self.occupied or cell in protected_board:
+                    continue
+                candidates.append(cell)
+
+        seen_slots: set[tuple[float, float]] = set()
+        for slot in self._offboard_lattice_nodes():
+            key = _pct_key(slot)
+            if key in seen_slots or key in protected_slots or self._is_offboard_occupied(slot):
+                continue
+            seen_slots.add(key)
+            candidates.append(slot)
+        return candidates
 
     def _reserve_capture_slot_if_needed(self, slot: PercentEndpoint) -> None:
         idx = _capture_slot_index_from_key(_pct_key(slot))
@@ -931,11 +1050,133 @@ class MotionPlanner:
         if idx is not None:
             self._reserved_capture_slot_indices.discard(idx)
 
+    def _update_temp_relocation_slot(self, restore_origin: BoardCoord, new_slot: Endpoint) -> None:
+        for idx, relocation in enumerate(self._temp_relocations):
+            if relocation.origin == restore_origin:
+                self._temp_relocations[idx] = TempRelocation(origin=restore_origin, slot=new_slot)
+                return
+
+    def _apply_arrival_occupancy(
+        self,
+        src: MixedNode,
+        dst: MixedNode,
+        *,
+        new_offboard_occupant: OffboardOccupant | None = None,
+    ) -> None:
+        moved_occupant: OffboardOccupant | None = None
+        if _is_board_node(src):
+            self.occupied.discard(src)  # type: ignore[arg-type]
+        else:
+            assert isinstance(src, PercentEndpoint)
+            moved_occupant = self._unmark_offboard_occupied(src)
+            if moved_occupant is not None and moved_occupant.capture_slot_index is not None:
+                self._release_capture_slot_if_needed(src)
+
+        if _is_board_node(dst):
+            self.occupied.add(dst)  # type: ignore[arg-type]
+            if moved_occupant is not None and moved_occupant.restore_origin is not None:
+                self._update_temp_relocation_slot(
+                    moved_occupant.restore_origin,
+                    _board_ep(dst[0], dst[1]),  # type: ignore[index]
+                )
+        else:
+            assert isinstance(dst, PercentEndpoint)
+            occupant = moved_occupant or new_offboard_occupant
+            if occupant is None:
+                if _is_board_node(src):
+                    occupant = OffboardOccupant(
+                        label=f"piece:{src[0]},{src[1]}",
+                    )
+                else:
+                    occupant = OffboardOccupant(label=f"piece:{src.x_pct:.2f},{src.y_pct:.2f}")
+            self.offboard_occupied[_pct_key(dst)] = occupant
+            if occupant.capture_slot_index is not None:
+                self._reserve_capture_slot_if_needed(dst)
+                if self._capture_inventory is not None:
+                    try:
+                        self._capture_inventory.move_slot(occupant.capture_slot_index, dst)
+                    except KeyError:
+                        pass
+            if occupant.manual_record_id is not None and self._capture_inventory is not None:
+                try:
+                    self._capture_inventory.update_manual_capture_source(occupant.manual_record_id, dst)
+                except KeyError:
+                    pass
+            if occupant.restore_origin is not None:
+                self._update_temp_relocation_slot(occupant.restore_origin, dst)
+
     def move_board_piece_direct(self, start: BoardCoord, dst: BoardCoord) -> None:
         self.append_segment(_board_ep(start[0], start[1]), _board_ep(dst[0], dst[1]))
         if start in self.occupied:
             self.occupied.remove(start)
         self.occupied.add(dst)
+
+    def _board_step_distance(self, a: BoardCoord, b: BoardCoord) -> float:
+        return _pct_distance(self._board_coord_to_pct(a), self._board_coord_to_pct(b))
+
+    def _node_distance(self, a: MixedNode, b: MixedNode) -> float:
+        return _pct_distance(self._node_to_pct(a), self._node_to_pct(b))
+
+    def _mixed_route_distance(self, nodes: Sequence[MixedNode]) -> float:
+        return sum(self._node_distance(a, b) for a, b in zip(nodes, nodes[1:]))
+
+    def _segment_penalty_pct(self) -> float:
+        return max(self._board_square_x_pct, self._board_square_y_pct) * 0.35
+
+    def _pickup_release_cost_pct(self) -> float:
+        return max(self._board_square_x_pct, self._board_square_y_pct) * 1.15
+
+    def _z_motion_cost_pct(self) -> float:
+        return max(self._board_square_x_pct, self._board_square_y_pct) * 0.85
+
+    def _restore_cost_pct(self) -> float:
+        return max(self._board_square_x_pct, self._board_square_y_pct) * 1.35
+
+    def _clearance_penalty_pct(self) -> float:
+        return max(self._board_square_x_pct, self._board_square_y_pct) * 0.45
+
+    def _blocker_penalty_pct(self) -> float:
+        return (
+            self._pickup_release_cost_pct()
+            + self._z_motion_cost_pct()
+            + self._restore_cost_pct()
+        )
+
+    def _estimated_execution_cost(
+        self,
+        *,
+        blocker_count: int,
+        segment_count: int,
+        distance_pct: float,
+        clearance_count: int = 0,
+    ) -> float:
+        return (
+            distance_pct
+            + (segment_count * self._segment_penalty_pct())
+            + (blocker_count * self._blocker_penalty_pct())
+            + (clearance_count * self._clearance_penalty_pct())
+        )
+
+    def _score_estimated_execution(
+        self,
+        *,
+        blocker_count: int,
+        segment_count: int,
+        distance_pct: float,
+        clearance_count: int = 0,
+    ) -> tuple[float, int, int, float, int]:
+        return (
+            self._estimated_execution_cost(
+                blocker_count=blocker_count,
+                segment_count=segment_count,
+                distance_pct=distance_pct,
+                clearance_count=clearance_count,
+            ),
+            blocker_count,
+            segment_count,
+            distance_pct,
+            clearance_count,
+        )
 
     def _astar(
         self,
@@ -976,97 +1217,6 @@ class MotionPlanner:
                     heapq.heappush(open_heap, (ng + _manhattan(nxt, goal), ng, nxt))
         return None
 
-    def _astar_min_blockers(
-        self,
-        start: BoardCoord,
-        goal: BoardCoord,
-        protected: set[BoardCoord],
-    ) -> tuple[list[BoardCoord], set[BoardCoord]] | None:
-        if start == goal:
-            return [start], set()
-
-        # Weighted search over (position, unique-blockers-seen). This minimizes
-        # the number of physical pieces that must be moved, then path length.
-        start_blockers: frozenset[BoardCoord] = frozenset()
-        start_key = (start, start_blockers)
-        best_path_len: dict[tuple[BoardCoord, frozenset[BoardCoord]], int] = {start_key: 0}
-        came_from: dict[
-            tuple[BoardCoord, frozenset[BoardCoord]],
-            tuple[BoardCoord, frozenset[BoardCoord]],
-        ] = {}
-        frontier: dict[BoardCoord, list[tuple[frozenset[BoardCoord], int]]] = {
-            start: [(start_blockers, 0)]
-        }
-        open_heap: list[tuple[int, int, int, int, BoardCoord, frozenset[BoardCoord]]] = []
-        counter = 0
-        heapq.heappush(open_heap, (0, _manhattan(start, goal), 0, counter, start, start_blockers))
-
-        def dominated(coord: BoardCoord, blockers: frozenset[BoardCoord], path_len: int) -> bool:
-            for known_blockers, known_len in frontier.get(coord, []):
-                if known_len <= path_len and known_blockers.issubset(blockers):
-                    return True
-            return False
-
-        def remember(coord: BoardCoord, blockers: frozenset[BoardCoord], path_len: int) -> None:
-            kept = [
-                (known_blockers, known_len)
-                for known_blockers, known_len in frontier.get(coord, [])
-                if not (path_len <= known_len and blockers.issubset(known_blockers))
-            ]
-            kept.append((blockers, path_len))
-            frontier[coord] = kept
-
-        while open_heap:
-            _blocker_cost, _priority, path_len, _counter, cur, blockers = heapq.heappop(open_heap)
-            cur_key = (cur, blockers)
-            if path_len != best_path_len.get(cur_key, 10**9):
-                continue
-            if cur == goal:
-                path = [cur_key[0]]
-                while cur_key in came_from:
-                    cur_key = came_from[cur_key]
-                    path.append(cur_key[0])
-                path.reverse()
-                return path, set(blockers)
-
-            for nxt in _neighbors_8(cur):
-                step_cells = _step_collision_cells(cur, nxt)
-                if any(
-                    cell in self.occupied and cell in protected and cell not in {start, goal}
-                    for cell in step_cells
-                ):
-                    continue
-                step_blockers = frozenset(
-                    cell
-                    for cell in step_cells
-                    if cell in self.occupied and cell not in protected
-                )
-                next_blockers = blockers | step_blockers
-                next_path_len = path_len + 1
-                next_key = (nxt, next_blockers)
-                if next_path_len >= best_path_len.get(next_key, 10**9):
-                    continue
-                if dominated(nxt, next_blockers, next_path_len):
-                    continue
-
-                best_path_len[next_key] = next_path_len
-                came_from[next_key] = cur_key
-                remember(nxt, next_blockers, next_path_len)
-                heuristic = max(abs(nxt[0] - goal[0]), abs(nxt[1] - goal[1]))
-                counter += 1
-                heapq.heappush(
-                    open_heap,
-                    (
-                        len(next_blockers),
-                        next_path_len + heuristic,
-                        next_path_len,
-                        counter,
-                        nxt,
-                        next_blockers,
-                    ),
-                )
-        return None
-
     def _temp_slot(self, index: int) -> PercentEndpoint:
         side_slots = max(1, int(config.TEMP_RELOCATE_SIDE_SLOTS))
         side_index = index // side_slots
@@ -1077,22 +1227,6 @@ class MotionPlanner:
             x = _OFFBOARD_GEOMETRY.temp_right_x_pct
         y = _OFFBOARD_GEOMETRY.temp_side_y_pcts[min(slot_in_side, len(_OFFBOARD_GEOMETRY.temp_side_y_pcts) - 1)]
         return _pct_ep(x, y)
-
-    def _rank_hint_from_motor_x(self, x_pct: float) -> int:
-        top = self._motor_x_for_rank(7)
-        bottom = self._motor_x_for_rank(0)
-        span = bottom - top
-        if abs(span) <= 1e-6:
-            return max(0, min(7, int(round(7.0 - (x_pct / 100.0) * 7.0))))
-        return max(0, min(7, int(round(7.0 - (((x_pct - top) / span) * 7.0)))))
-
-    def _file_hint_from_motor_y(self, y_pct: float) -> int:
-        left = self._motor_y_for_file(0)
-        right = self._motor_y_for_file(7)
-        span = right - left
-        if abs(span) <= 1e-6:
-            return max(0, min(7, int(round((y_pct / 100.0) * 7.0))))
-        return max(0, min(7, int(round(((y_pct - left) / span) * 7.0))))
 
     def _motor_x_for_rank(self, rank_index: int) -> float:
         return self._board_coord_to_pct((0, rank_index)).x_pct
@@ -1112,6 +1246,11 @@ class MotionPlanner:
         if isinstance(node, PercentEndpoint):
             return node
         return _board_ep(node[0], node[1])
+
+    def _endpoint_to_pct(self, endpoint: Endpoint) -> PercentEndpoint:
+        if isinstance(endpoint, PercentEndpoint):
+            return endpoint
+        return self._board_coord_to_pct((endpoint.x, endpoint.y))
 
     def _estimate_board_square_size_pct(self) -> tuple[float, float]:
         return (
@@ -1189,21 +1328,22 @@ class MotionPlanner:
                 blockers.add(coord)
         return blockers
 
-    def _segment_hits_offboard_occupied(
+    def _segment_offboard_blockers(
         self,
         a: PercentEndpoint,
         b: PercentEndpoint,
         *,
         ignore_slots: set[tuple[float, float]] | None = None,
-    ) -> bool:
+    ) -> set[PercentEndpoint]:
         ignore = ignore_slots or set()
+        blockers: set[PercentEndpoint] = set()
         for key in self.offboard_occupied:
             if key in ignore:
                 continue
             occupied = PercentEndpoint(key[0], key[1])
             if self._segment_hits_piece_square(a, b, occupied):
-                return True
-        return False
+                blockers.add(occupied)
+        return blockers
 
     def _offboard_lattice_nodes(
         self,
@@ -1260,8 +1400,8 @@ class MotionPlanner:
         *,
         start: MixedNode,
         goal: MixedNode,
-        protected: set[BoardCoord],
-    ) -> tuple[set[BoardCoord], float] | None:
+        protected: set[MixedNode],
+    ) -> tuple[set[MixedNode], float] | None:
         cur_pct = self._node_to_pct(cur)
         nxt_pct = self._node_to_pct(nxt)
 
@@ -1270,12 +1410,18 @@ class MotionPlanner:
             ignore_board.add(start)  # type: ignore[arg-type]
         if _is_board_node(goal):
             ignore_board.add(goal)  # type: ignore[arg-type]
+        for node in protected:
+            if _is_board_node(node):
+                ignore_board.add(node)  # type: ignore[arg-type]
 
         ignore_slots: set[tuple[float, float]] = set()
         if isinstance(start, PercentEndpoint):
             ignore_slots.add(_pct_key(start))
         if isinstance(goal, PercentEndpoint):
             ignore_slots.add(_pct_key(goal))
+        for node in protected:
+            if isinstance(node, PercentEndpoint):
+                ignore_slots.add(_pct_key(node))
 
         if _is_board_node(cur) and _is_board_node(nxt):
             dx = abs(cur[0] - nxt[0])  # type: ignore[index]
@@ -1283,106 +1429,148 @@ class MotionPlanner:
             if max(dx, dy) != 1:
                 return None
             step_cells = _step_collision_cells(cur, nxt)  # type: ignore[arg-type]
-            blockers: set[BoardCoord] = set()
+            blockers: set[MixedNode] = set()
             for cell in step_cells:
                 if cell not in self.occupied or cell in ignore_board:
                     continue
-                if cell in protected:
-                    return None
                 blockers.add(cell)
             return blockers, _pct_distance(cur_pct, nxt_pct)
 
         if not _is_board_node(cur) and not _is_board_node(nxt):
             if not self._offboard_segment_stays_in_green_area(cur_pct, nxt_pct):
                 return None
-            if self._segment_hits_offboard_occupied(cur_pct, nxt_pct, ignore_slots=ignore_slots):
-                return None
+            blockers: set[MixedNode] = set(self._segment_offboard_blockers(cur_pct, nxt_pct, ignore_slots=ignore_slots))
             blockers = self._segment_board_blockers(
                 cur_pct,
                 nxt_pct,
-                protected=protected,
+                protected={node for node in protected if _is_board_node(node)},  # type: ignore[misc]
                 ignore_board=ignore_board,
             )
             if blockers is None:
                 return None
-            return blockers, _pct_distance(cur_pct, nxt_pct)
+            return set(blockers) | set(self._segment_offboard_blockers(cur_pct, nxt_pct, ignore_slots=ignore_slots)), _pct_distance(cur_pct, nxt_pct)
 
         offboard_point = cur_pct if isinstance(cur, PercentEndpoint) else nxt_pct
         if not self._pct_is_in_green_area(offboard_point):
             return None
-        if self._segment_hits_offboard_occupied(cur_pct, nxt_pct, ignore_slots=ignore_slots):
-            return None
-        blockers = self._segment_board_blockers(
+        board_blockers = self._segment_board_blockers(
             cur_pct,
             nxt_pct,
-            protected=protected,
+            protected={node for node in protected if _is_board_node(node)},  # type: ignore[misc]
             ignore_board=ignore_board,
         )
-        if blockers is None:
+        if board_blockers is None:
             return None
-        return blockers, _pct_distance(cur_pct, nxt_pct)
+        offboard_blockers = self._segment_offboard_blockers(cur_pct, nxt_pct, ignore_slots=ignore_slots)
+        return set(board_blockers) | set(offboard_blockers), _pct_distance(cur_pct, nxt_pct)
 
-    def _best_route_board_to_board_mixed(
+    def _direct_route_rejection_reason(self, start: MixedNode, dst: MixedNode, blockers: set[MixedNode] | None) -> str:
+        src = _endpoint_token(self._node_to_endpoint(start))
+        end = _endpoint_token(self._node_to_endpoint(dst))
+        if blockers is None:
+            return f"direct_route_rejected={src}->{end}:edge_invalid"
+        blocker_tokens = ",".join(sorted(_endpoint_token(self._node_to_endpoint(node)) for node in blockers))
+        return f"direct_route_rejected={src}->{end}:blocked_by:{blocker_tokens}"
+
+    def _record_route_cost(self, cost: float) -> None:
+        self._estimated_route_cost_total += cost
+
+    def _direct_mixed_route_if_clear(
         self,
-        start: BoardCoord,
-        dst: BoardCoord,
-        protected: set[BoardCoord],
+        start: MixedNode,
+        dst: MixedNode,
+        protected: set[MixedNode],
+    ) -> bool:
+        edge = self._mixed_edge_blockers(
+            start,
+            dst,
+            start=start,
+            goal=dst,
+            protected=protected,
+        )
+        if edge is None:
+            self._direct_route_rejections.append(self._direct_route_rejection_reason(start, dst, None))
+            return False
+        blockers, distance = edge
+        if blockers:
+            self._direct_route_rejections.append(self._direct_route_rejection_reason(start, dst, blockers))
+            return False
+        self._direct_route_hits += 1
+        self._record_route_cost(
+            self._estimated_execution_cost(
+                blocker_count=0,
+                segment_count=1,
+                distance_pct=distance,
+            )
+        )
+        return True
+
+    def _best_route_mixed_any(
+        self,
+        start: MixedNode,
+        dst: MixedNode,
+        protected: set[MixedNode],
     ) -> MixedRoutePlan | None:
-        offboard_nodes = self._offboard_lattice_nodes()
+        extra_points = [node for node in (start, dst, *protected) if isinstance(node, PercentEndpoint)]
+        offboard_nodes = self._offboard_lattice_nodes(extra_points=extra_points)
         board_nodes = [(x, y) for y in range(8) for x in range(8)]
-        all_nodes: list[MixedNode] = [*board_nodes, *offboard_nodes]
+        graph_nodes: list[MixedNode] = [*board_nodes, *offboard_nodes]
 
-        start_blockers: frozenset[BoardCoord] = frozenset()
+        start_blockers: frozenset[MixedNode] = frozenset()
         start_key = (start, start_blockers)
-        best_cost: dict[tuple[MixedNode, frozenset[BoardCoord]], tuple[int, float]] = {start_key: (0, 0.0)}
-        came_from: dict[
-            tuple[MixedNode, frozenset[BoardCoord]],
-            tuple[MixedNode, frozenset[BoardCoord]],
-        ] = {}
-        frontier: dict[MixedNode, list[tuple[frozenset[BoardCoord], int, float]]] = {
-            start: [(start_blockers, 0, 0.0)]
+        best_cost: dict[tuple[MixedNode, frozenset[MixedNode]], tuple[float, int, float]] = {
+            start_key: (0.0, 0, 0.0)
         }
-        open_heap: list[tuple[int, int, float, int, MixedNode, frozenset[BoardCoord]]] = []
+        came_from: dict[
+            tuple[MixedNode, frozenset[MixedNode]],
+            tuple[MixedNode, frozenset[MixedNode]],
+        ] = {}
+        frontier: dict[MixedNode, list[tuple[frozenset[MixedNode], float, int, float]]] = {
+            start: [(start_blockers, 0.0, 0, 0.0)]
+        }
+        open_heap: list[tuple[float, float, int, float, int, MixedNode, frozenset[MixedNode]]] = []
         counter = 0
-        heapq.heappush(open_heap, (0, 0, 0.0, counter, start, start_blockers))
+        heapq.heappush(
+            open_heap,
+            (self._node_distance(start, dst), 0.0, 0, 0.0, counter, start, start_blockers),
+        )
 
-        def dominated(node: MixedNode, blockers: frozenset[BoardCoord], segments: int, distance: float) -> bool:
-            for known_blockers, known_segments, known_distance in frontier.get(node, []):
+        def dominated(node: MixedNode, blockers: frozenset[MixedNode], cost: float, segments: int, distance: float) -> bool:
+            for known_blockers, known_cost, known_segments, known_distance in frontier.get(node, []):
                 if (
-                    known_segments <= segments
+                    known_cost <= cost + 1e-6
+                    and known_segments <= segments
                     and known_distance <= distance + 1e-6
                     and known_blockers.issubset(blockers)
                 ):
                     return True
             return False
 
-        def remember(node: MixedNode, blockers: frozenset[BoardCoord], segments: int, distance: float) -> None:
+        def remember(node: MixedNode, blockers: frozenset[MixedNode], cost: float, segments: int, distance: float) -> None:
             kept = [
-                (known_blockers, known_segments, known_distance)
-                for known_blockers, known_segments, known_distance in frontier.get(node, [])
+                (known_blockers, known_cost, known_segments, known_distance)
+                for known_blockers, known_cost, known_segments, known_distance in frontier.get(node, [])
                 if not (
-                    segments <= known_segments
+                    cost <= known_cost + 1e-6
+                    and segments <= known_segments
                     and distance <= known_distance + 1e-6
                     and blockers.issubset(known_blockers)
                 )
             ]
-            kept.append((blockers, segments, distance))
+            kept.append((blockers, cost, segments, distance))
             frontier[node] = kept
 
         def candidate_neighbors(node: MixedNode) -> Iterable[MixedNode]:
             if _is_board_node(node):
                 yield from _neighbors_8(node)  # type: ignore[arg-type]
-                yield from offboard_nodes
-            else:
-                yield from board_nodes
-                for offboard in offboard_nodes:
-                    if offboard != node:
-                        yield offboard
+            for candidate in graph_nodes:
+                if candidate != node:
+                    yield candidate
 
         while open_heap:
-            blocker_cost, segments, distance, _counter, cur, blockers = heapq.heappop(open_heap)
+            _priority, cost, segments, distance, _counter, cur, blockers = heapq.heappop(open_heap)
             cur_key = (cur, blockers)
-            if (segments, distance) != best_cost.get(cur_key, (10**9, float("inf"))):
+            if (cost, segments, distance) != best_cost.get(cur_key, (float("inf"), 10**9, float("inf"))):
                 continue
             if cur == dst:
                 path_nodes: list[MixedNode] = [cur_key[0]]
@@ -1408,19 +1596,26 @@ class MotionPlanner:
                 next_blockers = blockers | frozenset(edge_blockers)
                 next_segments = segments + 1
                 next_distance = distance + edge_distance
+                next_cost = self._estimated_execution_cost(
+                    blocker_count=len(next_blockers),
+                    segment_count=next_segments,
+                    distance_pct=next_distance,
+                )
                 next_key = (nxt, next_blockers)
-                if (next_segments, next_distance) >= best_cost.get(next_key, (10**9, float("inf"))):
+                next_metrics = (next_cost, next_segments, next_distance)
+                if next_metrics >= best_cost.get(next_key, (float("inf"), 10**9, float("inf"))):
                     continue
-                if dominated(nxt, next_blockers, next_segments, next_distance):
+                if dominated(nxt, next_blockers, next_cost, next_segments, next_distance):
                     continue
-                best_cost[next_key] = (next_segments, next_distance)
+                best_cost[next_key] = next_metrics
                 came_from[next_key] = cur_key
-                remember(nxt, next_blockers, next_segments, next_distance)
+                remember(nxt, next_blockers, next_cost, next_segments, next_distance)
                 counter += 1
                 heapq.heappush(
                     open_heap,
                     (
-                        len(next_blockers),
+                        next_cost + self._node_distance(nxt, dst),
+                        next_cost,
                         next_segments,
                         next_distance,
                         counter,
@@ -1429,687 +1624,6 @@ class MotionPlanner:
                     ),
                 )
         return None
-
-    def _best_route_pct_to_pct_mixed(
-        self,
-        src: PercentEndpoint,
-        dst: PercentEndpoint,
-    ) -> MixedRoutePlan | None:
-        offboard_nodes = self._offboard_lattice_nodes(extra_points=[src, dst])
-        start_blockers: frozenset[BoardCoord] = frozenset()
-        start_key = (src, start_blockers)
-        best_cost: dict[tuple[MixedNode, frozenset[BoardCoord]], tuple[int, float]] = {start_key: (0, 0.0)}
-        came_from: dict[
-            tuple[MixedNode, frozenset[BoardCoord]],
-            tuple[MixedNode, frozenset[BoardCoord]],
-        ] = {}
-        frontier: dict[MixedNode, list[tuple[frozenset[BoardCoord], int, float]]] = {
-            src: [(start_blockers, 0, 0.0)]
-        }
-        open_heap: list[tuple[int, int, float, int, MixedNode, frozenset[BoardCoord]]] = []
-        counter = 0
-        heapq.heappush(open_heap, (0, 0, 0.0, counter, src, start_blockers))
-
-        def dominated(node: MixedNode, blockers: frozenset[BoardCoord], segments: int, distance: float) -> bool:
-            for known_blockers, known_segments, known_distance in frontier.get(node, []):
-                if (
-                    known_segments <= segments
-                    and known_distance <= distance + 1e-6
-                    and known_blockers.issubset(blockers)
-                ):
-                    return True
-            return False
-
-        def remember(node: MixedNode, blockers: frozenset[BoardCoord], segments: int, distance: float) -> None:
-            kept = [
-                (known_blockers, known_segments, known_distance)
-                for known_blockers, known_segments, known_distance in frontier.get(node, [])
-                if not (
-                    segments <= known_segments
-                    and distance <= known_distance + 1e-6
-                    and blockers.issubset(known_blockers)
-                )
-            ]
-            kept.append((blockers, segments, distance))
-            frontier[node] = kept
-
-        while open_heap:
-            _blocker_cost, segments, distance, _counter, cur, blockers = heapq.heappop(open_heap)
-            cur_key = (cur, blockers)
-            if (segments, distance) != best_cost.get(cur_key, (10**9, float("inf"))):
-                continue
-            if cur == dst:
-                path_nodes: list[MixedNode] = [cur_key[0]]
-                while cur_key in came_from:
-                    cur_key = came_from[cur_key]
-                    path_nodes.append(cur_key[0])
-                path_nodes.reverse()
-                return MixedRoutePlan(nodes=tuple(path_nodes), blockers=blockers)
-
-            for nxt in offboard_nodes:
-                if nxt == cur:
-                    continue
-                edge = self._mixed_edge_blockers(
-                    cur,
-                    nxt,
-                    start=src,
-                    goal=dst,
-                    protected=set(),
-                )
-                if edge is None:
-                    continue
-                edge_blockers, edge_distance = edge
-                next_blockers = blockers | frozenset(edge_blockers)
-                next_segments = segments + 1
-                next_distance = distance + edge_distance
-                next_key = (nxt, next_blockers)
-                if (next_segments, next_distance) >= best_cost.get(next_key, (10**9, float("inf"))):
-                    continue
-                if dominated(nxt, next_blockers, next_segments, next_distance):
-                    continue
-                best_cost[next_key] = (next_segments, next_distance)
-                came_from[next_key] = cur_key
-                remember(nxt, next_blockers, next_segments, next_distance)
-                counter += 1
-                heapq.heappush(
-                    open_heap,
-                    (
-                        len(next_blockers),
-                        next_segments,
-                        next_distance,
-                        counter,
-                        nxt,
-                        next_blockers,
-                    ),
-                )
-        return None
-
-    def _pct_is_in_green_lane(self, point: PercentEndpoint) -> bool:
-        lane_y_pcts = set(_OFFBOARD_GEOMETRY.top_row_y_pcts) | set(_OFFBOARD_GEOMETRY.bottom_row_y_pcts)
-        lane_x_pcts = set(_OFFBOARD_GEOMETRY.capture_bottom_x_pcts) | {
-            _OFFBOARD_GEOMETRY.right_lane_x_pct,
-            _OFFBOARD_GEOMETRY.left_lane_x_pct,
-        }
-        return any(abs(point.y_pct - y) <= 1e-6 for y in lane_y_pcts) or any(
-            abs(point.x_pct - x) <= 1e-6 for x in lane_x_pcts
-        )
-
-    def _continuous_board_segment_clear(
-        self,
-        a: PercentEndpoint,
-        b: PercentEndpoint,
-        *,
-        ignore_board: set[BoardCoord],
-    ) -> bool:
-        for coord in self.occupied:
-            if coord in ignore_board:
-                continue
-            occupied = self._board_coord_to_pct(coord)
-            if self._segment_hits_piece_square(a, b, occupied):
-                return False
-        return True
-
-    def _continuous_offboard_segment_clear(
-        self,
-        a: PercentEndpoint,
-        b: PercentEndpoint,
-        *,
-        ignore_slots: set[tuple[float, float]] | None = None,
-    ) -> bool:
-        ignore = ignore_slots or set()
-        for key in self.offboard_occupied:
-            if key in ignore:
-                continue
-            occupied = PercentEndpoint(key[0], key[1])
-            if self._segment_hits_piece_square(a, b, occupied):
-                return False
-        return True
-
-    def _board_to_offboard_segment_clear(
-        self,
-        start: BoardCoord,
-        dst_pct: PercentEndpoint,
-        *,
-        ignore_board: set[BoardCoord],
-        ignore_slots: set[tuple[float, float]] | None = None,
-    ) -> bool:
-        if not self._pct_is_in_green_lane(dst_pct):
-            return False
-        start_pct = self._board_coord_to_pct(start)
-        return self._continuous_board_segment_clear(
-            start_pct,
-            dst_pct,
-            ignore_board=ignore_board | {start},
-        ) and self._continuous_offboard_segment_clear(
-            start_pct,
-            dst_pct,
-            ignore_slots=ignore_slots,
-        )
-
-    def _offboard_to_board_segment_clear(
-        self,
-        src_pct: PercentEndpoint,
-        dst: BoardCoord,
-        *,
-        ignore_board: set[BoardCoord],
-        ignore_slots: set[tuple[float, float]] | None = None,
-    ) -> bool:
-        if not self._pct_is_in_green_lane(src_pct):
-            return False
-        dst_pct = self._board_coord_to_pct(dst)
-        return self._continuous_board_segment_clear(
-            src_pct,
-            dst_pct,
-            ignore_board=ignore_board | {dst},
-        ) and self._continuous_offboard_segment_clear(
-            src_pct,
-            dst_pct,
-            ignore_slots=ignore_slots,
-        )
-
-    def _all_board_exits(self) -> list[BoardExit]:
-        """Return every yellow-board edge square with its adjacent green-grid waypoint."""
-        exits: list[BoardExit] = []
-
-        # File a exits through the camera/top green strip; file h exits through
-        # the camera/bottom strip. Rank 8 exits right; rank 1 exits left.
-        for rank in range(8):
-            exits.append(
-                BoardExit(
-                    edge=(0, rank),
-                    outside=_pct_ep(self._motor_x_for_rank(rank), _OFFBOARD_GEOMETRY.top_row_y_pcts[0]),
-                )
-            )
-            exits.append(
-                BoardExit(
-                    edge=(7, rank),
-                    outside=_pct_ep(self._motor_x_for_rank(rank), _OFFBOARD_GEOMETRY.bottom_row_y_pcts[0]),
-                )
-            )
-        for file_index in range(8):
-            exits.append(
-                BoardExit(
-                    edge=(file_index, 7),
-                    outside=_pct_ep(_OFFBOARD_GEOMETRY.right_lane_x_pct, self._motor_y_for_file(file_index)),
-                )
-            )
-            exits.append(
-                BoardExit(
-                    edge=(file_index, 0),
-                    outside=_pct_ep(_OFFBOARD_GEOMETRY.left_lane_x_pct, self._motor_y_for_file(file_index)),
-                )
-            )
-
-        unique: dict[tuple[BoardCoord, tuple[float, float]], BoardExit] = {}
-        for exit_point in exits:
-            unique[(exit_point.edge, _pct_key(exit_point.outside))] = exit_point
-        return list(unique.values())
-
-    def _board_exits_by_distance(self, coord: BoardCoord) -> list[BoardExit]:
-        return sorted(
-            self._all_board_exits(),
-            key=lambda exit_point: (
-                _manhattan(coord, exit_point.edge),
-                exit_point.edge[1],
-                exit_point.edge[0],
-                exit_point.outside.x_pct,
-                exit_point.outside.y_pct,
-            ),
-        )
-
-    def _edge_candidates_for_pct(self, slot: PercentEndpoint) -> list[BoardExit]:
-        rank_hint = self._rank_hint_from_motor_x(slot.x_pct)
-        file_hint = self._file_hint_from_motor_y(slot.y_pct)
-
-        def rank_order() -> list[int]:
-            return sorted(range(8), key=lambda r: (abs(r - rank_hint), r))
-
-        def file_order() -> list[int]:
-            return sorted(range(8), key=lambda f: (abs(f - file_hint), f))
-
-        groups: list[tuple[float, str]] = [
-            (slot.y_pct, "top_file_a"),
-            (100.0 - slot.y_pct, "bottom_file_h"),
-            (slot.x_pct, "right_rank8"),
-            (100.0 - slot.x_pct, "left_rank1"),
-        ]
-        groups.sort(key=lambda item: item[0])
-
-        exits: list[BoardExit] = []
-        for _dist, side in groups:
-            if side == "bottom_file_h":
-                for rank in rank_order():
-                    exits.append(
-                        BoardExit(
-                            edge=(7, rank),
-                            outside=_pct_ep(self._motor_x_for_rank(rank), _OFFBOARD_GEOMETRY.bottom_row_y_pcts[0]),
-                        )
-                    )
-            elif side == "top_file_a":
-                for rank in rank_order():
-                    exits.append(
-                        BoardExit(
-                            edge=(0, rank),
-                            outside=_pct_ep(self._motor_x_for_rank(rank), _OFFBOARD_GEOMETRY.top_row_y_pcts[0]),
-                        )
-                    )
-            elif side == "right_rank8":
-                for file_index in file_order():
-                    exits.append(
-                        BoardExit(
-                            edge=(file_index, 7),
-                            outside=_pct_ep(_OFFBOARD_GEOMETRY.right_lane_x_pct, self._motor_y_for_file(file_index)),
-                        )
-                    )
-            else:
-                for file_index in file_order():
-                    exits.append(
-                        BoardExit(
-                            edge=(file_index, 0),
-                            outside=_pct_ep(_OFFBOARD_GEOMETRY.left_lane_x_pct, self._motor_y_for_file(file_index)),
-                    )
-                    )
-        return exits
-
-    def _offboard_anchor_nodes(self, src: PercentEndpoint, dst: PercentEndpoint) -> list[PercentEndpoint]:
-        ys = {
-            src.y_pct,
-            dst.y_pct,
-            *_OFFBOARD_GEOMETRY.top_row_y_pcts,
-            *_OFFBOARD_GEOMETRY.bottom_row_y_pcts,
-        }
-        xs = {
-            src.x_pct,
-            dst.x_pct,
-            *_OFFBOARD_GEOMETRY.capture_bottom_x_pcts,
-            _OFFBOARD_GEOMETRY.right_lane_x_pct,
-            _OFFBOARD_GEOMETRY.left_lane_x_pct,
-        }
-        nodes = [src, dst]
-        for x in {_OFFBOARD_GEOMETRY.right_lane_x_pct, _OFFBOARD_GEOMETRY.left_lane_x_pct}:
-            for y in ys:
-                nodes.append(_pct_ep(x, y))
-        for y in {*_OFFBOARD_GEOMETRY.top_row_y_pcts, *_OFFBOARD_GEOMETRY.bottom_row_y_pcts}:
-            for x in xs:
-                nodes.append(_pct_ep(x, y))
-        unique: dict[tuple[float, float], PercentEndpoint] = {}
-        for node in nodes:
-            unique[_pct_key(node)] = node
-        return list(unique.values())
-
-    def _offboard_segment_is_in_lane(self, a: PercentEndpoint, b: PercentEndpoint) -> bool:
-        same_x = abs(a.x_pct - b.x_pct) <= 1e-6
-        same_y = abs(a.y_pct - b.y_pct) <= 1e-6
-        if not same_x and not same_y:
-            return False
-        lane_y_pcts = set(_OFFBOARD_GEOMETRY.top_row_y_pcts) | set(_OFFBOARD_GEOMETRY.bottom_row_y_pcts)
-        lane_x_pcts = set(_OFFBOARD_GEOMETRY.capture_bottom_x_pcts) | {
-            _OFFBOARD_GEOMETRY.right_lane_x_pct,
-            _OFFBOARD_GEOMETRY.left_lane_x_pct,
-        }
-        if same_y:
-            return any(abs(a.y_pct - y) <= 1e-6 for y in lane_y_pcts)
-        return any(abs(a.x_pct - x) <= 1e-6 for x in lane_x_pcts)
-
-    def _offboard_segment_clear(
-        self,
-        a: PercentEndpoint,
-        b: PercentEndpoint,
-        ignore: set[tuple[float, float]] | None = None,
-    ) -> bool:
-        if not self._offboard_segment_is_in_lane(a, b):
-            return False
-        if not self._offboard_segment_stays_in_green_area(a, b):
-            return False
-        ignore = ignore or set()
-        for key in self.offboard_occupied:
-            if key in ignore:
-                continue
-            occupied = PercentEndpoint(key[0], key[1])
-            if self._segment_hits_piece_square(a, b, occupied):
-                return False
-        return True
-
-    def _offboard_path(
-        self,
-        src: PercentEndpoint,
-        dst: PercentEndpoint,
-        ignore_slots: set[tuple[float, float]] | None = None,
-    ) -> tuple[PercentEndpoint, ...] | None:
-        ignore = set(ignore_slots or set()) | {_pct_key(src), _pct_key(dst)}
-        if self._offboard_segment_clear(src, dst, ignore):
-            return (src, dst)
-
-        nodes = self._offboard_anchor_nodes(src, dst)
-        by_key = {_pct_key(node): node for node in nodes}
-        start_key = _pct_key(src)
-        goal_key = _pct_key(dst)
-        dist: dict[tuple[float, float], float] = {start_key: 0.0}
-        came_from: dict[tuple[float, float], tuple[float, float]] = {}
-        open_heap: list[tuple[float, tuple[float, float]]] = [(0.0, start_key)]
-
-        while open_heap:
-            cur_dist, cur_key = heapq.heappop(open_heap)
-            if cur_dist > dist.get(cur_key, float("inf")):
-                continue
-            if cur_key == goal_key:
-                path_keys = [cur_key]
-                while cur_key in came_from:
-                    cur_key = came_from[cur_key]
-                    path_keys.append(cur_key)
-                path_keys.reverse()
-                return tuple(by_key[key] for key in path_keys)
-
-            cur = by_key[cur_key]
-            for nxt in nodes:
-                nxt_key = _pct_key(nxt)
-                if nxt_key == cur_key:
-                    continue
-                if not self._offboard_segment_clear(cur, nxt, ignore):
-                    continue
-                nd = cur_dist + _pct_distance(cur, nxt)
-                if nd < dist.get(nxt_key, float("inf")):
-                    dist[nxt_key] = nd
-                    came_from[nxt_key] = cur_key
-                    heapq.heappush(open_heap, (nd, nxt_key))
-        return None
-
-    def _temp_board_route(
-        self,
-        blocker: BoardCoord,
-        protected: set[BoardCoord],
-        path_blocked: set[BoardCoord] | None = None,
-    ) -> tuple[list[BoardCoord], BoardCoord] | None:
-        free_cells = [
-            (x, y)
-            for y in range(8)
-            for x in range(8)
-            if (x, y) not in self.occupied and (x, y) not in protected
-        ]
-        if not free_cells:
-            return None
-
-        def cell_priority(cell: BoardCoord) -> tuple[int, int, int, int]:
-            same_line = 0 if (cell[0] == blocker[0] or cell[1] == blocker[1]) else 1
-            return (
-                same_line,
-                _manhattan(blocker, cell),
-                abs(cell[0] - blocker[0]),
-                abs(cell[1] - blocker[1]),
-            )
-
-        best: tuple[list[BoardCoord], BoardCoord] | None = None
-        for candidate in sorted(free_cells, key=cell_priority):
-            route = self._astar(blocker, candidate, extra_blocked=path_blocked or set())
-            if route is None:
-                continue
-            if best is None or len(route) < len(best[0]):
-                best = (route, candidate)
-        return best
-
-    def _best_route_board_to_pct(
-        self,
-        start: BoardCoord,
-        dst_pct: PercentEndpoint,
-        protected: set[BoardCoord],
-    ) -> BoardToPctPlan | None:
-        best: BoardToPctPlan | None = None
-        best_score: tuple[int, int, int, float] | None = None
-
-        if self._board_to_offboard_segment_clear(
-            start,
-            dst_pct,
-            ignore_board=protected | {start},
-            ignore_slots={_pct_key(dst_pct)},
-        ):
-            best_score = (0, 0, 1, 0.0)
-            best = BoardToPctPlan(
-                route=(start,),
-                blockers=frozenset(),
-                board_exit=BoardExit(edge=start, outside=dst_pct),
-                offboard_path=(dst_pct,),
-            )
-
-        for board_exit in self._edge_candidates_for_pct(dst_pct):
-            offboard_path = self._offboard_path(board_exit.outside, dst_pct)
-            if offboard_path is None:
-                continue
-            planned = self._astar_min_blockers(start, board_exit.edge, protected)
-            if planned is None:
-                continue
-            route, blockers = planned
-            score = (
-                len(blockers),
-                1,
-                _compressed_segment_count(route) + len(offboard_path),
-                sum(_pct_distance(a, b) for a, b in zip(offboard_path, offboard_path[1:])),
-            )
-            if best_score is None or score < best_score:
-                best_score = score
-                best = BoardToPctPlan(
-                    route=tuple(route),
-                    blockers=frozenset(blockers),
-                    board_exit=board_exit,
-                    offboard_path=offboard_path,
-                )
-        return best
-
-    def _best_route_pct_to_board(
-        self,
-        src_pct: PercentEndpoint,
-        dst: BoardCoord,
-        protected: set[BoardCoord],
-    ) -> PctToBoardPlan | None:
-        best: PctToBoardPlan | None = None
-        best_score: tuple[int, int, int, float] | None = None
-
-        if self._offboard_to_board_segment_clear(
-            src_pct,
-            dst,
-            ignore_board=protected | {dst},
-            ignore_slots={_pct_key(src_pct)},
-        ):
-            best_score = (0, 0, 1, 0.0)
-            best = PctToBoardPlan(
-                board_exit=BoardExit(edge=dst, outside=src_pct),
-                offboard_path=(src_pct,),
-                route=(dst,),
-                blockers=frozenset(),
-            )
-
-        for board_exit in self._edge_candidates_for_pct(src_pct):
-            offboard_path = self._offboard_path(src_pct, board_exit.outside, ignore_slots={_pct_key(src_pct)})
-            if offboard_path is None:
-                continue
-            planned = self._astar_min_blockers(board_exit.edge, dst, protected)
-            if planned is None:
-                continue
-            route, blockers = planned
-            if board_exit.edge in self.occupied and board_exit.edge != dst and board_exit.edge not in protected:
-                blockers = blockers | {board_exit.edge}
-            score = (
-                len(blockers),
-                1,
-                _compressed_segment_count(route) + len(offboard_path),
-                sum(_pct_distance(a, b) for a, b in zip(offboard_path, offboard_path[1:])),
-            )
-            if best_score is None or score < best_score:
-                best_score = score
-                best = PctToBoardPlan(
-                    board_exit=board_exit,
-                    offboard_path=offboard_path,
-                    route=tuple(route),
-                    blockers=frozenset(blockers),
-                )
-        return best
-
-    def _best_route_board_to_board(
-        self,
-        start: BoardCoord,
-        dst: BoardCoord,
-        protected: set[BoardCoord],
-    ) -> BoardToBoardPlan | None:
-        planned = self._astar_min_blockers(start, dst, protected)
-        if planned is None:
-            return None
-        route, blockers = planned
-        return BoardToBoardPlan(route=tuple(route), blockers=frozenset(blockers))
-
-    def _best_route_board_to_board_via_offboard(
-        self,
-        start: BoardCoord,
-        dst: BoardCoord,
-        protected: set[BoardCoord],
-    ) -> BoardViaOffboardPlan | None:
-        best: BoardViaOffboardPlan | None = None
-        best_score: tuple[int, int, int, float] | None = None
-
-        start_exits = self._board_exits_by_distance(start)
-        end_exits = self._board_exits_by_distance(dst)
-
-        start_options: list[tuple[BoardExit, tuple[BoardCoord, ...], frozenset[BoardCoord]]] = []
-        for start_exit in start_exits:
-            planned_start = self._astar_min_blockers(start, start_exit.edge, protected)
-            if planned_start is not None:
-                start_route, start_blockers = planned_start
-                if self._board_to_offboard_segment_clear(
-                    start_exit.edge,
-                    start_exit.outside,
-                    ignore_board=protected | set(start_route),
-                    ignore_slots={_pct_key(start_exit.outside)},
-                ):
-                    start_options.append((start_exit, tuple(start_route), frozenset(start_blockers)))
-
-            if self._board_to_offboard_segment_clear(
-                start,
-                start_exit.outside,
-                ignore_board=protected | {start},
-                ignore_slots={_pct_key(start_exit.outside)},
-            ):
-                start_options.append(
-                    (
-                        BoardExit(edge=start, outside=start_exit.outside),
-                        (start,),
-                        frozenset(),
-                    )
-                )
-
-        for start_exit, start_route, start_blockers in start_options:
-            for end_exit in end_exits:
-                offboard_path = self._offboard_path(start_exit.outside, end_exit.outside)
-                if offboard_path is None:
-                    continue
-
-                offboard_distance = sum(
-                    _pct_distance(a, b)
-                    for a, b in zip(offboard_path, offboard_path[1:])
-                )
-
-                if self._offboard_to_board_segment_clear(
-                    end_exit.outside,
-                    dst,
-                    ignore_board=protected | {start, dst},
-                    ignore_slots={_pct_key(start_exit.outside), _pct_key(end_exit.outside)},
-                ):
-                    score = (
-                        len(start_blockers),
-                        _compressed_segment_count(start_route) + len(offboard_path) + 1,
-                        0,
-                        offboard_distance,
-                    )
-                    if best_score is None or score < best_score:
-                        best_score = score
-                        best = BoardViaOffboardPlan(
-                            start_route=start_route,
-                            start_exit=start_exit,
-                            offboard_path=offboard_path,
-                            end_exit=BoardExit(edge=dst, outside=end_exit.outside),
-                            end_route=(dst,),
-                            blockers=start_blockers,
-                        )
-
-                planned_end = self._astar_min_blockers(end_exit.edge, dst, protected)
-                if planned_end is None:
-                    continue
-                end_route, end_blockers = planned_end
-                if not self._offboard_to_board_segment_clear(
-                    end_exit.outside,
-                    end_exit.edge,
-                    ignore_board=protected | set(start_route) | set(end_route),
-                    ignore_slots={_pct_key(start_exit.outside), _pct_key(end_exit.outside)},
-                ):
-                    continue
-
-                blockers = set(start_blockers) | set(end_blockers)
-                if end_exit.edge in self.occupied and end_exit.edge not in {start, dst} and end_exit.edge not in protected:
-                    blockers.add(end_exit.edge)
-
-                score = (
-                    len(blockers),
-                    (
-                        _compressed_segment_count(start_route)
-                        + _compressed_segment_count(end_route)
-                        + len(offboard_path)
-                        + 1
-                    ),
-                    1,
-                    offboard_distance,
-                )
-                if best_score is None or score < best_score:
-                    best_score = score
-                    best = BoardViaOffboardPlan(
-                        start_route=tuple(start_route),
-                        start_exit=start_exit,
-                        offboard_path=offboard_path,
-                        end_exit=end_exit,
-                        end_route=tuple(end_route),
-                        blockers=frozenset(blockers),
-                    )
-        return best
-
-    def _best_route_board_to_board_any(
-        self,
-        start: BoardCoord,
-        dst: BoardCoord,
-        protected: set[BoardCoord],
-    ) -> MixedRoutePlan | None:
-        return self._best_route_board_to_board_mixed(start, dst, protected)
-
-    def _emit_offboard_path(self, path: Sequence[PercentEndpoint]) -> None:
-        for src, dst in zip(path, path[1:]):
-            self.append_segment(src, dst)
-
-    def _emit_board_to_pct_plan(self, plan: BoardToPctPlan) -> None:
-        for src_ep, dst_ep in _compress_path(plan.route):
-            self.append_segment(src_ep, dst_ep)
-        self.append_segment(_board_ep(plan.route[-1][0], plan.route[-1][1]), plan.offboard_path[0])
-        self._emit_offboard_path(plan.offboard_path)
-
-    def _emit_pct_to_board_plan(self, plan: PctToBoardPlan) -> None:
-        self._emit_offboard_path(plan.offboard_path)
-        edge = plan.board_exit.edge
-        self.append_segment(plan.offboard_path[-1], _board_ep(edge[0], edge[1]))
-        for src_ep, dst_ep in _compress_path(plan.route):
-            self.append_segment(src_ep, dst_ep)
-
-    def _emit_board_to_board_plan(self, plan: BoardToBoardPlan) -> None:
-        for src_ep, dst_ep in _compress_path(plan.route):
-            self.append_segment(src_ep, dst_ep)
-
-    def _emit_board_via_offboard_plan(self, plan: BoardViaOffboardPlan) -> None:
-        for src_ep, dst_ep in _compress_path(plan.start_route):
-            self.append_segment(src_ep, dst_ep)
-        self.append_segment(
-            _board_ep(plan.start_exit.edge[0], plan.start_exit.edge[1]),
-            plan.start_exit.outside,
-        )
-        self._emit_offboard_path(plan.offboard_path)
-        self.append_segment(
-            plan.end_exit.outside,
-            _board_ep(plan.end_exit.edge[0], plan.end_exit.edge[1]),
-        )
-        for src_ep, dst_ep in _compress_path(plan.end_route):
-            self.append_segment(src_ep, dst_ep)
 
     def _emit_mixed_route_plan(self, plan: MixedRoutePlan) -> None:
         nodes = list(plan.nodes)
@@ -2130,212 +1644,142 @@ class MotionPlanner:
             )
             idx += 1
 
-    def _board_cells_for_board_move_plan(
-        self,
-        plan: BoardToBoardPlan | BoardViaOffboardPlan | MixedRoutePlan,
-    ) -> set[BoardCoord]:
-        if isinstance(plan, MixedRoutePlan):
-            return {node for node in plan.nodes if _is_board_node(node)}  # type: ignore[misc]
-        if isinstance(plan, BoardViaOffboardPlan):
-            return set(plan.start_route) | set(plan.end_route)
-        return set(plan.route)
-
-    def _emit_board_move_plan(self, plan: BoardToBoardPlan | BoardViaOffboardPlan | MixedRoutePlan) -> None:
-        if isinstance(plan, MixedRoutePlan):
-            self._emit_mixed_route_plan(plan)
-            return
-        if isinstance(plan, BoardViaOffboardPlan):
-            self._emit_board_via_offboard_plan(plan)
-        else:
-            self._emit_board_to_board_plan(plan)
-
-    def _free_board_parking_cells(self, protected: set[BoardCoord]) -> list[BoardCoord]:
-        return [
-            (x, y)
-            for y in range(8)
-            for x in range(8)
-            if (x, y) not in self.occupied and (x, y) not in protected
-        ]
-
-    def _temp_slot_candidates(self) -> list[PercentEndpoint]:
-        candidates: list[PercentEndpoint] = []
-        seen: set[tuple[float, float]] = set()
-
-        def add(slot: PercentEndpoint) -> None:
-            key = _pct_key(slot)
-            if key in seen or self._is_offboard_occupied(slot):
-                return
-            seen.add(key)
-            candidates.append(slot)
-
-        for idx in range(config.MAX_TEMP_RELOCATIONS * 2):
-            add(self._temp_slot(idx))
-        for idx in range(_capture_slot_count()):
-            add(_capture_slot_by_index(idx))
-        for slot in self._offboard_lattice_nodes():
-            add(slot)
-        return candidates
-
-    def _select_blocker(
-        self,
-        anchor_start: BoardCoord,
-        anchor_end: BoardCoord,
-        protected: set[BoardCoord],
-        attempted: set[BoardCoord],
-    ) -> BoardCoord | None:
-        candidates = [c for c in self.occupied if c not in protected and c not in attempted]
-        if not candidates:
-            return None
-
-        candidates.sort(
-            key=lambda c: (
-                _dist_to_segment(c, anchor_start, anchor_end),
-                _manhattan(c, anchor_start) + _manhattan(c, anchor_end),
-            )
-        )
-        return candidates[0]
-
-    def _move_blocker_to_temp(
-        self,
-        blocker: BoardCoord,
-        protected: set[BoardCoord] | None = None,
-        path_blocked: set[BoardCoord] | None = None,
-    ) -> bool:
-        del path_blocked
-        return self._relocate_blocker_recursive(blocker, protected or set(), depth=0, active=set())
-
     def _relocate_blocker_recursive(
         self,
-        blocker: BoardCoord,
-        protected: set[BoardCoord],
+        blocker: MixedNode,
+        protected: set[MixedNode],
         *,
         depth: int,
-        active: set[BoardCoord],
+        active: set[object],
     ) -> bool:
-        if blocker not in self.occupied:
+        if not self._is_node_occupied(blocker):
             return True
-        if blocker in active or depth > config.MAX_RECURSIVE_BLOCKER_DEPTH:
+        blocker_id = self._blocker_identity(blocker)
+        if blocker_id in active or depth > config.MAX_RECURSIVE_BLOCKER_DEPTH:
             return False
         if len(self._temp_relocations) >= config.MAX_TEMP_RELOCATIONS:
             return False
 
-        active.add(blocker)
+        active.add(blocker_id)
         candidate_plans: list[
-            tuple[tuple[int, int, float, int], str, BoardCoord | PercentEndpoint, BoardToBoardPlan | BoardToPctPlan]
+            tuple[
+                tuple[float, int, int, float],
+                MixedNode,
+                MixedRoutePlan,
+            ]
         ] = []
-        base_protected = protected | active
+        base_protected = set(protected)
 
-        for board_slot in sorted(
-            self._free_board_parking_cells(base_protected),
-            key=lambda cell: (_manhattan(blocker, cell), cell[0], cell[1]),
-        ):
-            plan = self._best_route_board_to_board(
-                blocker,
-                board_slot,
-                base_protected | {board_slot},
+        def distance_key(node: MixedNode) -> tuple[float, int]:
+            return (self._node_distance(blocker, node), 0 if _is_board_node(node) else 1)
+
+        candidate_destinations = sorted(self._free_mixed_parking_nodes(base_protected), key=distance_key)[:24]
+        for destination in candidate_destinations:
+            temp_origin = self._temp_relocation_origin_for_node(blocker)
+            if temp_origin is not None and destination == temp_origin:
+                continue
+            plan = self._best_route_mixed_any(blocker, destination, base_protected | {destination})
+            if plan is None:
+                continue
+            blockers = set(plan.blockers) - {blocker}
+            if any(self._blocker_identity(node) in active for node in blockers):
+                continue
+            score = self._score_estimated_execution(
+                blocker_count=len(blockers),
+                segment_count=max(1, len(plan.nodes) - 1),
+                distance_pct=self._mixed_route_distance(plan.nodes),
             )
-            if plan is None:
-                continue
-            blockers = set(plan.blockers) - {blocker}
-            if blockers & active:
-                continue
-            score = (len(blockers), len(plan.route), 0.0, 0)
-            candidate_plans.append((score, "board", board_slot, plan))
-
-        for slot in self._temp_slot_candidates():
-            plan = self._best_route_board_to_pct(blocker, slot, base_protected | {blocker})
-            if plan is None:
-                continue
-            blockers = set(plan.blockers) - {blocker}
-            if blockers & active:
-                continue
-            offboard_len = sum(_pct_distance(a, b) for a, b in zip(plan.offboard_path, plan.offboard_path[1:]))
-            score = (len(blockers), len(plan.route) + len(plan.offboard_path), offboard_len, 1)
-            candidate_plans.append((score, "pct", slot, plan))
+            candidate_plans.append((score, destination, plan))
 
         candidate_plans.sort(key=lambda item: item[0])
-        for _score, kind, destination, plan in candidate_plans:
+        for _score, destination, plan in candidate_plans:
             blockers = set(plan.blockers) - {blocker}
-            route_cells = set(plan.route)
+            route_nodes = set(plan.nodes)
             if not self._clear_route_blockers(
                 blockers,
-                parking_protected=base_protected | route_cells,
-                path_blocked=base_protected | route_cells,
+                parking_protected=base_protected | route_nodes,
+                path_blocked=base_protected | route_nodes,
                 depth=depth + 1,
                 active=active,
             ):
                 continue
 
-            if kind == "board":
-                assert isinstance(destination, tuple)
-                assert isinstance(plan, BoardToBoardPlan)
-                self._emit_board_to_board_plan(plan)
-                self.occupied.remove(blocker)
-                self.occupied.add(destination)
-                self.record_note(
-                    f"temp_reloc=board:{blocker[0]},{blocker[1]}->{destination[0]},{destination[1]}"
-                )
-                self._temp_relocations.append(
-                    TempRelocation(origin=blocker, slot=_board_ep(destination[0], destination[1]))
-                )
-            else:
-                assert isinstance(destination, PercentEndpoint)
-                assert isinstance(plan, BoardToPctPlan)
-                self._emit_board_to_pct_plan(plan)
-                self.occupied.remove(blocker)
-                self._mark_offboard_occupied(destination, f"temp:{blocker[0]},{blocker[1]}")
-                self._reserve_capture_slot_if_needed(destination)
-                cap_idx = _capture_slot_index_from_key(_pct_key(destination))
-                if cap_idx is not None:
-                    self.record_note(
-                        f"temp_reloc=capture_slot:{blocker[0]},{blocker[1]}->{cap_idx}"
-                    )
-                else:
+            self._emit_mixed_route_plan(plan)
+            self._relocated_blocker_count += 1
+            if _is_board_node(blocker):
+                restore_origin = self._temp_relocation_origin_for_node(blocker) or blocker
+                active.add(("temp", restore_origin))
+                if isinstance(destination, PercentEndpoint):
                     self.record_note(
                         "temp_reloc=offboard:"
                         f"{blocker[0]},{blocker[1]}->{destination.x_pct:.2f}%,{destination.y_pct:.2f}%"
                     )
-                self._temp_relocations.append(TempRelocation(origin=blocker, slot=destination))
-            active.remove(blocker)
+                    self._apply_arrival_occupancy(
+                        blocker,
+                        destination,
+                        new_offboard_occupant=OffboardOccupant(
+                            label=f"temp:{blocker[0]},{blocker[1]}",
+                            restore_origin=restore_origin,
+                        ),
+                    )
+                    self._reserve_capture_slot_if_needed(destination)
+                    if restore_origin == blocker:
+                        self._temp_relocations.append(TempRelocation(origin=restore_origin, slot=destination))
+                    else:
+                        self._update_temp_relocation_slot(restore_origin, destination)
+                else:
+                    self.record_note(
+                        f"temp_reloc=board:{blocker[0]},{blocker[1]}->{destination[0]},{destination[1]}"
+                    )
+                    self._apply_arrival_occupancy(blocker, destination)
+                    board_slot = _board_ep(destination[0], destination[1])
+                    if restore_origin == blocker:
+                        self._temp_relocations.append(
+                            TempRelocation(origin=restore_origin, slot=board_slot)
+                        )
+                    else:
+                        self._update_temp_relocation_slot(restore_origin, board_slot)
+            else:
+                assert isinstance(blocker, PercentEndpoint)
+                occupant = self._get_offboard_occupant(blocker)
+                if isinstance(destination, PercentEndpoint):
+                    self.record_note(
+                        "temp_reloc=offboard_shift:"
+                        f"{blocker.x_pct:.2f}%,{blocker.y_pct:.2f}%"
+                        f"->{destination.x_pct:.2f}%,{destination.y_pct:.2f}%"
+                    )
+                    self._apply_arrival_occupancy(blocker, destination)
+                else:
+                    self.record_note(
+                        "temp_reloc=board_shift:"
+                        f"{blocker.x_pct:.2f}%,{blocker.y_pct:.2f}%->{destination[0]},{destination[1]}"
+                    )
+                    self._apply_arrival_occupancy(blocker, destination)
+                if occupant is not None and occupant.capture_slot_index is not None:
+                    self.record_note(
+                        f"capture_slot_relocated={occupant.capture_slot_index}"
+                    )
             return True
 
-        active.remove(blocker)
+        active.remove(blocker_id)
         return False
-
-    def _clear_until_route_exists(
-        self,
-        route_builder: Callable[[], object | None],
-        anchor_start: BoardCoord,
-        anchor_end: BoardCoord,
-        protected: set[BoardCoord],
-    ) -> None:
-        attempted: set[BoardCoord] = set()
-        for _ in range(config.MAX_TEMP_RELOCATIONS):
-            if route_builder() is not None:
-                return
-            blocker = self._select_blocker(anchor_start, anchor_end, protected, attempted)
-            if blocker is None:
-                return
-            attempted.add(blocker)
-            if not self._move_blocker_to_temp(blocker, protected, path_blocked=protected):
-                continue
-        return
 
     def _clear_route_blockers(
         self,
-        blockers: set[BoardCoord],
-        parking_protected: set[BoardCoord],
-        path_blocked: set[BoardCoord],
+        blockers: set[MixedNode],
+        parking_protected: set[MixedNode],
+        path_blocked: set[MixedNode],
         depth: int = 0,
-        active: set[BoardCoord] | None = None,
+        active: set[object] | None = None,
     ) -> bool:
         del path_blocked
-        active = active or set()
+        if active is None:
+            active = set()
         # Clear nearest blockers first, keeping path/destination cells protected
         # so temporary parking never occupies the intended route.
-        ordered = sorted(blockers, key=lambda c: min(_manhattan(c, p) for p in parking_protected))
+        ordered = sorted(blockers, key=lambda c: min(self._node_distance(c, p) for p in parking_protected))
         for blocker in ordered:
-            if blocker not in self.occupied:
+            if not self._is_node_occupied(blocker):
                 continue
             if not self._relocate_blocker_recursive(blocker, parking_protected, depth=depth, active=active):
                 return False
@@ -2347,107 +1791,160 @@ class MotionPlanner:
         dst_pct: PercentEndpoint,
         protected_extra: set[BoardCoord] | None = None,
     ) -> None:
-        protected = {start}
+        protected: set[MixedNode] = {start, dst_pct}
         if protected_extra:
             protected |= protected_extra
 
-        plan = self._best_route_board_to_pct(start, dst_pct, protected)
-        if plan is None:
-            if self._fallback_move_board_piece_to_pct_via_exit(start, dst_pct, protected):
-                self._fallback_direct_segments += 1
-                return
+        if self._direct_mixed_route_if_clear(start, dst_pct, protected):
+            self.record_note(
+                f"board_to_pct_route=direct:{start[0]},{start[1]}->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
+            )
             self.append_segment(_board_ep(start[0], start[1]), dst_pct)
-            self.occupied.remove(start)
-            self._mark_offboard_occupied(dst_pct, f"piece:{start[0]},{start[1]}")
-            self._fallback_direct_segments += 1
+            capture_idx = _capture_slot_index_from_key(_pct_key(dst_pct))
+            occupant: OffboardOccupant | None = None
+            if capture_idx is not None:
+                if self._capture_inventory is not None:
+                    record = next((rec for rec in self._capture_inventory.occupied_records() if rec.slot_index == capture_idx), None)
+                    if record is not None:
+                        occupant = OffboardOccupant(
+                            label=f"captured:{record.captured_side}:{record.piece_name}",
+                            capture_slot_index=record.slot_index,
+                            captured_side=record.captured_side,
+                            piece_name=record.piece_name,
+                        )
+                else:
+                    occupant = OffboardOccupant(
+                        label=f"captured:{capture_idx}",
+                        capture_slot_index=capture_idx,
+                    )
+            self._apply_arrival_occupancy(start, dst_pct, new_offboard_occupant=occupant)
             return
 
-        if plan.blockers:
-            route_protected = protected | set(plan.route)
+        moved_blockers: set[object] = set()
+        plan: MixedRoutePlan | None = None
+        for _ in range(config.MAX_TEMP_RELOCATIONS + 1):
+            plan = self._best_route_mixed_any(start, dst_pct, protected)
+            if plan is None or not plan.blockers:
+                break
+            route_protected = protected | set(plan.nodes)
             if not self._clear_route_blockers(
                 set(plan.blockers),
                 parking_protected=route_protected,
                 path_blocked=route_protected,
+                active=moved_blockers,
             ):
-                self.append_segment(_board_ep(start[0], start[1]), dst_pct)
-                self.occupied.remove(start)
-                self._mark_offboard_occupied(dst_pct, f"piece:{start[0]},{start[1]}")
-                self._fallback_direct_segments += 1
-                return
-            plan = self._best_route_board_to_pct(start, dst_pct, protected)
-            if plan is None:
-                if self._fallback_move_board_piece_to_pct_via_exit(start, dst_pct, protected):
-                    self._fallback_direct_segments += 1
-                    return
-                self.append_segment(_board_ep(start[0], start[1]), dst_pct)
-                self.occupied.remove(start)
-                self._mark_offboard_occupied(dst_pct, f"piece:{start[0]},{start[1]}")
-                self._fallback_direct_segments += 1
-                return
+                plan = None
+                break
+            plan = None
+        if plan is None:
+            self.append_segment(_board_ep(start[0], start[1]), dst_pct)
+            self._apply_arrival_occupancy(start, dst_pct)
+            self._fallback_direct_segments += 1
+            self._record_route_cost(
+                self._estimated_execution_cost(blocker_count=0, segment_count=1, distance_pct=self._node_distance(start, dst_pct))
+            )
+            return
 
-        self._emit_board_to_pct_plan(plan)
-        self.occupied.remove(start)
-        self._mark_offboard_occupied(dst_pct, f"piece:{start[0]},{start[1]}")
+        self._record_route_cost(
+            self._estimated_execution_cost(
+                blocker_count=len(plan.blockers),
+                segment_count=max(1, len(plan.nodes) - 1),
+                distance_pct=self._mixed_route_distance(plan.nodes),
+            )
+        )
+        self._emit_mixed_route_plan(plan)
+        capture_idx = _capture_slot_index_from_key(_pct_key(dst_pct))
+        occupant: OffboardOccupant | None = None
+        if capture_idx is not None:
+            if self._capture_inventory is not None:
+                record = next((rec for rec in self._capture_inventory.occupied_records() if rec.slot_index == capture_idx), None)
+                if record is not None:
+                    occupant = OffboardOccupant(
+                        label=f"captured:{record.captured_side}:{record.piece_name}",
+                        capture_slot_index=record.slot_index,
+                        captured_side=record.captured_side,
+                        piece_name=record.piece_name,
+                    )
+            else:
+                occupant = OffboardOccupant(
+                    label=f"captured:{capture_idx}",
+                    capture_slot_index=capture_idx,
+                )
+        self._apply_arrival_occupancy(start, dst_pct, new_offboard_occupant=occupant)
 
     def move_pct_piece_to_board(self, src_pct: PercentEndpoint, dst: BoardCoord) -> None:
-        protected = {dst}
-        plan = self._best_route_pct_to_board(src_pct, dst, protected)
-        if plan is None:
-            if self._fallback_move_pct_piece_to_board_via_exit(src_pct, dst, protected):
-                self._fallback_direct_segments += 1
-                return
+        protected: set[MixedNode] = {src_pct, dst}
+        if self._direct_mixed_route_if_clear(src_pct, dst, protected):
+            self.record_note(
+                f"pct_to_board_route=direct:{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%->{dst[0]},{dst[1]}"
+            )
             self.append_segment(src_pct, _board_ep(dst[0], dst[1]))
-            self._unmark_offboard_occupied(src_pct)
-            self.occupied.add(dst)
-            self._fallback_direct_segments += 1
+            self._apply_arrival_occupancy(src_pct, dst)
             return
 
-        if plan.blockers:
-            route_protected = protected | set(plan.route)
+        moved_blockers: set[object] = set()
+        plan: MixedRoutePlan | None = None
+        for _ in range(config.MAX_TEMP_RELOCATIONS + 1):
+            plan = self._best_route_mixed_any(src_pct, dst, protected)
+            if plan is None or not plan.blockers:
+                break
+            route_protected = protected | set(plan.nodes)
             if not self._clear_route_blockers(
                 set(plan.blockers),
                 parking_protected=route_protected,
                 path_blocked=route_protected,
+                active=moved_blockers,
             ):
-                self.append_segment(src_pct, _board_ep(dst[0], dst[1]))
-                self._unmark_offboard_occupied(src_pct)
-                self.occupied.add(dst)
-                self._fallback_direct_segments += 1
-                return
-            plan = self._best_route_pct_to_board(src_pct, dst, protected)
-            if plan is None:
-                if self._fallback_move_pct_piece_to_board_via_exit(src_pct, dst, protected):
-                    self._fallback_direct_segments += 1
-                    return
-                self.append_segment(src_pct, _board_ep(dst[0], dst[1]))
-                self._unmark_offboard_occupied(src_pct)
-                self.occupied.add(dst)
-                self._fallback_direct_segments += 1
-                return
-
-        self._emit_pct_to_board_plan(plan)
-        self._unmark_offboard_occupied(src_pct)
-        self.occupied.add(dst)
-
-    def move_pct_piece_to_pct(self, src_pct: PercentEndpoint, dst_pct: PercentEndpoint) -> None:
-        lane_path = self._offboard_path(
-            src_pct,
-            dst_pct,
-            ignore_slots={_pct_key(src_pct), _pct_key(dst_pct)},
-        )
-        if lane_path is not None:
-            self.record_note(
-                "pct_to_pct_route="
-                f"lane:{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
-                f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
-                f" hops={max(0, len(lane_path) - 1)}"
+                plan = None
+                break
+            plan = None
+        if plan is None:
+            self.append_segment(src_pct, _board_ep(dst[0], dst[1]))
+            self._apply_arrival_occupancy(src_pct, dst)
+            self._fallback_direct_segments += 1
+            self._record_route_cost(
+                self._estimated_execution_cost(blocker_count=0, segment_count=1, distance_pct=self._node_distance(src_pct, dst))
             )
-            self._emit_offboard_path(lane_path)
-            self._unmark_offboard_occupied(src_pct)
-            self._mark_offboard_occupied(dst_pct, f"piece:{src_pct.x_pct:.2f},{src_pct.y_pct:.2f}")
             return
 
-        plan = self._best_route_pct_to_pct_mixed(src_pct, dst_pct)
+        self._record_route_cost(
+            self._estimated_execution_cost(
+                blocker_count=len(plan.blockers),
+                segment_count=max(1, len(plan.nodes) - 1),
+                distance_pct=self._mixed_route_distance(plan.nodes),
+            )
+        )
+        self._emit_mixed_route_plan(plan)
+        self._apply_arrival_occupancy(src_pct, dst)
+
+    def move_pct_piece_to_pct(self, src_pct: PercentEndpoint, dst_pct: PercentEndpoint) -> None:
+        protected: set[MixedNode] = {src_pct, dst_pct}
+        if self._direct_mixed_route_if_clear(src_pct, dst_pct, protected):
+            self.record_note(
+                "pct_to_pct_route="
+                f"mixed_direct:{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
+                f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}% hops=1 blockers=0"
+            )
+            self.append_segment(src_pct, dst_pct)
+            self._apply_arrival_occupancy(src_pct, dst_pct)
+            return
+
+        moved_blockers: set[object] = set()
+        plan: MixedRoutePlan | None = None
+        for _ in range(config.MAX_TEMP_RELOCATIONS + 1):
+            plan = self._best_route_mixed_any(src_pct, dst_pct, protected)
+            if plan is None or not plan.blockers:
+                break
+            route_protected = protected | set(plan.nodes)
+            if not self._clear_route_blockers(
+                set(plan.blockers),
+                parking_protected=route_protected,
+                path_blocked=route_protected,
+                active=moved_blockers,
+            ):
+                plan = None
+                break
+            plan = None
         if plan is None:
             # Last resort: keep the move on the off-board perimeter instead of
             # cutting diagonally across the yellow board.
@@ -2471,9 +1968,19 @@ class MotionPlanner:
                 f"perimeter_fallback:{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
                 f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
             )
-            self._unmark_offboard_occupied(src_pct)
-            self._mark_offboard_occupied(dst_pct, f"piece:{src_pct.x_pct:.2f},{src_pct.y_pct:.2f}")
+            self._apply_arrival_occupancy(src_pct, dst_pct)
             self._fallback_direct_segments += 1
+            self._record_route_cost(
+                self._estimated_execution_cost(
+                    blocker_count=0,
+                    segment_count=max(1, len([pt for pt in fallback_points if True]) - 1),
+                    distance_pct=sum(
+                        _pct_distance(a, b)
+                        for a, b in zip(fallback_points, fallback_points[1:])
+                        if _pct_key(a) != _pct_key(b)
+                    ),
+                )
+            )
             return
 
         direct_diagonal = len(plan.nodes) == 2
@@ -2485,58 +1992,15 @@ class MotionPlanner:
             f" hops={max(0, len(plan.nodes) - 1)}"
             f" blockers={len(plan.blockers)}"
         )
+        self._record_route_cost(
+            self._estimated_execution_cost(
+                blocker_count=len(plan.blockers),
+                segment_count=max(1, len(plan.nodes) - 1),
+                distance_pct=self._mixed_route_distance(plan.nodes),
+            )
+        )
         self._emit_mixed_route_plan(plan)
-        self._unmark_offboard_occupied(src_pct)
-        self._mark_offboard_occupied(dst_pct, f"piece:{src_pct.x_pct:.2f},{src_pct.y_pct:.2f}")
-
-    def _fallback_move_board_piece_to_pct_via_exit(
-        self,
-        start: BoardCoord,
-        dst_pct: PercentEndpoint,
-        protected: set[BoardCoord],
-    ) -> bool:
-        for board_exit in self._edge_candidates_for_pct(dst_pct):
-            if board_exit.edge in protected and board_exit.edge != start:
-                continue
-            offboard_path = self._offboard_path(
-                board_exit.outside,
-                dst_pct,
-                ignore_slots={_pct_key(dst_pct)},
-            )
-            if offboard_path is None:
-                continue
-            self.move_board_piece_to_board(start, board_exit.edge, protected_extra=protected)
-            self.append_segment(_board_ep(board_exit.edge[0], board_exit.edge[1]), board_exit.outside)
-            self._emit_offboard_path(offboard_path)
-            self.occupied.discard(board_exit.edge)
-            self._mark_offboard_occupied(dst_pct, f"piece:{start[0]},{start[1]}")
-            return True
-        return False
-
-    def _fallback_move_pct_piece_to_board_via_exit(
-        self,
-        src_pct: PercentEndpoint,
-        dst: BoardCoord,
-        protected: set[BoardCoord],
-    ) -> bool:
-        for board_exit in self._edge_candidates_for_pct(src_pct):
-            if board_exit.edge in protected and board_exit.edge != dst:
-                continue
-            offboard_path = self._offboard_path(
-                src_pct,
-                board_exit.outside,
-                ignore_slots={_pct_key(src_pct)},
-            )
-            if offboard_path is None:
-                continue
-            self._emit_offboard_path(offboard_path)
-            self.append_segment(board_exit.outside, _board_ep(board_exit.edge[0], board_exit.edge[1]))
-            self._unmark_offboard_occupied(src_pct)
-            self.occupied.add(board_exit.edge)
-            if board_exit.edge != dst:
-                self.move_board_piece_to_board(board_exit.edge, dst, protected_extra=protected)
-            return True
-        return False
+        self._apply_arrival_occupancy(src_pct, dst_pct)
 
     def move_board_piece_to_board(
         self,
@@ -2544,7 +2008,7 @@ class MotionPlanner:
         dst: BoardCoord,
         protected_extra: set[BoardCoord] | None = None,
     ) -> None:
-        protected = {start, dst}
+        protected: set[MixedNode] = {start, dst}
         if protected_extra:
             protected |= protected_extra
 
@@ -2553,24 +2017,36 @@ class MotionPlanner:
             self.record_note(
                 f"board_route=direct:{start[0]},{start[1]}->{dst[0]},{dst[1]}"
             )
+            self._direct_route_hits += 1
+            self._record_route_cost(
+                self._estimated_execution_cost(
+                    blocker_count=0,
+                    segment_count=1,
+                    distance_pct=self._node_distance(start, dst),
+                )
+            )
             self.append_segment(_board_ep(start[0], start[1]), _board_ep(dst[0], dst[1]))
             self.occupied.remove(start)
             self.occupied.add(dst)
             return
+        self._direct_route_rejections.append(self._direct_route_rejection_reason(start, dst, direct_blockers))
 
-        planned: BoardToBoardPlan | BoardViaOffboardPlan | MixedRoutePlan | None = None
+        planned: MixedRoutePlan | None = None
+        moved_blockers: set[object] = set()
         for _ in range(config.MAX_TEMP_RELOCATIONS + 1):
-            planned = self._best_route_board_to_board_any(start, dst, protected)
+            planned = self._best_route_mixed_any(start, dst, protected)
             if planned is None:
                 break
             if not planned.blockers:
                 break
-            route_protected = protected | self._board_cells_for_board_move_plan(planned)
+            route_protected = protected | set(planned.nodes)
             if not self._clear_route_blockers(
                 set(planned.blockers),
                 parking_protected=route_protected,
                 path_blocked=protected,
+                active=moved_blockers,
             ):
+                planned = None
                 break
             planned = None
 
@@ -2579,32 +2055,43 @@ class MotionPlanner:
             self.occupied.remove(start)
             self.occupied.add(dst)
             self._fallback_direct_segments += 1
+            self._record_route_cost(
+                self._estimated_execution_cost(blocker_count=0, segment_count=1, distance_pct=self._node_distance(start, dst))
+            )
             return
 
         if planned.blockers:
             self._fallback_direct_segments += 1
-        if isinstance(planned, MixedRoutePlan):
-            uses_offboard = any(isinstance(node, PercentEndpoint) for node in planned.nodes)
-            self.record_note(
-                "board_route="
-                f"{'mixed_offboard' if uses_offboard else 'mixed_board'}:"
-                f"{start[0]},{start[1]}->{dst[0]},{dst[1]}"
-                f" hops={max(0, len(planned.nodes) - 1)}"
-                f" blockers={len(planned.blockers)}"
+        uses_offboard = any(isinstance(node, PercentEndpoint) for node in planned.nodes)
+        self.record_note(
+            "board_route="
+            f"{'mixed_offboard' if uses_offboard else 'mixed_board'}:"
+            f"{start[0]},{start[1]}->{dst[0]},{dst[1]}"
+            f" hops={max(0, len(planned.nodes) - 1)}"
+            f" blockers={len(planned.blockers)}"
+        )
+        self._record_route_cost(
+            self._estimated_execution_cost(
+                blocker_count=len(planned.blockers),
+                segment_count=max(1, len(planned.nodes) - 1),
+                distance_pct=self._mixed_route_distance(planned.nodes),
             )
-        self._emit_board_move_plan(planned)
-
-        self.occupied.remove(start)
-        self.occupied.add(dst)
+        )
+        self._emit_mixed_route_plan(planned)
+        self._apply_arrival_occupancy(start, dst)
 
     def restore_temp_blockers(self) -> None:
         if not config.RESTORE_TEMP_RELOCATIONS:
             return
         for relocation in reversed(self._temp_relocations):
             if isinstance(relocation.slot, PercentEndpoint):
+                self._restored_blocker_count += 1
                 self.move_pct_piece_to_board(relocation.slot, relocation.origin)
                 self._release_capture_slot_if_needed(relocation.slot)
             else:
+                if (relocation.slot.x, relocation.slot.y) == relocation.origin:
+                    continue
+                self._restored_blocker_count += 1
                 self.move_board_piece_to_board(
                     (relocation.slot.x, relocation.slot.y),
                     relocation.origin,
@@ -2638,6 +2125,7 @@ def generate_chess_p2_sequence(
     end_id: str,
     capture_inventory: CaptureInventory | None = None,
 ) -> GeneratedSequence:
+    planning_started = time.perf_counter()
     start_sq = parse_square(start_id)
     end_sq = parse_square(end_id)
     start = (start_sq.file_index, start_sq.rank_index)
@@ -2736,6 +2224,7 @@ def generate_chess_p2_sequence(
 
     temp_count = len(planner._temp_relocations)
     planner.restore_temp_blockers()
+    planning_ms = (time.perf_counter() - planning_started) * 1000.0
 
     return GeneratedSequence(
         lines=planner.lines,
@@ -2744,6 +2233,7 @@ def generate_chess_p2_sequence(
         fallback_direct_segments=planner._fallback_direct_segments,
         capture_slots_used=planner._capture_slots_used[:],
         manual_actions=manual_actions,
+        debug_metrics=planner.debug_metrics(capture_detected=capture, planning_ms=planning_ms),
     )
 
 
@@ -2753,6 +2243,7 @@ def generate_checkers_p2_sequence(
     end_id: str,
     capture_inventory: CaptureInventory | None = None,
 ) -> GeneratedSequence:
+    planning_started = time.perf_counter()
     start_sq = parse_square(start_id)
     end_sq = parse_square(end_id)
     start = (start_sq.file_index, start_sq.rank_index)
@@ -2780,6 +2271,7 @@ def generate_checkers_p2_sequence(
     planner.move_board_piece_to_board(start, end)
     temp_count = len(planner._temp_relocations)
     planner.restore_temp_blockers()
+    planning_ms = (time.perf_counter() - planning_started) * 1000.0
 
     return GeneratedSequence(
         lines=planner.lines,
@@ -2788,6 +2280,7 @@ def generate_checkers_p2_sequence(
         fallback_direct_segments=planner._fallback_direct_segments,
         capture_slots_used=planner._capture_slots_used[:],
         manual_actions=manual_actions,
+        debug_metrics=planner.debug_metrics(capture_detected=capture, planning_ms=planning_ms),
     )
 
 
@@ -2797,6 +2290,7 @@ def generate_parcheesi_p2_sequence(
     end_id: str,
     capture_inventory: CaptureInventory | None = None,
 ) -> GeneratedSequence:
+    planning_started = time.perf_counter()
     start_pct = _parcheesi_location_to_pct(start_id)
     end_pct = _parcheesi_location_to_pct(end_id)
 
@@ -2837,6 +2331,15 @@ def generate_parcheesi_p2_sequence(
         fallback_direct_segments=0,
         capture_slots_used=capture_slots_used,
         manual_actions=[],
+        debug_metrics={
+            "segments": len(lines),
+            "xy_distance_pct": round(
+                _pct_distance(start_pct, end_pct) + (_pct_distance(end_pct, slot) if capture else 0.0),
+                3,
+            ),
+            "estimated_piece_moves": 1 + int(capture),
+            "planning_time_ms": round((time.perf_counter() - planning_started) * 1000.0, 3),
+        },
     )
 
 

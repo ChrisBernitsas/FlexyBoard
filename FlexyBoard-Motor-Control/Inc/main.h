@@ -69,7 +69,6 @@ typedef struct
 /* RCC registers */
 #define RCC_AHB1ENR           (*(volatile uint32_t *)(RCC_BASE + 0x30UL))
 #define RCC_APB1ENR           (*(volatile uint32_t *)(RCC_BASE + 0x40UL))
-
 /* GPIO ports */
 #define GPIOA                 ((GPIO_TypeDef *)GPIOA_BASE)
 #define GPIOB                 ((GPIO_TypeDef *)GPIOB_BASE)
@@ -163,17 +162,17 @@ typedef struct
  * ramp down from XY_START_DELAY_CYCLES to the cruise period.
  */
 #define MOTION_TIMER_HZ       1000000U
-#define STEP_PULSE_HIGH_US    5U
+#define STEP_PULSE_HIGH_US    10U
 
 #define X_STEP_DELAY_CYCLES   800
 #define Y_STEP_DELAY_CYCLES   800
 #define XY_START_DELAY_CYCLES 1200
 
 #define XY_RAMP_STEPS         64U //64
-#define STEP_DELAY_CYCLES_Z   0
+#define STEP_DELAY_CYCLES_Z   3600
 
 /* Short-move special handling is currently disabled while we validate the
- * simpler constant-delay profile without XY acceleration.
+ * simpler constant-delay profile.
  */
 #define XY_SHORT_MOVE_THRESHOLD_STEPS 240U
 #define XY_SHORT_MOVE_DELAY_CYCLES    2400

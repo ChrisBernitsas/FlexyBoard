@@ -46,18 +46,28 @@ Game support in this module:
 
 ### Graph model
 
-- Nodes: board squares `(x,y)` on 8x8 grid.
-- Traversal: 8-neighbor physical waypoints are considered for board-to-board moves.
+- Unified node graph:
+  - board squares `(x,y)` on the 8x8 grid
+  - off-board parking/lane/capture nodes in the green area
+- Occupiable nodes can be used for normal parking, capture inventory, or temporary relocation.
+- Traversal:
+  - board-to-board local motion still uses 8-neighbor board steps
+  - mixed board/off-board motion uses the same graph and geometric edge checks
 - Straight steps collide with the destination square.
-- Diagonal steps collide with the destination square plus both orthogonal side squares swept by the piece.
+- Diagonal board steps collide with the destination square plus both orthogonal side squares swept by the piece.
+- Off-board occupied nodes can themselves become blockers and be relocated if the planner decides that is cheaper than routing around them.
   - Example: moving `g8 -> f7` must have `f7`, `g7`, and `f8` clear or those pieces must be relocated first.
 - Occupancy comes from the current software board state before the planned move.
 
 ### Search
 
 - Weighted A* over `(position, unique_blockers_seen)`.
-- Primary objective: minimize the number of unique physical blockers that must be moved.
-- Secondary objective: minimize route length.
+- Primary objective: minimize an estimated execution-time score.
+- Score inputs:
+  - total physical travel distance
+  - segment count penalty
+  - blocker relocation penalty
+- Fewer blockers still matter, but they are no longer a hard first-priority sort key.
 - If the best route crosses occupied collision cells, those exact blockers are relocated first, then the route is recomputed.
 - If path found, path nodes are compressed into straight runs to reduce command count.
   - Example path nodes: `(2,2)->(2,3)->(2,4)->(3,4)->(4,4)`
@@ -69,17 +79,14 @@ Game support in this module:
 
 For moves to/from `%` endpoints:
 
-- planner chooses board-side entry/exit by side:
-  - `x% >= 50` -> right edge (file 7)
-  - `x% < 50` -> left edge (file 0)
-- planner picks the best edge rank candidate by shortest reachable A* path.
-- then adds one bridge segment between board edge and `%` endpoint.
+- `%` endpoints are treated as mixed graph nodes in the same planner.
+- The planner may route through board nodes, off-board nodes, or both based on estimated execution cost.
 
 ## Blocker Relocation Logic
 
 For board-to-board moves:
 
-1. Compute the lowest-blocker physical route from source to destination.
+1. Compute the lowest estimated-execution-cost physical route from source to destination.
 2. Identify only the pieces in that route's collision cells.
 3. Move each blocker to a temporary parking location.
 4. Prefer temporary parking on an empty board square outside the intended route because it is faster and avoids off-board travel.

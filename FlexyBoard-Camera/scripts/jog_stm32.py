@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import platform
 import re
+import glob
 import sys
 import time
 from pathlib import Path
@@ -17,6 +18,11 @@ try:
     import serial  # type: ignore
 except Exception:
     serial = None
+
+try:
+    from serial.tools import list_ports  # type: ignore
+except Exception:
+    list_ports = None
 
 
 DEFAULT_SERIAL_PORT = "/dev/ttyACM0" if platform.system() == "Linux" else "/dev/cu.usbmodem103"
@@ -96,6 +102,13 @@ def _print_help() -> None:
     print(
         "Commands:\n"
         "  status                 Show current x/y/z step counters\n"
+        "  motion                 Show active runtime motion configuration\n"
+        "  motion reset           Restore runtime motion configuration to firmware defaults\n"
+        "  motion xy x y start ramp\n"
+        "                         Set XY cruise/start/ramp values live\n"
+        "  motion z zdelay pulse  Set Z delay and step pulse width live\n"
+        "  motion settle pre held post seat\n"
+        "                         Set settle/seat constants live\n"
         "  zero                   Reset STM internal counters to 0,0,0\n"
         "  goto x y               Absolute workspace move in steps\n"
         "  goto a1                Board-square move using chess notation\n"
@@ -113,12 +126,87 @@ def _print_help() -> None:
     )
 
 
+def _available_serial_ports() -> list[str]:
+    ports: list[str] = []
+    if list_ports is not None:
+        try:
+            ports.extend(sorted(port.device for port in list_ports.comports()))
+        except Exception:
+            pass
+    if not ports and platform.system() == "Darwin":
+        ports.extend(sorted(glob.glob("/dev/cu.*")))
+    if not ports and platform.system() == "Linux":
+        ports.extend(sorted(glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*")))
+    return sorted(dict.fromkeys(ports))
+
+
+def _preferred_serial_port() -> str:
+    override = os.environ.get("FLEXY_SERIAL_PORT", "").strip()
+    if override:
+        return override
+
+    candidates = _available_serial_ports()
+    if not candidates:
+        return SERIAL_PORT
+
+    preferred_patterns: list[re.Pattern[str]] = []
+    if platform.system() == "Darwin":
+        preferred_patterns = [
+            re.compile(r"^/dev/cu\.usbmodem"),
+            re.compile(r"^/dev/cu\.usbserial"),
+            re.compile(r"^/dev/cu\.wchusbserial"),
+        ]
+    elif platform.system() == "Linux":
+        preferred_patterns = [
+            re.compile(r"^/dev/ttyACM"),
+            re.compile(r"^/dev/ttyUSB"),
+        ]
+
+    preferred_matches: list[str] = []
+    for pattern in preferred_patterns:
+        for candidate in candidates:
+            if pattern.search(candidate):
+                preferred_matches.append(candidate)
+    if preferred_matches:
+        return sorted(dict.fromkeys(preferred_matches))[0]
+
+    return SERIAL_PORT
+
+
 def main() -> int:
     if serial is None:
         print("pyserial is required", file=sys.stderr)
         return 1
 
-    ser = serial.Serial(port=SERIAL_PORT, baudrate=SERIAL_BAUDRATE, timeout=SERIAL_TIMEOUT_SEC)
+    selected_port = _preferred_serial_port()
+    try:
+        ser = serial.Serial(port=selected_port, baudrate=SERIAL_BAUDRATE, timeout=SERIAL_TIMEOUT_SEC)
+        try:
+            time.sleep(0.2)
+            ser.reset_input_buffer()
+        except Exception:
+            pass
+        try:
+            reply = _send_command(ser, "PING")
+        except Exception as exc:
+            ser.close()
+            raise RuntimeError(f"Port opened but did not respond like STM32: {exc}") from exc
+        if not reply.startswith("PONG"):
+            ser.close()
+            raise RuntimeError(f"Port opened but returned unexpected reply to PING: {reply!r}")
+    except Exception as exc:
+        available = _available_serial_ports()
+        print(f"Failed to open serial port: {selected_port}", file=sys.stderr)
+        print(str(exc), file=sys.stderr)
+        if available:
+            print("Available serial ports:", file=sys.stderr)
+            for port in available:
+                print(f"  {port}", file=sys.stderr)
+            print("Set FLEXY_SERIAL_PORT to the correct one and retry.", file=sys.stderr)
+        else:
+            print("No likely STM32 serial ports are currently present.", file=sys.stderr)
+            print("Check USB connection, power, and whether the board enumerated on macOS.", file=sys.stderr)
+        return 1
     try:
         orientation = _load_motor_board_orientation()
         time.sleep(0.8)
@@ -129,7 +217,7 @@ def main() -> int:
             if line:
                 print(f"[boot] {line}")
 
-        print(f"Connected to {SERIAL_PORT} @ {SERIAL_BAUDRATE}")
+        print(f"Connected to {selected_port} @ {SERIAL_BAUDRATE}")
         _print_help()
 
         while True:
@@ -150,6 +238,9 @@ def main() -> int:
             if raw == "ping":
                 print(_send_command(ser, "PING"))
                 continue
+            if raw == "motion":
+                print(_send_command(ser, "MOTIONCFG"))
+                continue
             if raw == "zero":
                 print(_send_command(ser, "ZERO"))
                 print(_status(ser)[3])
@@ -169,6 +260,25 @@ def main() -> int:
                 continue
 
             parts = raw.split()
+            if len(parts) == 2 and parts[0] == "motion" and parts[1] == "reset":
+                print(_send_command(ser, "RESET_MOTIONCFG"))
+                print(_send_command(ser, "MOTIONCFG"))
+                continue
+            if len(parts) == 6 and parts[0] == "motion" and parts[1] == "xy":
+                cmd = f"SET_XY_MOTION {int(parts[2])} {int(parts[3])} {int(parts[4])} {int(parts[5])}"
+                print(_send_command(ser, cmd))
+                print(_send_command(ser, "MOTIONCFG"))
+                continue
+            if len(parts) == 4 and parts[0] == "motion" and parts[1] == "z":
+                cmd = f"SET_Z_MOTION {int(parts[2])} {int(parts[3])}"
+                print(_send_command(ser, cmd))
+                print(_send_command(ser, "MOTIONCFG"))
+                continue
+            if len(parts) == 6 and parts[0] == "motion" and parts[1] == "settle":
+                cmd = f"SET_SETTLE {int(parts[2])} {int(parts[3])} {int(parts[4])} {int(parts[5])}"
+                print(_send_command(ser, cmd))
+                print(_send_command(ser, "MOTIONCFG"))
+                continue
             if len(parts) == 2 and parts[0] == "goto":
                 try:
                     board_x, board_y = _square_to_board_coords(parts[1], orientation)
