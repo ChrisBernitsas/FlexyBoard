@@ -9,8 +9,8 @@ camera:
   height: 1080
   retries: 3
   retry_delay_sec: 0.2
-  pre_capture_flush_frames: 10      # discard stale buffered frames before each capture
-  pre_capture_flush_delay_sec: 0.02 # short delay between flush grabs
+  pre_capture_flush_frames: 4       # discard a few buffered frames before each capture
+  pre_capture_flush_delay_sec: 0.0  # no intentional wait between flush grabs
 
 vision:
   board_size: [8, 8]
@@ -34,10 +34,10 @@ analysis:
   inner_shrink: 0.02
   diff_threshold: 30
   min_changed_ratio: 0.20
-  outer_candidate_mode: auto
-  disable_tape_projection: true
+  outer_candidate_mode: dark_only
+  disable_tape_projection: false
   board_lock_source: before
-  geometry_reference: configs/before_geometry_reference.json
+  geometry_reference: configs/corners_info.json
   disable_geometry_reference: false
   # Camera image orientation for mapping detected grid cells into chess/checkers squares.
   # Assumes: top-left=a1, top-right=a8, bottom-right=h8, bottom-left=h1.

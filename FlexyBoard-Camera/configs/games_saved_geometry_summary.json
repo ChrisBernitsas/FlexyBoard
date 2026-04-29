@@ -1,0 +1,161 @@
+{
+  "files": [
+    "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/debug_output/Games/Game1/corners_info.json",
+    "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/debug_output/Games/Game3/corners_info.json",
+    "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/debug_output/Games/Game4/corners_info.json",
+    "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/debug_output/Games/Game6/corners_info.json",
+    "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/debug_output/Games/Game9/corners_info.json",
+    "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/debug_output/Games/Game11/corners_info.json",
+    "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/debug_output/Games/Game12/corners_info.json",
+    "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/debug_output/Games/Game13/corners_info.json",
+    "/Users/christopher/Desktop/Design Code/FlexyBoard-Camera/debug_output/Games/Game14/corners_info.json"
+  ],
+  "count": 9,
+  "source_image_size": {
+    "width": 1920,
+    "height": 1080
+  },
+  "mean_chess_norm_in_outer": [
+    [
+      0.13535656034946442,
+      0.09614390134811401
+    ],
+    [
+      0.8787423968315125,
+      0.09809207916259766
+    ],
+    [
+      0.8772057890892029,
+      0.7761786580085754
+    ],
+    [
+      0.1378580927848816,
+      0.7840680480003357
+    ]
+  ],
+  "std_chess_norm_in_outer": [
+    [
+      0.0074388450011610985,
+      0.009140783920884132
+    ],
+    [
+      0.008826527744531631,
+      0.012056933715939522
+    ],
+    [
+      0.010209841653704643,
+      0.0032386351376771927
+    ],
+    [
+      0.005525758024305105,
+      0.003599019953981042
+    ]
+  ],
+  "mean_outer_px": [
+    [
+      636.4397583007812,
+      148.66819763183594
+    ],
+    [
+      1435.78076171875,
+      146.59393310546875
+    ],
+    [
+      1448.9581298828125,
+      1027.8062744140625
+    ],
+    [
+      627.181884765625,
+      1026.09814453125
+    ]
+  ],
+  "std_outer_px": [
+    [
+      7.334825038909912,
+      17.78912353515625
+    ],
+    [
+      12.918757438659668,
+      18.10749626159668
+    ],
+    [
+      11.973596572875977,
+      24.19010353088379
+    ],
+    [
+      5.413321018218994,
+      23.75653076171875
+    ]
+  ],
+  "mean_chess_px": [
+    [
+      743.726318359375,
+      230.82623291015625
+    ],
+    [
+      1339.42529296875,
+      231.2386016845703
+    ],
+    [
+      1345.2022705078125,
+      826.1835327148438
+    ],
+    [
+      741.456787109375,
+      832.5752563476562
+    ]
+  ],
+  "std_chess_px": [
+    [
+      8.787235260009766,
+      23.64630126953125
+    ],
+    [
+      9.008326530456543,
+      23.96770668029785
+    ],
+    [
+      8.966897010803223,
+      21.947219848632812
+    ],
+    [
+      7.598635196685791,
+      18.95895004272461
+    ]
+  ],
+  "requested_games": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14
+  ],
+  "used_games": [
+    1,
+    3,
+    4,
+    6,
+    9,
+    11,
+    12,
+    13,
+    14
+  ],
+  "missing_games": [
+    2,
+    5,
+    7,
+    8,
+    10
+  ],
+  "source": "debug_output_games_1_to_14"
+}

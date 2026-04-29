@@ -144,8 +144,8 @@ typedef struct
 #define WORKSPACE_MIN_X_STEPS 0
 #define WORKSPACE_MAX_X_STEPS 2060
 #define WORKSPACE_MIN_Y_STEPS 0
-#define Y_RIGHT_MAX_STEPS     2278
-#define Y_LEFT_MAX_STEPS      2318
+#define Y_RIGHT_MAX_STEPS     2275
+#define Y_LEFT_MAX_STEPS      2270
 #define WORKSPACE_MAX_Y_STEPS Y_RIGHT_MAX_STEPS
 
 /* Percentage command scale:
@@ -163,22 +163,34 @@ typedef struct
  * ramp down from XY_START_DELAY_CYCLES to the cruise period.
  */
 #define MOTION_TIMER_HZ       1000000U
-#define STEP_PULSE_HIGH_US    10U
-#define X_STEP_DELAY_CYCLES   900
-#define Y_STEP_DELAY_CYCLES   1000
-#define XY_START_DELAY_CYCLES 1500
-#define XY_RAMP_STEPS         48U
-#define STEP_DELAY_CYCLES_Z   4000
-#define MOVE_PAUSE_CYCLES     1200000
-#define Z_PRE_MOVE_PAUSE_CYCLES  1600000
-#define Z_POST_MOVE_PAUSE_CYCLES 1600000
+#define STEP_PULSE_HIGH_US    5U
 
-// #define X_STEP_DELAY_CYCLES   600 // 1400
-// #define Y_STEP_DELAY_CYCLES   800 // dual-motor axis needs more margin
-// #define XY_START_DELAY_CYCLES 1800
-// #define XY_RAMP_STEPS         96U
-// #define STEP_DELAY_CYCLES_Z   3000
-// #define MOVE_PAUSE_CYCLES     1200 // 1200000
+#define X_STEP_DELAY_CYCLES   800
+#define Y_STEP_DELAY_CYCLES   800
+#define XY_START_DELAY_CYCLES 1200
+
+#define XY_RAMP_STEPS         64U //64
+#define STEP_DELAY_CYCLES_Z   0
+
+/* Short-move special handling is currently disabled while we validate the
+ * simpler constant-delay profile without XY acceleration.
+ */
+#define XY_SHORT_MOVE_THRESHOLD_STEPS 240U
+#define XY_SHORT_MOVE_DELAY_CYCLES    2400
+
+/* Busy-wait settle delays.
+ * CORE_CLOCK_HZ is 16 MHz and delay_cycles() is a simple NOP loop, so
+ * roughly 4 loop-counts ~= 1 us. 20000 counts is about 5 ms.
+ *
+ * We only keep short settles where they matter mechanically:
+ * - before pickup, so the head settles over the piece
+ * - after an intermediate MOVEHELD stage in a chained same-piece sequence
+ */
+#define Z_PRE_PICKUP_PAUSE_CYCLES    160000 // 160000 40ms
+#define MOVEHELD_SETTLE_CYCLES       640000 // 640000 160ms
+#define Z_POST_RELEASE_PAUSE_CYCLES  0 // 20ms
+#define MOVEHELD_REGRIP_STEPS        0U
+#define RETURN_START_SEAT_STEPS      20U
 
 /* Z actuation profile for pickup/release around a piece move.
  * TODO: flip *_DIR values if your physical Z direction is reversed.
@@ -189,8 +201,8 @@ typedef struct
  *   MOVEHELD_STEPS dx dy       -> move while keeping piece attached
  *   RELEASE_STEPS dx dy        -> move to destination and disengage Z
  */
-#define Z_PICKUP_STEPS        35
-#define Z_RELEASE_STEPS       30
+#define Z_PICKUP_STEPS        25
+#define Z_RELEASE_STEPS       25
 #define Z_PICKUP_DIR          1U
 #define Z_RELEASE_DIR         0U
 

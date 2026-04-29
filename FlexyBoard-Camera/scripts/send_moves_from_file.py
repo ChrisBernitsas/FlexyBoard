@@ -7,6 +7,7 @@ import platform
 import re
 import sys
 import time
+import argparse
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +24,7 @@ DEFAULT_SERIAL_PORT = "/dev/ttyACM0" if platform.system() == "Linux" else "/dev/
 SERIAL_PORT = os.environ.get("FLEXY_SERIAL_PORT", DEFAULT_SERIAL_PORT)
 SERIAL_BAUDRATE = 115200
 SERIAL_TIMEOUT_SEC = 8.0
-RETURN_START_DELAY_SEC = 1.0
+RETURN_START_DELAY_SEC = 0.0
 DEFAULT_MOTOR_BOARD_ORIENTATION = "game_a8_at_motor_00"
 
 try:
@@ -152,12 +153,28 @@ def _parse_status_xy(status_line: str) -> tuple[int, int]:
     return int(match.group(1)), int(match.group(2))
 
 
-def _parse_define_int(header_text: str, name: str) -> int:
-    pattern = rf"^\s*#define\s+{re.escape(name)}\s+(-?\d+)"
+def _parse_define_int(header_text: str, name: str, _seen: set[str] | None = None) -> int:
+    if _seen is None:
+        _seen = set()
+    if name in _seen:
+        raise ValueError(f"Circular define reference for {name} in {MOTOR_MAIN_H}")
+    _seen.add(name)
+
+    pattern = rf"^\s*#define\s+{re.escape(name)}\s+(.+?)\s*$"
     match = re.search(pattern, header_text, flags=re.MULTILINE)
     if not match:
         raise ValueError(f"Missing {name} in {MOTOR_MAIN_H}")
-    return int(match.group(1))
+
+    value_text = match.group(1).split("//", 1)[0].strip()
+    int_match = re.fullmatch(r"-?\d+", value_text)
+    if int_match:
+        return int(int_match.group(0))
+
+    alias_match = re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value_text)
+    if alias_match:
+        return _parse_define_int(header_text, alias_match.group(0), _seen)
+
+    raise ValueError(f"Unsupported define value for {name} in {MOTOR_MAIN_H}: {value_text!r}")
 
 
 def _load_board_mapping_constants() -> dict[str, int]:
@@ -439,29 +456,48 @@ def _run_chained_group(
     return executed, (status_x, status_y)
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Send planned move sequence to STM32.")
+    parser.add_argument(
+        "--skip-return-start",
+        action="store_true",
+        help="Execute planned moves but leave the gantry at the last destination.",
+    )
+    parser.add_argument(
+        "--return-start-only",
+        action="store_true",
+        help="Only issue RETURN_START and report the resulting position.",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
-    if len(sys.argv) > 1:
-        print(
-            "No CLI flags are supported.\n"
-            "Edit sample_data/stm32_move_sequence.txt, then run:\n"
-            "  python scripts/send_moves_from_file.py"
-        )
+    args = _parse_args()
+
+    if args.skip_return_start and args.return_start_only:
+        print(json.dumps({"status": "error", "error": "Choose at most one of --skip-return-start or --return-start-only."}, indent=2))
         return 2
 
     if serial is None:
         print(json.dumps({"status": "error", "error": "pyserial is required"}, indent=2))
         return 1
 
-    try:
-        planned_moves = _load_moves(MOVE_FILE)
-    except Exception as exc:  # noqa: BLE001
-        print(json.dumps({"status": "error", "error": str(exc)}, indent=2))
-        return 1
+    planned_moves: list[dict[str, Any]] = []
+    if not args.return_start_only:
+        try:
+            planned_moves = _load_moves(MOVE_FILE)
+        except Exception as exc:  # noqa: BLE001
+            print(json.dumps({"status": "error", "error": str(exc)}, indent=2))
+            return 1
 
     try:
         mapping_constants = _load_board_mapping_constants()
         motor_board_orientation = _load_motor_board_orientation()
-        planned_stage_steps = _build_stage_summary(planned_moves, mapping_constants, motor_board_orientation)
+        planned_stage_steps = (
+            _build_stage_summary(planned_moves, mapping_constants, motor_board_orientation)
+            if not args.return_start_only
+            else []
+        )
     except Exception as exc:  # noqa: BLE001
         print(
             json.dumps(
@@ -492,6 +528,8 @@ def main() -> int:
         "motor_board_orientation": motor_board_orientation,
         "planned_stage_steps": planned_stage_steps,
         "position_report": [],
+        "skip_return_start": bool(args.skip_return_start),
+        "return_start_only": bool(args.return_start_only),
     }
 
     ser = None
@@ -531,55 +569,34 @@ def main() -> int:
             }
         )
 
-        planned_move_groups = _group_continuous_moves(planned_moves)
-        result["planned_move_groups"] = [
-            {
-                "group_index": group_idx,
-                "move_count": len(group),
-                "start": _endpoint_label(group[0]["source"]),
-                "end": _endpoint_label(group[-1]["dest"]),
-            }
-            for group_idx, group in enumerate(planned_move_groups, start=1)
-        ]
-
         last_dest: dict[str, int] | None = None
         chain_commands_supported: bool | None = None
         move_idx = 0
-        for group_idx, group in enumerate(planned_move_groups, start=1):
-            group_executed: list[dict[str, Any]]
-            final_status_x: int
-            final_status_y: int
+        if not args.return_start_only:
+            planned_move_groups = _group_continuous_moves(planned_moves)
+            result["planned_move_groups"] = [
+                {
+                    "group_index": group_idx,
+                    "move_count": len(group),
+                    "start": _endpoint_label(group[0]["source"]),
+                    "end": _endpoint_label(group[-1]["dest"]),
+                }
+                for group_idx, group in enumerate(planned_move_groups, start=1)
+            ]
 
-            if len(group) == 1:
-                group_executed, (final_status_x, final_status_y) = _run_legacy_move(
-                    ser,
-                    group[0],
-                    mapping_constants=mapping_constants,
-                    motor_board_orientation=motor_board_orientation,
-                )
-            elif chain_commands_supported is False:
-                group_executed = []
-                for move in group:
-                    move_executed, (final_status_x, final_status_y) = _run_legacy_move(
+            for group_idx, group in enumerate(planned_move_groups, start=1):
+                group_executed: list[dict[str, Any]]
+                final_status_x: int
+                final_status_y: int
+
+                if len(group) == 1:
+                    group_executed, (final_status_x, final_status_y) = _run_legacy_move(
                         ser,
-                        move,
+                        group[0],
                         mapping_constants=mapping_constants,
                         motor_board_orientation=motor_board_orientation,
                     )
-                    group_executed.extend(move_executed)
-            else:
-                try:
-                    group_executed, (final_status_x, final_status_y) = _run_chained_group(
-                        ser,
-                        group,
-                        mapping_constants=mapping_constants,
-                        motor_board_orientation=motor_board_orientation,
-                    )
-                    chain_commands_supported = True
-                except RuntimeError as exc:
-                    if "ERR CMD" not in str(exc):
-                        raise
-                    chain_commands_supported = False
+                elif chain_commands_supported is False:
                     group_executed = []
                     for move in group:
                         move_executed, (final_status_x, final_status_y) = _run_legacy_move(
@@ -589,79 +606,123 @@ def main() -> int:
                             motor_board_orientation=motor_board_orientation,
                         )
                         group_executed.extend(move_executed)
+                else:
+                    try:
+                        group_executed, (final_status_x, final_status_y) = _run_chained_group(
+                            ser,
+                            group,
+                            mapping_constants=mapping_constants,
+                            motor_board_orientation=motor_board_orientation,
+                        )
+                        chain_commands_supported = True
+                    except RuntimeError as exc:
+                        if "ERR CMD" not in str(exc):
+                            raise
+                        chain_commands_supported = False
+                        group_executed = []
+                        for move in group:
+                            move_executed, (final_status_x, final_status_y) = _run_legacy_move(
+                                ser,
+                                move,
+                                mapping_constants=mapping_constants,
+                                motor_board_orientation=motor_board_orientation,
+                            )
+                            group_executed.extend(move_executed)
 
-            result["executed"].append(
+                result["executed"].append(
+                    {
+                        "group_index": group_idx,
+                        "move_count": len(group),
+                        "move_indices": list(range(move_idx + 1, move_idx + len(group) + 1)),
+                        "commands": group_executed,
+                        "magnet_continuous": len(group) > 1 and chain_commands_supported is True,
+                    }
+                )
+
+                for move in group:
+                    move_idx += 1
+                    src_steps_x, src_steps_y = _endpoint_to_steps(
+                        move["source"],
+                        mapping_constants,
+                        motor_board_orientation,
+                    )
+                    dst_steps_x, dst_steps_y = _endpoint_to_steps(
+                        move["dest"],
+                        mapping_constants,
+                        motor_board_orientation,
+                    )
+                    result["position_report"].append(
+                        {
+                            "stage": f"move_{move_idx}_source",
+                            "endpoint": dict(move["source"]),
+                            "endpoint_label": _endpoint_label(move["source"]),
+                            "motor_board_endpoint": _endpoint_to_motor_board(
+                                move["source"],
+                                mapping_constants,
+                                motor_board_orientation,
+                            ),
+                            "x": src_steps_x,
+                            "y": src_steps_y,
+                        }
+                    )
+                    is_last_move_in_group = move is group[-1]
+                    report_x = final_status_x if is_last_move_in_group else dst_steps_x
+                    report_y = final_status_y if is_last_move_in_group else dst_steps_y
+                    result["position_report"].append(
+                        {
+                            "stage": f"move_{move_idx}_dest",
+                            "endpoint": dict(move["dest"]),
+                            "endpoint_label": _endpoint_label(move["dest"]),
+                            "motor_board_endpoint": _endpoint_to_motor_board(
+                                move["dest"],
+                                mapping_constants,
+                                motor_board_orientation,
+                            ),
+                            "x": report_x,
+                            "y": report_y,
+                        }
+                    )
+
+                group_status = group_executed[-1].get("status_after_command") if group_executed else None
+                if group_status:
+                    result["status_checkpoints"].append(
+                        {
+                            "stage": f"after_group_{group_idx}",
+                            "status": group_status,
+                        }
+                    )
+                last_dest = {"x": final_status_x, "y": final_status_y}
+
+            result["chain_commands_supported"] = chain_commands_supported
+
+        if args.return_start_only:
+            rz_cmd = "RETURN_START"
+            rz_reply = _send_command(ser, rz_cmd)
+            result["return_zero_cmd"] = rz_cmd
+            result["return_zero_reply"] = rz_reply
+            result["return_zero_executed"] = True
+            return_status = _send_command(ser, "STATUS")
+            result["status_checkpoints"].append(
                 {
-                    "group_index": group_idx,
-                    "move_count": len(group),
-                    "move_indices": list(range(move_idx + 1, move_idx + len(group) + 1)),
-                    "commands": group_executed,
-                    "magnet_continuous": len(group) > 1 and chain_commands_supported is True,
+                    "stage": "after_return_start",
+                    "status": return_status,
                 }
             )
-
-            for move in group:
-                move_idx += 1
-                src_steps_x, src_steps_y = _endpoint_to_steps(
-                    move["source"],
-                    mapping_constants,
-                    motor_board_orientation,
-                )
-                dst_steps_x, dst_steps_y = _endpoint_to_steps(
-                    move["dest"],
-                    mapping_constants,
-                    motor_board_orientation,
-                )
-                result["position_report"].append(
-                    {
-                        "stage": f"move_{move_idx}_source",
-                        "endpoint": dict(move["source"]),
-                        "endpoint_label": _endpoint_label(move["source"]),
-                        "motor_board_endpoint": _endpoint_to_motor_board(
-                            move["source"],
-                            mapping_constants,
-                            motor_board_orientation,
-                        ),
-                        "x": src_steps_x,
-                        "y": src_steps_y,
-                    }
-                )
-                is_last_move_in_group = move is group[-1]
-                report_x = final_status_x if is_last_move_in_group else dst_steps_x
-                report_y = final_status_y if is_last_move_in_group else dst_steps_y
-                result["position_report"].append(
-                    {
-                        "stage": f"move_{move_idx}_dest",
-                        "endpoint": dict(move["dest"]),
-                        "endpoint_label": _endpoint_label(move["dest"]),
-                        "motor_board_endpoint": _endpoint_to_motor_board(
-                            move["dest"],
-                            mapping_constants,
-                            motor_board_orientation,
-                        ),
-                        "x": report_x,
-                        "y": report_y,
-                    }
-                )
-
-            group_status = group_executed[-1].get("status_after_command") if group_executed else None
-            if group_status:
-                result["status_checkpoints"].append(
-                    {
-                        "stage": f"after_group_{group_idx}",
-                        "status": group_status,
-                    }
-                )
-            last_dest = {"x": final_status_x, "y": final_status_y}
-
-        result["chain_commands_supported"] = chain_commands_supported
-
-        if last_dest is not None and (last_dest["x"] != 0 or last_dest["y"] != 0):
+            return_x, return_y = _parse_status_xy(return_status)
+            result["position_report"].append(
+                {
+                    "stage": "returned_start",
+                    "x": return_x,
+                    "y": return_y,
+                }
+            )
+        elif (not args.skip_return_start) and last_dest is not None and (last_dest["x"] != 0 or last_dest["y"] != 0):
             return_zero_move = {
                 "source_steps": {"x": int(last_dest["x"]), "y": int(last_dest["y"])},
                 "dest_steps": {"x": 0, "y": 0},
             }
-            time.sleep(RETURN_START_DELAY_SEC)
+            if RETURN_START_DELAY_SEC > 0:
+                time.sleep(RETURN_START_DELAY_SEC)
             rz_cmd = "RETURN_START"
             rz_reply = _send_command(ser, rz_cmd)
             result["return_zero_move"] = return_zero_move
@@ -683,6 +744,8 @@ def main() -> int:
                     "y": return_y,
                 }
             )
+        else:
+            result["return_zero_executed"] = False
 
         status_reply = _send_command(ser, "STATUS")
         result["final_status"] = status_reply

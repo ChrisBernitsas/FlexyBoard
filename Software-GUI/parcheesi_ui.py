@@ -691,6 +691,16 @@ class ParcheesiUI:
         specs = self._build_location_label_specs(left_arm)
         return {str(spec["location_id"]): spec["rect"] for spec in specs}
 
+    def location_id_at_pixel(self, pos: tuple[int, int]) -> str | None:
+        left_arm = self._build_left_arm_basis()
+        rect_map = self._location_rect_map(left_arm) if left_arm else {}
+        radius = self._piece_radius()
+        for location_id in ParcheesiState.iter_draw_locations():
+            rect = self._interactive_rect_for_location(location_id, rect_map, radius)
+            if rect.collidepoint(pos):
+                return location_id
+        return None
+
     def _piece_radius(self) -> int:
         return max(10, round(self.board_rect.width * 0.013))
 

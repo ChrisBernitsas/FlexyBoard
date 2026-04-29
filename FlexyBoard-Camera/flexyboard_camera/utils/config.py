@@ -156,7 +156,7 @@ class Config:
                 disable_tape_projection=bool(analysis_raw.get("disable_tape_projection", True)),
                 board_lock_source=str(analysis_raw.get("board_lock_source", "before")),
                 geometry_reference=str(
-                    analysis_raw.get("geometry_reference", "configs/before_geometry_reference.json")
+                    analysis_raw.get("geometry_reference", "configs/corners_info.json")
                 ),
                 disable_geometry_reference=bool(analysis_raw.get("disable_geometry_reference", False)),
                 camera_square_orientation=str(analysis_raw.get("camera_square_orientation", "identity")),

@@ -457,6 +457,44 @@ class ParcheesiState:
             return f"current player is P{self.current_player}, not P2"
         return self.apply_move(piece, start_id, end_id)
 
+    def manual_move_piece(self, piece: Piece, destination_id: str) -> Optional[str]:
+        if piece is Piece.EMPTY:
+            return "cannot move EMPTY"
+        try:
+            dest = self.parse_location_id(destination_id)
+        except ValueError as exc:
+            return str(exc)
+
+        self._remove_piece_from_current_location(piece)
+        if dest.kind == "nest":
+            if dest.player != piece.to_player_num():
+                return f"{piece.name} cannot be placed in another player's nest"
+            if piece not in self.nests[dest.player]:
+                self.nests[dest.player].append(piece)
+            self.piece_locations[piece] = ParsedLocation("nest", dest.player, piece.to_token_num())
+        elif dest.kind == "main":
+            self.main_track[dest.pos].append(piece)
+            self.piece_locations[piece] = ParsedLocation("main", piece.to_player_num(), dest.pos)
+        elif dest.kind == "home":
+            self.home_paths[dest.player][dest.pos] = piece
+            self.piece_locations[piece] = ParsedLocation("home", dest.player, dest.pos)
+        elif dest.kind == "homearea":
+            if piece not in self.home_areas[dest.player]:
+                self.home_areas[dest.player].append(piece)
+            self.piece_locations[piece] = ParsedLocation("homearea", dest.player, piece.to_token_num())
+        else:
+            return f"unsupported destination: {destination_id}"
+        return None
+
+    def manual_clear_location(self, location_id: str) -> Optional[str]:
+        try:
+            pieces = self.pieces_at_id(location_id)
+        except ValueError as exc:
+            return str(exc)
+        for piece in pieces:
+            self._send_to_nest(piece)
+        return None
+
     @classmethod
     def track_grid_position(cls, pos: int) -> tuple[float, float]:
         return cls.TRACK_GRID_POSITIONS[pos % cls.MAIN_TRACK_LENGTH]

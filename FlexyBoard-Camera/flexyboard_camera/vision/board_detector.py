@@ -259,6 +259,68 @@ def _collect_inner_hole_candidates_from_ring_mask(
     return candidates
 
 
+def _collect_tape_tree_candidates(
+    *,
+    mask: np.ndarray,
+    frame_shape: tuple[int, int, int],
+    min_area_ratio: float,
+    must_enclose_quad: np.ndarray | None,
+    enclosed_area: float | None,
+    max_area_to_enclosed_quad_ratio: float,
+) -> list[dict[str, object]]:
+    h, w = frame_shape[:2]
+    frame_area = float(max(1, h * w))
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    if hierarchy is None or len(contours) == 0:
+        return []
+
+    hierarchy = hierarchy[0]
+    min_area_px = max(200000.0, float(min_area_ratio) * frame_area)
+    min_bbox_w = min(700, max(120, w - 40))
+    min_bbox_h = min(700, max(120, h - 40))
+
+    candidates: list[dict[str, object]] = []
+    for idx, contour in enumerate(contours):
+        area = float(cv2.contourArea(contour))
+        if area < min_area_px:
+            continue
+
+        x, y, bw, bh = cv2.boundingRect(contour)
+        if bw < min_bbox_w or bh < min_bbox_h:
+            continue
+
+        perimeter = cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, 0.01 * perimeter, True)
+        if len(approx) != 4:
+            continue
+
+        quad = _order_quad(approx.reshape(4, 2))
+        if _quad_aspect_ratio(quad) > 1.8:
+            continue
+
+        if must_enclose_quad is not None:
+            if not _quad_encloses_points(quad, must_enclose_quad):
+                continue
+            if enclosed_area is not None and enclosed_area > 0.0:
+                if area / enclosed_area > max_area_to_enclosed_quad_ratio:
+                    continue
+
+        parent = int(hierarchy[idx][3])
+        candidates.append(
+            {
+                "index": idx,
+                "area": area,
+                "quad": quad,
+                "bbox": (int(x), int(y), int(bw), int(bh)),
+                "has_parent": parent != -1,
+                "parent_index": parent,
+                "contour": contour,
+            }
+        )
+
+    return candidates
+
+
 def _draw_outer_candidate_overlay(
     frame_bgr: np.ndarray,
     candidates: list[tuple[float, np.ndarray]],
@@ -321,6 +383,221 @@ def _quad_side_support(mask: np.ndarray, quad: np.ndarray, *, band_px: int) -> l
     return ratios
 
 
+def _candidate_tape_support_likelihood(
+    *,
+    area: float,
+    quad: np.ndarray,
+    support_mask: np.ndarray,
+    frame_shape: tuple[int, int, int],
+    border_margin_px: int,
+    enclosed_area: float | None,
+    expected_area_to_enclosed_ratio: float | None,
+    enclosed_quad: np.ndarray | None,
+) -> tuple[float, float, float, float, float, float]:
+    h, w = frame_shape[:2]
+    band_px = max(8, int(min(h, w) * 0.012))
+    side_support = _quad_side_support(support_mask, quad, band_px=band_px)
+    mean_support = float(np.mean(side_support)) if side_support else 0.0
+    min_support = float(np.min(side_support)) if side_support else 0.0
+
+    ratio_penalty = 0.0
+    if (
+        enclosed_area is not None
+        and enclosed_area > 1e-6
+        and expected_area_to_enclosed_ratio is not None
+        and expected_area_to_enclosed_ratio > 1e-6
+    ):
+        candidate_ratio = float(area) / float(enclosed_area)
+        ratio_penalty = abs(candidate_ratio - expected_area_to_enclosed_ratio) / expected_area_to_enclosed_ratio
+
+    center_penalty = 0.0
+    if enclosed_quad is not None:
+        quad_center = np.mean(quad.astype(np.float32), axis=0)
+        enclosed_center = np.mean(enclosed_quad.astype(np.float32), axis=0)
+        center_penalty = float(np.linalg.norm(quad_center - enclosed_center)) / max(float(min(h, w)), 1.0)
+
+    x, y, bw, bh = cv2.boundingRect(quad.astype(np.float32).reshape(-1, 1, 2))
+    touches = 0
+    if x <= border_margin_px:
+        touches += 1
+    if y <= border_margin_px:
+        touches += 1
+    if (x + bw) >= (w - border_margin_px):
+        touches += 1
+    if (y + bh) >= (h - border_margin_px):
+        touches += 1
+
+    aspect_penalty = min(abs(_quad_aspect_ratio(quad) - 1.0), 1.0)
+    area_ratio_image = float(area) / float(max(1, h * w))
+    return (
+        min_support,
+        mean_support,
+        -ratio_penalty,
+        -center_penalty,
+        -aspect_penalty,
+        area_ratio_image - (0.02 * float(touches)),
+    )
+
+
+def _line_coefficients(p0: np.ndarray, p1: np.ndarray) -> tuple[float, float, float]:
+    x0, y0 = float(p0[0]), float(p0[1])
+    x1, y1 = float(p1[0]), float(p1[1])
+    a = y1 - y0
+    b = x0 - x1
+    c = (a * x0) + (b * y0)
+    return a, b, c
+
+
+def _intersect_lines(seg_a: np.ndarray, seg_b: np.ndarray) -> np.ndarray | None:
+    a1, b1, c1 = _line_coefficients(seg_a[0], seg_a[1])
+    a2, b2, c2 = _line_coefficients(seg_b[0], seg_b[1])
+    det = (a1 * b2) - (a2 * b1)
+    if abs(det) < 1e-6:
+        return None
+    x = ((c1 * b2) - (c2 * b1)) / det
+    y = ((a1 * c2) - (a2 * c1)) / det
+    return np.array([x, y], dtype=np.float32)
+
+
+def detect_outer_sheet_from_hough_lines(
+    frame_bgr: np.ndarray,
+    *,
+    support_mask: np.ndarray,
+    min_area_ratio: float,
+    must_enclose_quad: np.ndarray | None,
+    enclosed_area: float | None,
+    max_area_to_enclosed_quad_ratio: float,
+    debug: dict[str, object] | None = None,
+) -> np.ndarray | None:
+    h, w = frame_bgr.shape[:2]
+    edges = cv2.Canny(support_mask, 50, 150)
+    min_line_length = max(120, int(min(h, w) * 0.28))
+    max_line_gap = max(24, int(min(h, w) * 0.04))
+    threshold = max(80, int(min(h, w) * 0.09))
+    lines = cv2.HoughLinesP(
+        edges,
+        rho=1,
+        theta=np.pi / 180.0,
+        threshold=threshold,
+        minLineLength=min_line_length,
+        maxLineGap=max_line_gap,
+    )
+    if lines is None or len(lines) == 0:
+        return None
+
+    if must_enclose_quad is not None:
+        center = np.mean(must_enclose_quad.astype(np.float32), axis=0)
+        cx = float(center[0])
+        cy = float(center[1])
+    else:
+        cx = float(w) * 0.5
+        cy = float(h) * 0.5
+
+    best: dict[str, tuple[float, float, np.ndarray]] = {}
+    overlay = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR) if debug is not None else None
+
+    for item in lines.reshape(-1, 4):
+        x1, y1, x2, y2 = [float(v) for v in item]
+        dx = x2 - x1
+        dy = y2 - y1
+        length = float(np.hypot(dx, dy))
+        if length < float(min_line_length):
+            continue
+
+        abs_dx = abs(dx)
+        abs_dy = abs(dy)
+        orientation: str | None = None
+        side: str | None = None
+        distance_to_center = 0.0
+
+        if abs_dx >= abs_dy * 3.0:
+            orientation = "horizontal"
+            y_avg = 0.5 * (y1 + y2)
+            distance_to_center = abs(cy - y_avg)
+            side = "top" if y_avg < cy else "bottom"
+        elif abs_dy >= abs_dx * 3.0:
+            orientation = "vertical"
+            x_avg = 0.5 * (x1 + x2)
+            distance_to_center = abs(cx - x_avg)
+            side = "left" if x_avg < cx else "right"
+        else:
+            continue
+
+        seg = np.array([[x1, y1], [x2, y2]], dtype=np.float32)
+        score = (distance_to_center, -length)
+        previous = best.get(side)
+        if previous is None or score < (previous[0], previous[1]):
+            best[side] = (score[0], score[1], seg)
+
+        if overlay is not None:
+            cv2.line(
+                overlay,
+                (int(round(x1)), int(round(y1))),
+                (int(round(x2)), int(round(y2))),
+                (80, 80, 80),
+                1,
+                cv2.LINE_AA,
+            )
+
+    required_sides = {"top", "right", "bottom", "left"}
+    if set(best.keys()) != required_sides:
+        if debug is not None and overlay is not None:
+            debug["hough_overlay"] = overlay
+            debug["hough_detected_sides"] = sorted(best.keys())
+        return None
+
+    top_seg = best["top"][2]
+    right_seg = best["right"][2]
+    bottom_seg = best["bottom"][2]
+    left_seg = best["left"][2]
+
+    tl = _intersect_lines(top_seg, left_seg)
+    tr = _intersect_lines(top_seg, right_seg)
+    br = _intersect_lines(bottom_seg, right_seg)
+    bl = _intersect_lines(bottom_seg, left_seg)
+    if tl is None or tr is None or br is None or bl is None:
+        if debug is not None and overlay is not None:
+            debug["hough_overlay"] = overlay
+        return None
+
+    quad = _order_quad(np.array([tl, tr, br, bl], dtype=np.float32))
+    area = _quad_area(quad)
+    frame_area = float(max(1, h * w))
+    if area / frame_area < max(0.04, min_area_ratio * 0.45):
+        return None
+    if _quad_aspect_ratio(quad) > 1.8:
+        return None
+    if must_enclose_quad is not None:
+        if not _quad_encloses_points(quad, must_enclose_quad):
+            return None
+        if enclosed_area is not None and enclosed_area > 0.0:
+            if area / enclosed_area > max_area_to_enclosed_quad_ratio:
+                return None
+
+    if debug is not None and overlay is not None:
+        color_map = {
+            "top": (255, 0, 0),
+            "right": (0, 255, 255),
+            "bottom": (0, 255, 0),
+            "left": (255, 0, 255),
+        }
+        for side, (_dist, _neg_len, seg) in best.items():
+            cv2.line(
+                overlay,
+                (int(round(float(seg[0][0]))), int(round(float(seg[0][1])))),
+                (int(round(float(seg[1][0]))), int(round(float(seg[1][1])))),
+                color_map[side],
+                3,
+                cv2.LINE_AA,
+            )
+        cv2.polylines(overlay, [quad.astype(np.int32).reshape(-1, 1, 2)], True, (0, 0, 255), 2, cv2.LINE_AA)
+        debug["hough_overlay"] = overlay
+        debug["hough_detected_sides"] = sorted(best.keys())
+        debug["hough_selected_corners_px"] = [[float(x), float(y)] for x, y in quad.tolist()]
+
+    return quad
+
+
 def detect_outer_sheet(
     frame_bgr: np.ndarray,
     hsv_lower: tuple[int, int, int],
@@ -341,9 +618,103 @@ def detect_outer_sheet(
     border_margin_px = max(8, int(min(h, w) * 0.01))
     enclosed_area = _quad_area(must_enclose_quad) if must_enclose_quad is not None else None
 
-    kernel = np.ones((5, 5), dtype=np.uint8)
-    # Dark-mask primary path for outer boundary detection.
     gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+    tree_black_threshold = 100
+    tree_kernel_size = 15
+    tree_kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT,
+        (tree_kernel_size, tree_kernel_size),
+    )
+    _, dark_mask_raw = cv2.threshold(gray, tree_black_threshold, 255, cv2.THRESH_BINARY_INV)
+    closed_tree_mask = cv2.morphologyEx(dark_mask_raw, cv2.MORPH_CLOSE, tree_kernel, iterations=2)
+    tree_candidates = _collect_tape_tree_candidates(
+        mask=closed_tree_mask,
+        frame_shape=frame_bgr.shape,
+        min_area_ratio=min_area_ratio,
+        must_enclose_quad=must_enclose_quad,
+        enclosed_area=enclosed_area,
+        max_area_to_enclosed_quad_ratio=max_area_to_enclosed_quad_ratio,
+    )
+    if tree_candidates:
+        preferred_tree_candidates = [c for c in tree_candidates if bool(c["has_parent"])]
+        pool = preferred_tree_candidates or tree_candidates
+        pool.sort(key=lambda c: float(c["area"]), reverse=True)
+        best_tree = pool[0]
+        selected = np.asarray(best_tree["quad"], dtype=np.float32)
+        selected_source = "dark_tree_inner_hole" if bool(best_tree["has_parent"]) else "dark_tree_largest_quad"
+        if debug is not None:
+            candidate_overlay = frame_bgr.copy()
+            for candidate in tree_candidates:
+                quad = np.asarray(candidate["quad"], dtype=np.float32)
+                color = (255, 128, 0) if bool(candidate["has_parent"]) else (0, 128, 255)
+                cv2.polylines(
+                    candidate_overlay,
+                    [quad.astype(np.int32).reshape(-1, 1, 2)],
+                    True,
+                    color,
+                    2,
+                    cv2.LINE_AA,
+                )
+            cv2.drawContours(
+                candidate_overlay,
+                [np.asarray(best_tree["contour"], dtype=np.int32)],
+                -1,
+                (255, 0, 0),
+                3,
+            )
+            cv2.polylines(
+                candidate_overlay,
+                [selected.astype(np.int32).reshape(-1, 1, 2)],
+                True,
+                (0, 255, 0),
+                4,
+                cv2.LINE_AA,
+            )
+            labels = ("TL", "TR", "BR", "BL")
+            for label, pt in zip(labels, selected.astype(np.int32).reshape(4, 2), strict=False):
+                cv2.circle(candidate_overlay, (int(pt[0]), int(pt[1])), 8, (0, 0, 255), -1)
+                cv2.putText(
+                    candidate_overlay,
+                    f"{label} ({int(pt[0])},{int(pt[1])})",
+                    (int(pt[0]) + 10, int(pt[1]) - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 0, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+            debug["dark_mask_raw"] = dark_mask_raw
+            debug["dark_mask"] = closed_tree_mask
+            debug["tape_ring_mask"] = closed_tree_mask
+            debug["dark_mask_on_ratio"] = float(cv2.countNonZero(closed_tree_mask)) / frame_area
+            debug["dark_candidate_count"] = 0
+            debug["tape_ring_candidate_count"] = len(tree_candidates)
+            debug["tape_ring_inner_candidate_count"] = len(preferred_tree_candidates)
+            debug["outer_candidate_mode"] = outer_candidate_mode.strip().lower()
+            debug["outer_candidate_mode_effective"] = "tree_first"
+            debug["outer_candidate_source"] = selected_source
+            debug["candidate_ranking_mode"] = "largest_area_prefer_parented_tree"
+            debug["candidate_overlay"] = candidate_overlay
+            debug["selected_candidate_corners_px"] = [
+                [float(x), float(y)] for x, y in selected.reshape(4, 2).tolist()
+            ]
+            debug["selected_candidate_area_px2"] = float(_quad_area(selected))
+            debug["candidate_ranking_preview"] = [
+                {
+                    "area_px2": float(candidate["area"]),
+                    "corners_px": [
+                        [float(x), float(y)]
+                        for x, y in np.asarray(candidate["quad"], dtype=np.float32).reshape(4, 2).tolist()
+                    ],
+                    "has_parent": bool(candidate["has_parent"]),
+                    "bbox": [int(v) for v in candidate["bbox"]],
+                }
+                for candidate in pool[:5]
+            ]
+        return selected
+
+    kernel = np.ones((5, 5), dtype=np.uint8)
+    # Fallback dark-mask path for outer boundary detection.
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
     _, dark_mask_raw = cv2.threshold(blur, 95, 255, cv2.THRESH_BINARY_INV)
     dark_mask = cv2.morphologyEx(dark_mask_raw, cv2.MORPH_CLOSE, kernel, iterations=2)
@@ -474,7 +845,24 @@ def detect_outer_sheet(
         debug["outer_candidate_source"] = selected_candidate_source
 
     selected: np.ndarray
-    if must_enclose_quad is not None:
+    if selected_candidate_source in {"dark_tape_inner_ring", "dark_hsv_tape_ring"}:
+        support_mask = tape_ring_mask
+        candidates.sort(
+            key=lambda pair: _candidate_tape_support_likelihood(
+                area=pair[0],
+                quad=pair[1],
+                support_mask=support_mask,
+                frame_shape=frame_bgr.shape,
+                border_margin_px=border_margin_px,
+                enclosed_area=enclosed_area,
+                expected_area_to_enclosed_ratio=expected_area_to_enclosed_ratio,
+                enclosed_quad=must_enclose_quad,
+            ),
+            reverse=True,
+        )
+        if debug is not None:
+            debug["candidate_ranking_mode"] = "tape_support_likelihood"
+    elif must_enclose_quad is not None:
         if enclosed_area is not None and enclosed_area > 0.0 and expected_area_to_enclosed_ratio is not None:
             # Prefer enclosure closest to expected area ratio.
             candidates.sort(
@@ -483,9 +871,13 @@ def detect_outer_sheet(
                     pair[0],
                 )
             )
+            if debug is not None:
+                debug["candidate_ranking_mode"] = "expected_area_ratio_then_area"
         else:
             # Otherwise prefer the smallest valid enclosure around the board.
             candidates.sort(key=lambda pair: pair[0])
+            if debug is not None:
+                debug["candidate_ranking_mode"] = "smallest_valid_enclosure"
     else:
         # No chessboard enclosure available:
         # rank candidates by a likelihood score that still favors large regions,
@@ -515,13 +907,59 @@ def detect_outer_sheet(
             return (area * multiplier, area)
 
         candidates.sort(key=_candidate_likelihood, reverse=True)
+        if debug is not None:
+            debug["candidate_ranking_mode"] = "outer_likelihood_no_enclosure"
     selected = candidates[0][1]
+
+    if selected_candidate_source not in {"dark_tape_inner_ring", "dark_hsv_tape_ring"}:
+        hough_debug: dict[str, object] = {}
+        hough_quad = detect_outer_sheet_from_hough_lines(
+            frame_bgr,
+            support_mask=tape_ring_mask,
+            min_area_ratio=min_area_ratio,
+            must_enclose_quad=must_enclose_quad,
+            enclosed_area=enclosed_area,
+            max_area_to_enclosed_quad_ratio=max_area_to_enclosed_quad_ratio,
+            debug=hough_debug,
+        )
+        if debug is not None:
+            debug.update(hough_debug)
+        if hough_quad is not None:
+            selected = hough_quad
+            selected_candidate_source = "dark_tape_hough"
+            if debug is not None:
+                debug["outer_candidate_source"] = selected_candidate_source
+                debug["candidate_ranking_mode"] = "hough_line_fallback"
 
     if debug is not None:
         candidate_overlay = _draw_outer_candidate_overlay(frame_bgr, candidates, selected)
         debug["candidate_overlay"] = candidate_overlay
         debug["selected_candidate_corners_px"] = [[float(x), float(y)] for x, y in selected.reshape(4, 2).tolist()]
         debug["selected_candidate_area_px2"] = float(_quad_area(selected))
+        if selected_candidate_source in {"dark_tape_inner_ring", "dark_hsv_tape_ring"}:
+            ranked: list[dict[str, object]] = []
+            for area, quad in candidates[:5]:
+                score = _candidate_tape_support_likelihood(
+                    area=area,
+                    quad=quad,
+                    support_mask=tape_ring_mask,
+                    frame_shape=frame_bgr.shape,
+                    border_margin_px=border_margin_px,
+                    enclosed_area=enclosed_area,
+                    expected_area_to_enclosed_ratio=expected_area_to_enclosed_ratio,
+                    enclosed_quad=must_enclose_quad,
+                )
+                ranked.append(
+                    {
+                        "area_px2": float(area),
+                        "corners_px": [[float(x), float(y)] for x, y in quad.reshape(4, 2).tolist()],
+                        "score": [float(x) for x in score],
+                        "side_support": [
+                            float(x) for x in _quad_side_support(tape_ring_mask, quad, band_px=max(8, int(min(h, w) * 0.012)))
+                        ],
+                    }
+                )
+            debug["candidate_ranking_preview"] = ranked
 
     return selected
 
@@ -985,278 +1423,96 @@ def detect_board_regions(
     expected_outer_to_chess_ratio = (
         (float(cols) + left + right) * (float(rows) + top + bottom)
     ) / (float(cols) * float(rows))
-
-    chessboard = detect_chessboard_corners(frame_bgr=frame_bgr, board_size=board_size)
     outer_source = "none"
     outer_debug: dict[str, object] = {}
-    mode = outer_candidate_mode.strip().lower()
-    # If chessboard is found, require outer candidates to enclose it for both auto/hsv/dark modes.
-    require_enclose = chessboard is not None
-
     outer_sheet = detect_outer_sheet(
         frame_bgr=frame_bgr,
         hsv_lower=outer_sheet_hsv_lower,
         hsv_upper=outer_sheet_hsv_upper,
         min_area_ratio=min_outer_area_ratio,
-        must_enclose_quad=chessboard if require_enclose else None,
+        must_enclose_quad=None,
         max_area_to_enclosed_quad_ratio=max_outer_area_to_chessboard_ratio,
-        expected_area_to_enclosed_ratio=expected_outer_to_chess_ratio if chessboard is not None else None,
+        expected_area_to_enclosed_ratio=None,
         outer_candidate_mode=outer_candidate_mode,
         debug=outer_debug,
     )
     outer_candidate_source = str(outer_debug.get("outer_candidate_source", "")).strip()
     if outer_sheet is not None:
-        outer_source = outer_candidate_source if outer_candidate_source else "hsv_or_dark"
+        outer_source = outer_candidate_source if outer_candidate_source else "dark_tape_primary"
     if debug is not None:
         debug.update(outer_debug)
 
-    # Center-outward projection candidate from dark mask.
-    # Use chessboard center when available; otherwise image center.
-    center_seed_xy: tuple[float, float] | None = None
-    if chessboard is not None:
-        c = np.mean(chessboard.astype(np.float32), axis=0)
-        center_seed_xy = (float(c[0]), float(c[1]))
-    center_debug: dict[str, object] = {}
-    center_outer = detect_outer_sheet_from_center_outward(
-        frame_bgr=frame_bgr,
-        min_area_ratio=min_outer_area_ratio,
-        seed_center_xy=center_seed_xy,
-        ignore_center_quad=chessboard,
-        debug=center_debug,
-    )
+    direct_chessboard = detect_chessboard_corners(frame_bgr=frame_bgr, board_size=board_size)
     if debug is not None:
-        debug.update(center_debug)
-    if center_outer is not None:
-        center_ok = True
-        if chessboard is not None and not _quad_encloses_points(center_outer, chessboard):
-            center_ok = False
+        debug["direct_has_chessboard"] = direct_chessboard is not None
+        if direct_chessboard is not None:
+            debug["direct_chessboard_corners_px"] = [
+                [float(x), float(y)] for x, y in direct_chessboard.reshape(4, 2).tolist()
+            ]
 
-        if center_ok and outer_sheet is None:
-            # Candidate-selected outer (detector_candidate_overlay) is the default.
-            # Center-outward is fallback only when no candidate was selected.
-            use_center = False
-            if chessboard is None:
-                use_center = True
-            else:
-                chess_area = _quad_area(chessboard)
-                if chess_area > 1.0:
-                    center_ratio = _quad_area(center_outer) / chess_area
-                    center_plausible = (
-                        center_ratio >= (expected_outer_to_chess_ratio * 0.60)
-                        and center_ratio <= (expected_outer_to_chess_ratio * 1.45)
-                    )
-                    use_center = center_plausible
-            if use_center:
-                outer_sheet = center_outer
-                outer_source = "center_outward_dark_projection_fallback"
+    if outer_sheet is None and direct_chessboard is not None:
+        retry_debug: dict[str, object] = {}
+        outer_retry = detect_outer_sheet(
+            frame_bgr=frame_bgr,
+            hsv_lower=outer_sheet_hsv_lower,
+            hsv_upper=outer_sheet_hsv_upper,
+            min_area_ratio=min_outer_area_ratio,
+            must_enclose_quad=direct_chessboard,
+            max_area_to_enclosed_quad_ratio=max_outer_area_to_chessboard_ratio,
+            expected_area_to_enclosed_ratio=expected_outer_to_chess_ratio,
+            outer_candidate_mode=outer_candidate_mode,
+            debug=retry_debug,
+        )
+        if debug is not None:
+            debug.update({f"retry_{k}": v for k, v in retry_debug.items()})
+        if outer_retry is not None:
+            outer_sheet = outer_retry
+            retry_source = str(retry_debug.get("outer_candidate_source", "")).strip()
+            outer_source = f"retry_{retry_source}" if retry_source else "retry_enclosed_tape"
 
-    # Dark-mask-guided fallback: if one side of the tape ring is weak/missing (commonly top),
-    # but at least 3 expected sides are supported, infer the outer quad from the chessboard.
-    if chessboard is not None:
-        dark_mask_dbg = outer_debug.get("dark_mask")
-        if isinstance(dark_mask_dbg, np.ndarray):
-            expected_outer = estimate_outer_sheet_from_chessboard(
-                chessboard_corners=chessboard,
-                board_size=board_size,
-                margins_squares=fallback_outer_margins_squares,
-            )
-            band_px = max(8, int(min(frame_bgr.shape[:2]) * 0.012))
-            expected_support = _quad_side_support(dark_mask_dbg, expected_outer, band_px=band_px)
-            support_threshold = 0.08
-            expected_strong = sum(1 for v in expected_support if v >= support_threshold)
-
-            apply_inferred_outer = False
-            if expected_strong >= 3:
-                # Keep candidate-selected outer as default; only infer if candidate is missing.
-                if outer_sheet is None:
-                    apply_inferred_outer = True
-
-            if apply_inferred_outer:
-                outer_sheet = expected_outer
-                outer_source = "dark_mask_three_side_infer"
-                if debug is not None:
-                    debug["outer_candidate_source"] = "dark_mask_three_side_infer"
-                    debug["selected_candidate_corners_px"] = [
-                        [float(x), float(y)] for x, y in expected_outer.reshape(4, 2).tolist()
-                    ]
-                    debug["selected_candidate_area_px2"] = float(_quad_area(expected_outer))
-                    candidate_overlay = debug.get("candidate_overlay")
-                    if isinstance(candidate_overlay, np.ndarray):
-                        vis = candidate_overlay.copy()
-                        poly = expected_outer.astype(np.int32).reshape(-1, 1, 2)
-                        cv2.polylines(vis, [poly], True, (0, 255, 0), 3, cv2.LINE_AA)
-                        cv2.putText(
-                            vis,
-                            "INFER_3SIDE",
-                            (16, 28),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.7,
-                            (0, 255, 0),
-                            2,
-                            cv2.LINE_AA,
-                        )
-                        debug["candidate_overlay"] = vis
-
-            if debug is not None:
-                debug["expected_outer_side_support"] = [float(v) for v in expected_support]
-                debug["expected_outer_side_support_strong_count"] = int(expected_strong)
-                debug["expected_outer_side_support_threshold"] = float(support_threshold)
-
-    tape_debug: dict[str, object] = {}
-    tape_outer = None
-    if enable_tape_projection and chessboard is not None:
+    if outer_sheet is None and enable_tape_projection and direct_chessboard is not None:
+        tape_debug: dict[str, object] = {}
         tape_outer = detect_outer_sheet_from_tape_projection(
             frame_bgr=frame_bgr,
-            chessboard_corners=chessboard,
+            chessboard_corners=direct_chessboard,
             board_size=board_size,
             debug=tape_debug,
         )
-    if debug is not None:
-        debug.update(tape_debug)
+        if debug is not None:
+            debug.update({f"projection_{k}": v for k, v in tape_debug.items()})
+        if tape_outer is not None:
+            outer_sheet = tape_outer
+            outer_source = "tape_projection_from_direct_chessboard"
 
-    if enable_tape_projection and chessboard is not None and tape_outer is not None:
-        chess_area = _quad_area(chessboard)
-        if chess_area > 1.0:
-            tape_ratio = _quad_area(tape_outer) / chess_area
-            tape_ratio_plausible = (
-                tape_ratio >= (expected_outer_to_chess_ratio * 0.60)
-                and tape_ratio <= (expected_outer_to_chess_ratio * 1.45)
-            )
-            if tape_ratio_plausible and outer_sheet is None:
-                outer_sheet = tape_outer
-                outer_source = "center_outward_projection_fallback"
-            elif outer_sheet is None:
-                outer_sheet = tape_outer
-                outer_source = "center_outward_projection_fallback"
-
-    if chessboard is None and outer_sheet is not None:
-        expected_inner_to_outer_area = (float(cols) * float(rows)) / (
-            (float(cols) + left + right) * (float(rows) + top + bottom)
-        )
-        chessboard = detect_chessboard_from_outer_sheet(
-            frame_bgr=frame_bgr,
-            outer_sheet_corners=outer_sheet,
-            expected_inner_to_outer_area_ratio=expected_inner_to_outer_area,
-        )
-    if chessboard is None and outer_sheet is not None:
+    chessboard = None
+    chessboard_source = "none"
+    if outer_sheet is not None:
         chessboard = estimate_chessboard_from_outer_sheet(
             outer_sheet_corners=outer_sheet,
             board_size=board_size,
             margins_squares=fallback_outer_margins_squares,
         )
-    if chessboard is not None:
-        refined = refine_chessboard_from_dark_squares(
-            frame_bgr=frame_bgr,
-            coarse_chessboard_corners=chessboard,
-        )
-        if refined is not None:
-            chessboard = refined
-
-    # Late 3-side infer pass: catches cases where chessboard is only available after
-    # outer-to-inner fallback estimation.
-    if chessboard is not None:
-        dark_mask_dbg = outer_debug.get("dark_mask")
-        if isinstance(dark_mask_dbg, np.ndarray):
-            expected_outer = estimate_outer_sheet_from_chessboard(
-                chessboard_corners=chessboard,
-                board_size=board_size,
-                margins_squares=fallback_outer_margins_squares,
-            )
-            band_px = max(8, int(min(frame_bgr.shape[:2]) * 0.012))
-            expected_support = _quad_side_support(dark_mask_dbg, expected_outer, band_px=band_px)
-            support_threshold = 0.08
-            expected_strong = sum(1 for v in expected_support if v >= support_threshold)
-
-            apply_inferred_outer = False
-            if expected_strong >= 3:
-                # Keep candidate-selected outer as default; only infer if candidate is missing.
-                if outer_sheet is None:
-                    apply_inferred_outer = True
-
-            if apply_inferred_outer:
-                outer_sheet = expected_outer
-                outer_source = "dark_mask_three_side_infer"
-                if debug is not None:
-                    debug["outer_candidate_source"] = "dark_mask_three_side_infer"
-                    debug["selected_candidate_corners_px"] = [
-                        [float(x), float(y)] for x, y in expected_outer.reshape(4, 2).tolist()
-                    ]
-                    debug["selected_candidate_area_px2"] = float(_quad_area(expected_outer))
-                    candidate_overlay = debug.get("candidate_overlay")
-                    if isinstance(candidate_overlay, np.ndarray):
-                        vis = candidate_overlay.copy()
-                        poly = expected_outer.astype(np.int32).reshape(-1, 1, 2)
-                        cv2.polylines(vis, [poly], True, (0, 255, 0), 3, cv2.LINE_AA)
-                        cv2.putText(
-                            vis,
-                            "INFER_3SIDE",
-                            (16, 28),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.7,
-                            (0, 255, 0),
-                            2,
-                            cv2.LINE_AA,
-                        )
-                        debug["candidate_overlay"] = vis
-
-            if debug is not None:
-                debug["expected_outer_side_support"] = [float(v) for v in expected_support]
-                debug["expected_outer_side_support_strong_count"] = int(expected_strong)
-                debug["expected_outer_side_support_threshold"] = float(support_threshold)
-
-    ratio_prune_allowed = mode != "dark_only" and outer_source not in {
-        "dark_tape_inner_ring",
-        "dark_hsv_tape_ring",
-        "dark_enclosing_hsv",
-        "dark_guided_hsv_overlap",
-    }
-    if ratio_prune_allowed and chessboard is not None and outer_sheet is not None:
-        chess_area = _quad_area(chessboard)
-        outer_area = _quad_area(outer_sheet)
-        if chess_area > 1.0:
-            ratio = outer_area / chess_area
-            # Replace unstable outer detections with chessboard-based estimate
-            # when area ratio is implausible for the configured board margins.
-            min_ratio = expected_outer_to_chess_ratio * 0.72
-            max_ratio = expected_outer_to_chess_ratio * 1.22
-            if ratio < min_ratio or ratio > max_ratio:
-                outer_sheet = None
-
-    # Retry tape-based outer detection once chessboard is available, even if
-    # initial chessboard detection failed earlier in the pipeline.
-    if enable_tape_projection and chessboard is not None:
-        tape_debug_late: dict[str, object] = {}
-        tape_outer_late = detect_outer_sheet_from_tape_projection(
-            frame_bgr=frame_bgr,
-            chessboard_corners=chessboard,
-            board_size=board_size,
-            debug=tape_debug_late,
-        )
-        if debug is not None:
-            debug.update({f"late_{k}": v for k, v in tape_debug_late.items()})
-        if tape_outer_late is not None:
-            chess_area = _quad_area(chessboard)
-            if chess_area > 1.0:
-                tape_ratio = _quad_area(tape_outer_late) / chess_area
-                tape_ratio_plausible = (
-                    tape_ratio >= (expected_outer_to_chess_ratio * 0.60)
-                    and tape_ratio <= (expected_outer_to_chess_ratio * 1.45)
-                )
-                if tape_ratio_plausible and outer_sheet is None:
-                    outer_sheet = tape_outer_late
-                    outer_source = "center_outward_projection_late_fallback"
-                elif outer_sheet is None:
-                    outer_sheet = tape_outer_late
-                    outer_source = "center_outward_projection_late_fallback"
-
-    if outer_sheet is None and chessboard is not None:
+        chessboard_source = "estimated_from_outer_reference"
+    elif direct_chessboard is not None:
+        chessboard = direct_chessboard
+        chessboard_source = "direct_detected_fallback"
         outer_sheet = estimate_outer_sheet_from_chessboard(
-            chessboard_corners=chessboard,
+            chessboard_corners=direct_chessboard,
             board_size=board_size,
             margins_squares=fallback_outer_margins_squares,
         )
-        outer_source = "estimated_from_chessboard"
+        outer_source = "estimated_from_direct_chessboard"
+
     if debug is not None:
+        debug["chessboard_source"] = chessboard_source
+        if chessboard is not None:
+            debug["derived_chessboard_corners_px"] = [
+                [float(x), float(y)] for x, y in chessboard.reshape(4, 2).tolist()
+            ]
+        if chessboard is not None and direct_chessboard is not None:
+            dists = np.linalg.norm(chessboard.astype(np.float32) - direct_chessboard.astype(np.float32), axis=1)
+            debug["direct_vs_derived_chessboard_corner_error_px"] = [float(x) for x in dists.tolist()]
+            debug["direct_vs_derived_chessboard_corner_mean_error_px"] = float(np.mean(dists))
         debug["outer_source"] = outer_source
         debug["has_chessboard"] = chessboard is not None
         debug["has_outer_sheet"] = outer_sheet is not None

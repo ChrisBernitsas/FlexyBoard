@@ -240,3 +240,22 @@ class ChessState:
             for file_index in range(8):
                 sq = chess.square(file_index, rank_index)
                 self.board[rank_index][file_index] = _piece_from_python(self._engine_board.piece_at(sq))
+
+    def manual_resync_engine(self, *, turn_side: str | None = None) -> None:
+        board = chess.Board(None)
+        for rank_index in range(8):
+            for file_index in range(8):
+                piece = self.board[rank_index][file_index]
+                if piece == ChessPiece.EMPTY:
+                    continue
+                py_piece = _piece_to_python(piece)
+                if py_piece is not None:
+                    board.set_piece_at(chess.square(file_index, rank_index), py_piece)
+        if turn_side is None:
+            turn_side = self.turn_side()
+        board.turn = chess.WHITE if turn_side == "p1" else chess.BLACK
+        board.castling_rights = chess.BB_EMPTY
+        board.ep_square = None
+        board.halfmove_clock = 0
+        board.fullmove_number = 1
+        self._engine_board = board

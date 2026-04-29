@@ -8,6 +8,9 @@ static int32_t g_current_x_steps = 0;
 static int32_t g_current_y_steps = 0;
 static int32_t g_current_y_left_steps = 0;
 static int32_t g_current_z_steps = 0;
+static int32_t g_prev_moveheld_dx_steps = 0;
+static int32_t g_prev_moveheld_dy_steps = 0;
+static uint8_t g_has_prev_moveheld_direction = 0U;
 
 #define NVIC_ISER0            (*(volatile uint32_t *)0xE000E100UL)
 #define NVIC_ISER1            (*(volatile uint32_t *)0xE000E104UL)
@@ -390,19 +393,7 @@ static uint32_t max_u32(uint32_t a, uint32_t b)
 
 static int32_t scale_logical_y_to_left_steps(int32_t logical_y_steps)
 {
-    int64_t scaled = (int64_t)logical_y_steps * (int64_t)Y_LEFT_MAX_STEPS;
-    int64_t divisor = (int64_t)Y_RIGHT_MAX_STEPS;
-
-    if (scaled >= 0)
-    {
-        scaled = (scaled + (divisor / 2)) / divisor;
-    }
-    else
-    {
-        scaled = (scaled - (divisor / 2)) / divisor;
-    }
-
-    return (int32_t)scaled;
+    return logical_y_steps;
 }
 
 static uint32_t get_xy_cruise_delay(uint32_t x_steps, uint32_t y_steps)
@@ -422,36 +413,40 @@ static uint32_t get_xy_cruise_delay(uint32_t x_steps, uint32_t y_steps)
 
 static uint32_t get_xy_step_delay(uint32_t step_index, uint32_t total_steps, uint32_t cruise_delay)
 {
-    uint32_t start_delay;
-    uint32_t ramp_steps;
-    uint32_t distance_from_edge;
-    uint32_t delay_delta;
-
-    if (total_steps == 0U)
+    uint32_t start_delay = max_u32(XY_START_DELAY_CYCLES, cruise_delay);
+    if (start_delay <= cruise_delay || XY_RAMP_STEPS == 0U || total_steps <= 1U)
     {
         return cruise_delay;
     }
 
-    start_delay = max_u32(XY_START_DELAY_CYCLES, cruise_delay);
-    if (start_delay <= cruise_delay)
+    uint32_t ramp_steps = XY_RAMP_STEPS;
+    uint32_t half_steps = total_steps / 2U;
+    if (half_steps == 0U)
     {
-        return cruise_delay;
+        half_steps = 1U;
     }
-
-    ramp_steps = min_u32(XY_RAMP_STEPS, total_steps / 2U);
+    if (ramp_steps > half_steps)
+    {
+        ramp_steps = half_steps;
+    }
     if (ramp_steps == 0U)
     {
         return cruise_delay;
     }
 
-    distance_from_edge = min_u32(step_index, (total_steps - 1U) - step_index);
-    if (distance_from_edge >= ramp_steps)
+    uint32_t delta = start_delay - cruise_delay;
+    if (step_index < ramp_steps)
     {
-        return cruise_delay;
+        return start_delay - ((delta * step_index) / ramp_steps);
     }
 
-    delay_delta = start_delay - cruise_delay;
-    return start_delay - ((delay_delta * distance_from_edge) / ramp_steps);
+    uint32_t remaining_steps = total_steps - step_index - 1U;
+    if (remaining_steps < ramp_steps)
+    {
+        return start_delay - ((delta * remaining_steps) / ramp_steps);
+    }
+
+    return cruise_delay;
 }
 
 static void wait_for_motion_complete(void)
@@ -658,6 +653,59 @@ void move_xy(uint32_t x_steps, uint8_t x_dir, uint32_t y_steps, uint8_t y_dir)
     wait_for_motion_complete();
 }
 
+static void move_to_steps_unladen(int32_t target_x_steps, int32_t target_y_steps)
+{
+    int32_t dx = target_x_steps - g_current_x_steps;
+    int32_t target_y_left_steps = scale_logical_y_to_left_steps(target_y_steps);
+    int32_t dy = target_y_steps - g_current_y_steps;
+    int32_t dy_left = target_y_left_steps - g_current_y_left_steps;
+
+    uint8_t x_dir = (dx >= 0) ? 1U : 0U;
+    uint8_t y_dir = (dy >= 0) ? 1U : 0U;
+    uint32_t x_steps = (dx >= 0) ? (uint32_t)dx : (uint32_t)(-dx);
+    uint32_t y_steps = (dy >= 0) ? (uint32_t)dy : (uint32_t)(-dy);
+    uint32_t y_left_steps = (dy_left >= 0) ? (uint32_t)dy_left : (uint32_t)(-dy_left);
+    uint32_t shared_steps = min_u32(x_steps, y_steps);
+
+    if (shared_steps > 0U)
+    {
+        int32_t shared_target_y_steps = g_current_y_steps + ((y_dir != 0U) ? (int32_t)shared_steps : -(int32_t)shared_steps);
+        int32_t shared_target_y_left_steps = scale_logical_y_to_left_steps(shared_target_y_steps);
+        int32_t shared_dy_left = shared_target_y_left_steps - g_current_y_left_steps;
+        uint32_t shared_y_left_steps =
+            (shared_dy_left >= 0) ? (uint32_t)shared_dy_left : (uint32_t)(-shared_dy_left);
+        motion_begin_xy(shared_steps, x_dir, shared_steps, shared_y_left_steps, y_dir);
+        wait_for_motion_complete();
+
+        g_current_x_steps += (x_dir != 0U) ? (int32_t)shared_steps : -(int32_t)shared_steps;
+        g_current_y_steps += (y_dir != 0U) ? (int32_t)shared_steps : -(int32_t)shared_steps;
+        g_current_y_left_steps = shared_target_y_left_steps;
+
+        x_steps -= shared_steps;
+        y_steps -= shared_steps;
+        y_left_steps -= shared_y_left_steps;
+    }
+
+    if (x_steps > 0U)
+    {
+        motion_begin_xy(x_steps, x_dir, 0U, 0U, 0U);
+        wait_for_motion_complete();
+        g_current_x_steps = target_x_steps;
+    }
+
+    if (y_steps > 0U || y_left_steps > 0U)
+    {
+        motion_begin_xy(0U, 0U, y_steps, y_left_steps, y_dir);
+        wait_for_motion_complete();
+        g_current_y_steps = target_y_steps;
+        g_current_y_left_steps = target_y_left_steps;
+    }
+
+    g_current_x_steps = target_x_steps;
+    g_current_y_steps = target_y_steps;
+    g_current_y_left_steps = target_y_left_steps;
+}
+
 void move_to_steps(int32_t target_x_steps, int32_t target_y_steps)
 {
     int32_t dx = target_x_steps - g_current_x_steps;
@@ -771,37 +819,90 @@ static void z_pickup(void)
     step_z(Z_PICKUP_STEPS, Z_PICKUP_DIR);
 }
 
+static void z_pickup_pulse(uint32_t steps)
+{
+    if (steps == 0U)
+    {
+        return;
+    }
+    motion_begin_z(steps, Z_PICKUP_DIR);
+    wait_for_motion_complete();
+}
+
 static void z_release(void)
 {
     step_z(Z_RELEASE_STEPS, Z_RELEASE_DIR);
 }
 
+static void reset_moveheld_direction_tracking(void)
+{
+    g_prev_moveheld_dx_steps = 0;
+    g_prev_moveheld_dy_steps = 0;
+    g_has_prev_moveheld_direction = 0U;
+}
+
+static uint8_t moveheld_direction_changed(int32_t dx_steps, int32_t dy_steps)
+{
+    int64_t cross;
+    int64_t dot;
+
+    if (g_has_prev_moveheld_direction == 0U)
+    {
+        return 0U;
+    }
+
+    cross = ((int64_t)g_prev_moveheld_dx_steps * (int64_t)dy_steps) -
+            ((int64_t)g_prev_moveheld_dy_steps * (int64_t)dx_steps);
+    dot = ((int64_t)g_prev_moveheld_dx_steps * (int64_t)dx_steps) +
+          ((int64_t)g_prev_moveheld_dy_steps * (int64_t)dy_steps);
+
+    if ((cross == 0) && (dot > 0))
+    {
+        return 0U;
+    }
+
+    return 1U;
+}
+
 static void execute_pickup_steps(int32_t src_x_steps, int32_t src_y_steps)
 {
-    move_to_steps(src_x_steps, src_y_steps);
-    delay_cycles(Z_PRE_MOVE_PAUSE_CYCLES);
+    reset_moveheld_direction_tracking();
+    move_to_steps_unladen(src_x_steps, src_y_steps);
+    delay_cycles(Z_PRE_PICKUP_PAUSE_CYCLES);
     z_pickup();
-    delay_cycles(Z_POST_MOVE_PAUSE_CYCLES);
 }
 
 static void execute_moveheld_steps(int32_t dst_x_steps, int32_t dst_y_steps)
 {
+    int32_t dx_steps = dst_x_steps - g_current_x_steps;
+    int32_t dy_steps = dst_y_steps - g_current_y_steps;
+
     move_to_steps(dst_x_steps, dst_y_steps);
+    if (moveheld_direction_changed(dx_steps, dy_steps) != 0U)
+    {
+        delay_cycles(MOVEHELD_SETTLE_CYCLES);
+    }
+    if (MOVEHELD_REGRIP_STEPS > 0U)
+    {
+        z_pickup_pulse(MOVEHELD_REGRIP_STEPS);
+    }
+    g_prev_moveheld_dx_steps = dx_steps;
+    g_prev_moveheld_dy_steps = dy_steps;
+    g_has_prev_moveheld_direction = 1U;
 }
 
 static void execute_release_steps(int32_t dst_x_steps, int32_t dst_y_steps)
 {
     move_to_steps(dst_x_steps, dst_y_steps);
-    delay_cycles(Z_PRE_MOVE_PAUSE_CYCLES);
     z_release();
-    delay_cycles(Z_POST_MOVE_PAUSE_CYCLES);
+    reset_moveheld_direction_tracking();
+    delay_cycles(Z_POST_RELEASE_PAUSE_CYCLES);
 }
 
 static void execute_pick_and_place_steps(int32_t src_x_steps, int32_t src_y_steps, int32_t dst_x_steps,
                                          int32_t dst_y_steps)
 {
     execute_pickup_steps(src_x_steps, src_y_steps);
-    delay_cycles(MOVE_PAUSE_CYCLES);
     execute_release_steps(dst_x_steps, dst_y_steps);
 }
 
@@ -861,6 +962,7 @@ static void process_command(const char *cmd)
         g_current_y_steps = 0;
         g_current_y_left_steps = 0;
         g_current_z_steps = 0;
+        reset_moveheld_direction_tracking();
         uart_write_line("OK ZERO");
         return;
     }
@@ -873,14 +975,22 @@ static void process_command(const char *cmd)
 
     if (strcmp(sanitized, "RETURN_START") == 0)
     {
-        move_to_steps(0, 0);
+        move_to_steps_unladen(0, 0);
+        if (RETURN_START_SEAT_STEPS > 0U)
+        {
+            move_xy(RETURN_START_SEAT_STEPS, 0U, RETURN_START_SEAT_STEPS, 0U);
+            g_current_x_steps = 0;
+            g_current_y_steps = 0;
+            g_current_y_left_steps = 0;
+        }
+        reset_moveheld_direction_tracking();
         uart_write_line("OK RETURN_START");
         return;
     }
 
     if (sscanf(sanitized, "GOTO_STEPS %d %d", &gx, &gy) == 2)
     {
-        move_to_steps((int32_t)gx, (int32_t)gy);
+        move_to_steps_unladen((int32_t)gx, (int32_t)gy);
         uart_write_line("OK GOTO_STEPS");
         return;
     }
@@ -890,7 +1000,7 @@ static void process_command(const char *cmd)
         int32_t target_x = g_current_x_steps + (int32_t)gx;
         int32_t target_y = g_current_y_steps + (int32_t)gy;
 
-        move_to_steps(target_x, target_y);
+        move_to_steps_unladen(target_x, target_y);
         uart_write_line("OK JOG_STEPS");
         return;
     }
@@ -952,7 +1062,7 @@ static void process_command(const char *cmd)
             return;
         }
 
-        move_to_steps(goto_x_steps, goto_y_steps);
+        move_to_steps_unladen(goto_x_steps, goto_y_steps);
         uart_write_line("OK GOTOPCT");
         return;
     }
@@ -965,7 +1075,7 @@ static void process_command(const char *cmd)
             return;
         }
 
-        move_to_steps(goto_x_steps, goto_y_steps);
+        move_to_steps_unladen(goto_x_steps, goto_y_steps);
         uart_write_line("OK GOTO");
         return;
     }

@@ -99,6 +99,8 @@ def _print_help() -> None:
         "  zero                   Reset STM internal counters to 0,0,0\n"
         "  goto x y               Absolute workspace move in steps\n"
         "  goto a1                Board-square move using chess notation\n"
+        "  move a2 a4             Full pick/place by board squares, then RETURN_START and ZERO\n"
+        "  move sx sy dx dy       Full pick/place by raw steps, then RETURN_START and ZERO\n"
         "  jog dx dy              Relative workspace move in steps\n"
         "  jog left n             Pulse only the left Y step line (diagnostic)\n"
         "  jog right n            Pulse only the right Y step line (diagnostic)\n"
@@ -177,9 +179,28 @@ def main() -> int:
                     print(_send_command(ser, cmd))
                     print(_status(ser)[3])
                     continue
+            if len(parts) == 3 and parts[0] == "move":
+                try:
+                    src_x, src_y = _square_to_board_coords(parts[1], orientation)
+                    dst_x, dst_y = _square_to_board_coords(parts[2], orientation)
+                except ValueError:
+                    pass
+                else:
+                    print(_send_command(ser, f"MOVE {src_x} {src_y} {dst_x} {dst_y}"))
+                    print(_send_command(ser, "RETURN_START"))
+                    print(_send_command(ser, "ZERO"))
+                    print(_status(ser)[3])
+                    continue
             if len(parts) == 3 and parts[0] == "goto":
                 cmd = f"GOTO_STEPS {int(parts[1])} {int(parts[2])}"
                 print(_send_command(ser, cmd))
+                print(_status(ser)[3])
+                continue
+            if len(parts) == 5 and parts[0] == "move":
+                cmd = f"MOVE_STEPS {int(parts[1])} {int(parts[2])} {int(parts[3])} {int(parts[4])}"
+                print(_send_command(ser, cmd))
+                print(_send_command(ser, "RETURN_START"))
+                print(_send_command(ser, "ZERO"))
                 print(_status(ser)[3])
                 continue
             if len(parts) == 3 and parts[0] == "jog":

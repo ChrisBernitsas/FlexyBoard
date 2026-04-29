@@ -74,6 +74,10 @@ class CheckersState:
         n._forced_p2_continuation = self._forced_p2_continuation
         return n
 
+    def clear_forced_continuations(self) -> None:
+        self._forced_p1_continuation = None
+        self._forced_p2_continuation = None
+
     def p1_must_continue_jump(self) -> bool:
         return self._forced_p1_continuation is not None
 

@@ -18,7 +18,6 @@ if str(ROOT) not in sys.path:
 from flexyboard_camera.game.board_models import BoardCoord
 from flexyboard_camera.vision.board_detector import (
     BoardDetection,
-    detect_board_regions,
     draw_detection_overlay,
     draw_square_grid_overlay,
     estimate_chessboard_from_outer_sheet,
@@ -30,6 +29,11 @@ from flexyboard_camera.vision.diff_detector import detect_square_changes
 from flexyboard_camera.vision.diff_detector import ContourSquareCandidate, SquareChange
 from flexyboard_camera.vision.move_inference import InferenceInputs, infer_move
 from flexyboard_camera.vision.preprocess import preprocess_frame
+from detect_board_geometry import (
+    choose_outer_field as choose_outer_field_calibrated,
+    load_default_games_saved_calibration,
+    predict_chess_from_outer as predict_chess_from_outer_calibration,
+)
 
 
 def _parse_triplet(raw: str) -> tuple[int, int, int]:
@@ -65,33 +69,67 @@ def _mkdir(path: Path) -> Path:
     return path
 
 
-def _save_detector_debug_images(
+def _load_live_outer_to_inner_calibration(
     *,
-    debug_data: dict[str, object],
-    prefix: str,
-    out_dir: Path,
-    outputs: dict[str, str],
-    skip_image_keys: set[str] | None = None,
-) -> dict[str, object]:
-    metadata: dict[str, object] = {}
-    skip_image_keys = skip_image_keys or set()
-    # Always clear skipped debug image names up front so stale files do not linger
-    # when output dir is reused across runs.
-    for key in skip_image_keys:
-        stale_path = out_dir / f"{prefix}_{key}.png"
-        if stale_path.exists():
-            stale_path.unlink()
-    for key, value in debug_data.items():
-        out_key = f"{prefix}_{key}"
+    reference_path: Path,
+    disabled: bool,
+) -> tuple[np.ndarray, dict[str, object]]:
+    del reference_path
+    if disabled:
+        calibration = load_default_games_saved_calibration()
+        stats = dict(calibration)
+        stats["source"] = "disabled_request_but_frozen_games_1_to_14_calibration_still_used"
+        return np.float32(calibration["mean_chess_norm_in_outer"]), stats
+    calibration = load_default_games_saved_calibration()
+    return np.float32(calibration["mean_chess_norm_in_outer"]), calibration
+
+
+def _strip_numpy_debug(debug: dict[str, object] | None) -> dict[str, object] | None:
+    if debug is None:
+        return None
+    cleaned: dict[str, object] = {}
+    for key, value in debug.items():
         if isinstance(value, np.ndarray):
-            if key in skip_image_keys:
-                continue
-            path = out_dir / f"{out_key}.png"
-            cv2.imwrite(str(path), value)
-            outputs[out_key] = str(path)
+            continue
+        if isinstance(value, dict):
+            nested: dict[str, object] = {}
+            for nested_key, nested_value in value.items():
+                if isinstance(nested_value, np.ndarray):
+                    continue
+                if isinstance(nested_value, (np.integer, np.floating)):
+                    nested[nested_key] = nested_value.item()
+                else:
+                    nested[nested_key] = nested_value
+            cleaned[key] = nested
+            continue
+        if isinstance(value, (np.integer, np.floating)):
+            cleaned[key] = value.item()
         else:
-            metadata[out_key] = value
-    return metadata
+            cleaned[key] = value
+    return cleaned
+
+
+def _detect_outer_to_inner_geometry(
+    *,
+    frame_bgr: np.ndarray,
+    chess_norm_in_outer: np.ndarray,
+    calibration_stats: dict[str, object],
+) -> tuple[BoardDetection, dict[str, object]]:
+    outer_quad, outer_debug = choose_outer_field_calibrated(
+        frame_bgr,
+        calibration_stats,
+    )
+    final_chess_quad = predict_chess_from_outer_calibration(outer_quad, chess_norm_in_outer)
+    return BoardDetection(
+        outer_sheet_corners=outer_quad,
+        chessboard_corners=final_chess_quad,
+    ), {
+        "anchor_board": None,
+        "anchor_debug": None,
+        "outer_debug": outer_debug,
+        "predicted_outer": None,
+        "contour_outer": None,
+    }
 
 
 def _shrink_quad(quad: np.ndarray, shrink: float) -> np.ndarray:
@@ -387,6 +425,67 @@ def _load_reference_quad(
     return None
 
 
+def _simple_reference_entry(
+    payload: dict[str, Any],
+    *,
+    corners_key: str,
+    image_w: int,
+    image_h: int,
+) -> dict[str, Any] | None:
+    corners_px = payload.get(corners_key)
+    if not isinstance(corners_px, list) or len(corners_px) != 4:
+        return None
+
+    stored_size = payload.get("image_size_px")
+    stored_w = image_w
+    stored_h = image_h
+    if isinstance(stored_size, dict):
+        try:
+            stored_w = max(1, int(stored_size.get("width", image_w)))
+            stored_h = max(1, int(stored_size.get("height", image_h)))
+        except Exception:  # noqa: BLE001
+            stored_w = image_w
+            stored_h = image_h
+
+    try:
+        px = np.array(corners_px, dtype=np.float32).reshape(4, 2)
+    except Exception:  # noqa: BLE001
+        return None
+
+    return {
+        "corners_px": corners_px,
+        "corners_norm": [
+            [float(point[0]) / float(stored_w), float(point[1]) / float(stored_h)]
+            for point in px
+        ],
+    }
+
+
+def _load_simple_reference_geometry(
+    *,
+    payload: dict[str, Any],
+    image_w: int,
+    image_h: int,
+) -> tuple[np.ndarray | None, np.ndarray | None, str]:
+    outer_entry = _simple_reference_entry(
+        payload,
+        corners_key="outer_sheet_corners_px",
+        image_w=image_w,
+        image_h=image_h,
+    )
+    chess_entry = _simple_reference_entry(
+        payload,
+        corners_key="chessboard_corners_px",
+        image_w=image_w,
+        image_h=image_h,
+    )
+    outer = _load_reference_quad(outer_entry, image_w=image_w, image_h=image_h)
+    chess = _load_reference_quad(chess_entry, image_w=image_w, image_h=image_h)
+    if chess is None:
+        return None, None, "missing_chessboard_quad"
+    return chess, outer, "ok"
+
+
 def _load_reference_geometry(
     *,
     reference_path: Path,
@@ -402,15 +501,17 @@ def _load_reference_geometry(
         return None, None, "invalid_json"
 
     median = payload.get("median_geometry_for_latest_size")
-    if not isinstance(median, dict):
-        return None, None, "missing_median_geometry"
+    if isinstance(median, dict):
+        outer = _load_reference_quad(median.get("outer_sheet"), image_w=image_w, image_h=image_h)
+        chess = _load_reference_quad(median.get("chessboard"), image_w=image_w, image_h=image_h)
+        if chess is None:
+            return None, None, "missing_chessboard_quad"
+        return chess, outer, "ok"
 
-    outer = _load_reference_quad(median.get("outer_sheet"), image_w=image_w, image_h=image_h)
-    chess = _load_reference_quad(median.get("chessboard"), image_w=image_w, image_h=image_h)
-    if chess is None:
-        return None, None, "missing_chessboard_quad"
+    if "outer_sheet_corners_px" in payload or "chessboard_corners_px" in payload:
+        return _load_simple_reference_geometry(payload=payload, image_w=image_w, image_h=image_h)
 
-    return chess, outer, "ok"
+    return None, None, "missing_reference_geometry"
 
 
 def _load_inner_from_outer_reference(
@@ -437,20 +538,44 @@ def _load_inner_from_outer_reference(
             return None, "board_size_mismatch"
 
     raw_margins = payload.get("margins_squares")
-    if not isinstance(raw_margins, list) or len(raw_margins) != 4:
+    if isinstance(raw_margins, list) and len(raw_margins) == 4:
+        try:
+            left, right, top, bottom = [float(x) for x in raw_margins]
+        except Exception:  # noqa: BLE001
+            return None, "invalid_margins_squares"
+
+        margins = (
+            max(0.0, left),
+            max(0.0, right),
+            max(0.0, top),
+            max(0.0, bottom),
+        )
+        return margins, "ok"
+
+    outer_entry = _simple_reference_entry(
+        payload,
+        corners_key="outer_sheet_corners_px",
+        image_w=1,
+        image_h=1,
+    )
+    chess_entry = _simple_reference_entry(
+        payload,
+        corners_key="chessboard_corners_px",
+        image_w=1,
+        image_h=1,
+    )
+    outer = _load_reference_quad(outer_entry, image_w=1, image_h=1)
+    chess = _load_reference_quad(chess_entry, image_w=1, image_h=1)
+    if outer is None or chess is None:
         return None, "missing_margins_squares"
 
-    try:
-        left, right, top, bottom = [float(x) for x in raw_margins]
-    except Exception:  # noqa: BLE001
-        return None, "invalid_margins_squares"
-
-    margins = (
-        max(0.0, left),
-        max(0.0, right),
-        max(0.0, top),
-        max(0.0, bottom),
+    margins = _derive_outer_margins_from_reference(
+        ref_chess_quad=chess,
+        ref_outer_quad=outer,
+        board_size=board_size,
     )
+    if margins is None:
+        return None, "could_not_derive_margins"
     return margins, "ok"
 
 
@@ -626,14 +751,16 @@ def _select_chess_resolver_changed_squares(
     if len(changed_squares) <= 2:
         return [dict(item) for item in changed_squares]
 
-    indexed: list[tuple[int, dict[str, object], float, float]] = []
+    indexed: list[tuple[int, dict[str, object], float, float, bool]] = []
     for idx, item in enumerate(changed_squares):
         ratio = _as_float(item.get("pixel_ratio"))
         delta = abs(_as_float(item.get("signed_intensity_delta")))
-        indexed.append((idx, dict(item), ratio, delta))
+        detection_sources = item.get("detection_sources")
+        has_contour = isinstance(detection_sources, list) and "contour_top2" in detection_sources
+        indexed.append((idx, dict(item), ratio, delta, has_contour))
 
-    indexed.sort(key=lambda entry: (entry[2], entry[3]), reverse=True)
-    keep: list[tuple[int, dict[str, object], float, float]] = indexed[:2]
+    indexed.sort(key=lambda entry: (entry[2], 1 if entry[4] else 0, entry[3]), reverse=True)
+    keep: list[tuple[int, dict[str, object], float, float]] = [entry[:4] for entry in indexed[:2]]
     second_ratio = keep[1][2]
     keep_threshold = max(0.22, second_ratio * 0.60)
 
@@ -649,11 +776,24 @@ def _select_chess_resolver_changed_squares(
             return None
         return ord(label[0]) - ord("a")
 
+    def _label_rank_index(item: dict[str, object]) -> int | None:
+        label = str(item.get("label", "")).strip().lower()
+        if len(label) != 2 or label[0] < "a" or label[0] > "h" or label[1] < "1" or label[1] > "8":
+            return None
+        return ord(label[1]) - ord("1")
+
     top_rank_0 = _label_rank(keep[0][1])
     top_rank_1 = _label_rank(keep[1][1])
     top_file_0 = _label_file_index(keep[0][1])
     top_file_1 = _label_file_index(keep[1][1])
+    top_rank_idx_0 = _label_rank_index(keep[0][1])
+    top_rank_idx_1 = _label_rank_index(keep[1][1])
     top_two_same_rank = top_rank_0 is not None and top_rank_0 == top_rank_1
+    top_two_same_file = (
+        top_file_0 is not None
+        and top_file_1 is not None
+        and top_file_0 == top_file_1
+    )
     top_two_castling_span = (
         top_file_0 is not None
         and top_file_1 is not None
@@ -662,14 +802,60 @@ def _select_chess_resolver_changed_squares(
     allow_castling_extras = top_two_same_rank and top_two_castling_span
     castling_rank = top_rank_0
 
+    corridor_file = top_file_0 if top_two_same_file else None
+    corridor_file_min_rank = (
+        min(top_rank_idx_0, top_rank_idx_1)
+        if corridor_file is not None and top_rank_idx_0 is not None and top_rank_idx_1 is not None
+        else None
+    )
+    corridor_file_max_rank = (
+        max(top_rank_idx_0, top_rank_idx_1)
+        if corridor_file is not None and top_rank_idx_0 is not None and top_rank_idx_1 is not None
+        else None
+    )
+    corridor_rank = top_rank_0 if top_two_same_rank else None
+    corridor_rank_min_file = (
+        min(top_file_0, top_file_1)
+        if corridor_rank is not None and top_file_0 is not None and top_file_1 is not None
+        else None
+    )
+    corridor_rank_max_file = (
+        max(top_file_0, top_file_1)
+        if corridor_rank is not None and top_file_0 is not None and top_file_1 is not None
+        else None
+    )
+
     for entry in indexed[2:]:
-        _orig_idx, item, ratio, delta = entry
-        contour_rank = item.get("contour_rank")
-        has_contour = isinstance(contour_rank, int)
+        _orig_idx, item, ratio, delta, has_contour = entry
         if not (ratio >= keep_threshold and (delta >= 8.0 or has_contour)):
             continue
         if allow_castling_extras and _label_rank(item) == castling_rank:
-            keep.append(entry)
+            keep.append(entry[:4])
+            continue
+        if corridor_file is not None:
+            item_file = _label_file_index(item)
+            item_rank_idx = _label_rank_index(item)
+            if (
+                item_file == corridor_file
+                and item_rank_idx is not None
+                and corridor_file_min_rank is not None
+                and corridor_file_max_rank is not None
+                and corridor_file_min_rank <= item_rank_idx <= corridor_file_max_rank
+            ):
+                keep.append(entry[:4])
+                continue
+        if corridor_rank is not None:
+            item_rank = _label_rank(item)
+            item_file = _label_file_index(item)
+            if (
+                item_rank == corridor_rank
+                and item_file is not None
+                and corridor_rank_min_file is not None
+                and corridor_rank_max_file is not None
+                and corridor_rank_min_file <= item_file <= corridor_rank_max_file
+            ):
+                keep.append(entry[:4])
+                continue
 
     keep.sort(key=lambda entry: entry[0])
     return [item for _orig_idx, item, _ratio, _delta in keep]
@@ -854,9 +1040,10 @@ def main() -> int:
     parser.add_argument("--game", default="checkers", help="Game label for inferred move metadata/payloads.")
     parser.add_argument(
         "--geometry-reference",
-        default=str(ROOT / "configs" / "before_geometry_reference.json"),
+        default=str(ROOT / "configs" / "corners_info.json"),
         help=(
-            "Optional path to persisted board geometry reference (normalized corners). "
+            "Optional path to persisted board geometry reference. Supports the legacy "
+            "median-geometry format and the simpler raw-corners_info format. "
             "When available, this is used to lock yellow/green overlays to a stable board layout."
         ),
     )
@@ -867,10 +1054,10 @@ def main() -> int:
     )
     parser.add_argument(
         "--inner-from-outer-reference",
-        default=str(ROOT / "configs" / "inner_from_outer_reference.json"),
+        default=str(ROOT / "configs" / "corners_info.json"),
         help=(
-            "Optional path to persisted relation between outer sheet (green) and chessboard (yellow) "
-            "as margins in square units. Used for chess/checkers algorithm_live grid generation."
+            "Optional path to persisted relation between outer sheet (green) and chessboard (yellow). "
+            "Supports both the legacy margins_squares file and the raw corners_info format."
         ),
     )
     parser.add_argument(
@@ -952,6 +1139,16 @@ def main() -> int:
     parser.add_argument("--out-dir", default=None, help="Output folder (default: debug_output/board_analysis_<timestamp>)")
     parser.add_argument("--json-out", default=None, help="Optional explicit JSON path")
     parser.add_argument(
+        "--artifact-mode",
+        default="minimal",
+        choices=("minimal", "full"),
+        help=(
+            "Output mode for runtime artifacts. "
+            "'minimal' keeps JSON only and skips overlay/debug image generation. "
+            "'full' restores image/text artifacts for debugging."
+        ),
+    )
+    parser.add_argument(
         "--fast-locked-geometry",
         action="store_true",
         help=(
@@ -985,18 +1182,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Keep algorithm_live output focused on images that are useful for iteration.
-    # Detection still uses these internal buffers; we only skip writing selected debug PNGs.
-    detector_debug_skip_image_keys: set[str] = {
-        # Center-projection artifacts/diagnostics that are noisy for routine runs.
-        "center_projection_overlay",
-        "center_projection_dark_mask",
-        "center_projection_dark_mask_search",
-        # Keep only the raw dark mask; skip post-processed masks that add clutter.
-        "dark_mask",
-        "dark_mask_candidates",
-    }
-
+    # Keep algorithm_live output focused on geometry debugging that is useful for iteration.
     before_path = Path(args.before)
     after_path = Path(args.after)
 
@@ -1008,23 +1194,34 @@ def main() -> int:
         raise SystemExit(f"Could not read after image: {after_path}")
 
     full_h, full_w = after_full.shape[:2]
-    before_raw, crop_meta_before = _crop_frame(
-        before_full,
-        left_ratio=float(args.crop_left_ratio),
-        right_ratio=float(args.crop_right_ratio),
-        top_ratio=float(args.crop_top_ratio),
-        bottom_ratio=float(args.crop_bottom_ratio),
-    )
-    after_raw, crop_meta_after = _crop_frame(
-        after_full,
-        left_ratio=float(args.crop_left_ratio),
-        right_ratio=float(args.crop_right_ratio),
-        top_ratio=float(args.crop_top_ratio),
-        bottom_ratio=float(args.crop_bottom_ratio),
-    )
-    # Use the same crop reference for normalized geometry conversion.
-    crop_x0 = int(crop_meta_before["x0_px"])
-    crop_y0 = int(crop_meta_before["y0_px"])
+    before_raw = before_full
+    after_raw = after_full
+    crop_meta_before = {
+        "enabled": False,
+        "x0_px": 0,
+        "x1_px": int(before_full.shape[1]),
+        "y0_px": 0,
+        "y1_px": int(before_full.shape[0]),
+        "left_ratio": float(args.crop_left_ratio),
+        "right_ratio": float(args.crop_right_ratio),
+        "top_ratio": float(args.crop_top_ratio),
+        "bottom_ratio": float(args.crop_bottom_ratio),
+        "width_px": int(before_full.shape[1]),
+        "height_px": int(before_full.shape[0]),
+    }
+    crop_meta_after = {
+        "enabled": False,
+        "x0_px": 0,
+        "x1_px": int(after_full.shape[1]),
+        "y0_px": 0,
+        "y1_px": int(after_full.shape[0]),
+        "left_ratio": float(args.crop_left_ratio),
+        "right_ratio": float(args.crop_right_ratio),
+        "top_ratio": float(args.crop_top_ratio),
+        "bottom_ratio": float(args.crop_bottom_ratio),
+        "width_px": int(after_full.shape[1]),
+        "height_px": int(after_full.shape[0]),
+    }
 
     image_h, image_w = after_raw.shape[:2]
 
@@ -1035,6 +1232,10 @@ def main() -> int:
     tape_projection_enabled = bool(args.enable_tape_projection) and not bool(args.disable_tape_projection)
     inner_from_outer_reference_path = Path(args.inner_from_outer_reference)
     reference_path = Path(args.geometry_reference)
+    live_outer_to_inner_norm, live_outer_to_inner_stats = _load_live_outer_to_inner_calibration(
+        reference_path=reference_path,
+        disabled=bool(args.disable_inner_from_outer_reference),
+    )
     game_lower = str(args.game).strip().lower()
     supports_inner_from_outer = game_lower in {"chess", "checkers"}
     inner_from_outer_reference_status = "unsupported_game"
@@ -1058,277 +1259,74 @@ def main() -> int:
         else fallback_margins
     )
 
-    preloaded_ref_board: np.ndarray | None = None
-    preloaded_ref_outer: np.ndarray | None = None
-    preloaded_ref_status = "not_loaded"
-    fast_locked_geometry_used = False
-    if bool(args.fast_locked_geometry) and not bool(args.disable_geometry_reference):
-        preloaded_ref_board, preloaded_ref_outer, preloaded_ref_status = _load_reference_geometry(
+    ref_board: np.ndarray | None = None
+    ref_outer: np.ndarray | None = None
+    if not bool(args.disable_geometry_reference):
+        ref_board, ref_outer, ref_status = _load_reference_geometry(
             reference_path=reference_path,
             image_w=full_w,
             image_h=full_h,
         )
-        preloaded_ref_board = _shift_quad_for_crop(preloaded_ref_board, crop_x0=crop_x0, crop_y0=crop_y0)
-        preloaded_ref_outer = _shift_quad_for_crop(preloaded_ref_outer, crop_x0=crop_x0, crop_y0=crop_y0)
-        fast_locked_geometry_used = preloaded_ref_board is not None
+        geometry_reference_used = ref_board is not None
+    else:
+        ref_status = "disabled"
+        geometry_reference_used = False
 
-    before_debug: dict[str, object] = {}
-    after_debug: dict[str, object] = {}
+    fast_locked_geometry_used = bool(args.fast_locked_geometry) and geometry_reference_used
+
     if fast_locked_geometry_used:
         before_detection = BoardDetection(
-            outer_sheet_corners=preloaded_ref_outer.astype(np.float32).copy()
-            if preloaded_ref_outer is not None
-            else None,
-            chessboard_corners=preloaded_ref_board.astype(np.float32).copy()
-            if preloaded_ref_board is not None
-            else None,
+            outer_sheet_corners=ref_outer.astype(np.float32).copy() if ref_outer is not None else None,
+            chessboard_corners=ref_board.astype(np.float32).copy() if ref_board is not None else None,
         )
         after_detection = BoardDetection(
-            outer_sheet_corners=preloaded_ref_outer.astype(np.float32).copy()
-            if preloaded_ref_outer is not None
-            else None,
-            chessboard_corners=preloaded_ref_board.astype(np.float32).copy()
-            if preloaded_ref_board is not None
-            else None,
+            outer_sheet_corners=ref_outer.astype(np.float32).copy() if ref_outer is not None else None,
+            chessboard_corners=ref_board.astype(np.float32).copy() if ref_board is not None else None,
         )
-        before_debug["fast_locked_geometry"] = True
-        after_debug["fast_locked_geometry"] = True
-        before_debug["fast_locked_geometry_reference_status"] = preloaded_ref_status
-        after_debug["fast_locked_geometry_reference_status"] = preloaded_ref_status
-        before_outer_candidate_raw = None
-        after_outer_candidate_raw = None
+        before_geometry_debug = {
+            "anchor_board": None,
+            "anchor_debug": None,
+            "outer_debug": {
+                "method": "locked_session_geometry",
+                "chosen_reason": f"using geometry reference {reference_path.name}",
+            },
+            "predicted_outer": None,
+            "contour_outer": None,
+        }
+        after_geometry_debug = {
+            "anchor_board": None,
+            "anchor_debug": None,
+            "outer_debug": {
+                "method": "locked_session_geometry",
+                "chosen_reason": f"using geometry reference {reference_path.name}",
+            },
+            "predicted_outer": None,
+            "contour_outer": None,
+        }
     else:
-        before_detection = detect_board_regions(
+        before_detection, before_geometry_debug = _detect_outer_to_inner_geometry(
             frame_bgr=before_raw,
-            board_size=board_size,
-            outer_sheet_hsv_lower=hsv_lower,
-            outer_sheet_hsv_upper=hsv_upper,
-            min_outer_area_ratio=float(args.min_outer_area_ratio),
-            max_outer_area_to_chessboard_ratio=float(args.max_outer_to_chess_ratio),
-            fallback_outer_margins_squares=fallback_margins,
-            outer_candidate_mode=args.outer_candidate_mode,
-            enable_tape_projection=tape_projection_enabled,
-            debug=before_debug,
+            chess_norm_in_outer=live_outer_to_inner_norm,
+            calibration_stats=live_outer_to_inner_stats,
         )
-        after_detection = detect_board_regions(
+        after_detection, after_geometry_debug = _detect_outer_to_inner_geometry(
             frame_bgr=after_raw,
-            board_size=board_size,
-            outer_sheet_hsv_lower=hsv_lower,
-            outer_sheet_hsv_upper=hsv_upper,
-            min_outer_area_ratio=float(args.min_outer_area_ratio),
-            max_outer_area_to_chessboard_ratio=float(args.max_outer_to_chess_ratio),
-            fallback_outer_margins_squares=fallback_margins,
-            outer_candidate_mode=args.outer_candidate_mode,
-            enable_tape_projection=tape_projection_enabled,
-            debug=after_debug,
+            chess_norm_in_outer=live_outer_to_inner_norm,
+            calibration_stats=live_outer_to_inner_stats,
         )
-        # Keep raw detector-selected outer quads for algorithm_live overlays.
-        before_outer_candidate_raw = (
-            before_detection.outer_sheet_corners.astype(np.float32).copy()
-            if before_detection.outer_sheet_corners is not None
-            else None
-        )
-        after_outer_candidate_raw = (
-            after_detection.outer_sheet_corners.astype(np.float32).copy()
-            if after_detection.outer_sheet_corners is not None
-            else None
-        )
-    ref_board: np.ndarray | None = None
-    ref_outer: np.ndarray | None = None
-    ref_status = "disabled"
-    geometry_reference_used = False
-    outer_size_lock_target_ratio: float | None = None
-    outer_size_lock_target_area_ratio_image: float | None = None
-    outer_size_lock_target_bbox_w_px: float | None = None
-    outer_size_lock_target_bbox_h_px: float | None = None
-    outer_size_lock_margins: tuple[float, float, float, float] | None = None
-    outer_size_lock_details: dict[str, object] = {}
 
-    if not bool(args.disable_geometry_reference):
-        if preloaded_ref_status != "not_loaded":
-            ref_board = preloaded_ref_board
-            ref_outer = preloaded_ref_outer
-            ref_status = preloaded_ref_status
-        else:
-            ref_board, ref_outer, ref_status = _load_reference_geometry(
-                reference_path=reference_path,
-                image_w=full_w,
-                image_h=full_h,
-            )
-            ref_board = _shift_quad_for_crop(ref_board, crop_x0=crop_x0, crop_y0=crop_y0)
-            ref_outer = _shift_quad_for_crop(ref_outer, crop_x0=crop_x0, crop_y0=crop_y0)
-        ref_board_area = _quad_area_px2(ref_board)
-        ref_outer_area = _quad_area_px2(ref_outer)
-        if (
-            ref_board_area is not None
-            and ref_outer_area is not None
-            and ref_board_area > 1e-6
-            and ref_outer_area > 1e-6
-        ):
-            outer_size_lock_target_ratio = float(ref_outer_area / ref_board_area)
-            outer_size_lock_target_area_ratio_image = float(
-                ref_outer_area / max(float(image_w * image_h), 1.0)
-            )
-            ref_outer_pts = ref_outer.astype(np.float32).reshape(4, 2)
-            outer_size_lock_target_bbox_w_px = float(np.max(ref_outer_pts[:, 0]) - np.min(ref_outer_pts[:, 0]))
-            outer_size_lock_target_bbox_h_px = float(np.max(ref_outer_pts[:, 1]) - np.min(ref_outer_pts[:, 1]))
-            outer_size_lock_details["target_outer_to_chess_ratio"] = outer_size_lock_target_ratio
-            outer_size_lock_details["target_outer_area_ratio_image"] = outer_size_lock_target_area_ratio_image
-            outer_size_lock_details["target_outer_bbox_w_px"] = outer_size_lock_target_bbox_w_px
-            outer_size_lock_details["target_outer_bbox_h_px"] = outer_size_lock_target_bbox_h_px
-            maybe_margins = _derive_outer_margins_from_reference(
-                ref_chess_quad=ref_board,
-                ref_outer_quad=ref_outer,
-                board_size=board_size,
-            )
-            if maybe_margins is not None:
-                outer_size_lock_margins = maybe_margins
-                outer_size_lock_details["reference_margins_squares"] = [
-                    float(maybe_margins[0]),
-                    float(maybe_margins[1]),
-                    float(maybe_margins[2]),
-                    float(maybe_margins[3]),
-                ]
-        if ref_board is not None:
-            locked_board_raw = ref_board
-            locked_outer_raw = ref_outer
-            locked_source = f"reference:{reference_path.name}"
-            geometry_reference_used = True
-        else:
-            locked_board_raw, locked_outer_raw, locked_source = _select_locked_geometry(
-                before_detection=before_detection,
-                after_detection=after_detection,
-                board_lock_source=args.board_lock_source,
-            )
+    outer_size_lock_target_ratio: float | None = None
+    outer_size_lock_details: dict[str, object] = {}
+    if fast_locked_geometry_used:
+        locked_board_raw = ref_board.astype(np.float32).copy() if ref_board is not None else None
+        locked_outer_raw = ref_outer.astype(np.float32).copy() if ref_outer is not None else None
+        locked_source = f"reference:{reference_path.name}"
     else:
         locked_board_raw, locked_outer_raw, locked_source = _select_locked_geometry(
             before_detection=before_detection,
             after_detection=after_detection,
             board_lock_source=args.board_lock_source,
         )
-
-    # Stabilize green-region size using manual/reference baseline ratio while preserving
-    # each frame's detected position.
-    if outer_size_lock_target_ratio is not None:
-        if before_detection.chessboard_corners is not None:
-            if outer_size_lock_margins is not None:
-                before_detection.outer_sheet_corners = estimate_outer_sheet_from_chessboard(
-                    chessboard_corners=before_detection.chessboard_corners,
-                    board_size=board_size,
-                    margins_squares=outer_size_lock_margins,
-                )
-                outer_size_lock_details["before"] = {
-                    "mode": "reference_margins_from_chessboard",
-                    "applied": True,
-                }
-            elif before_detection.outer_sheet_corners is not None:
-                before_locked_outer, before_lock_info = _scale_outer_to_target_ratio(
-                    outer_quad=before_detection.outer_sheet_corners,
-                    chess_quad=before_detection.chessboard_corners,
-                    target_outer_to_chess_ratio=outer_size_lock_target_ratio,
-                )
-                before_detection.outer_sheet_corners = before_locked_outer
-                outer_size_lock_details["before"] = before_lock_info
-
-        if (
-            outer_size_lock_target_area_ratio_image is not None
-            and before_detection.outer_sheet_corners is not None
-        ):
-            before_anchor = None
-            if before_detection.chessboard_corners is not None:
-                before_anchor = np.mean(before_detection.chessboard_corners.astype(np.float32), axis=0)
-            before_clamped_outer, before_clamp_info = _clamp_quad_area_ratio_image(
-                quad=before_detection.outer_sheet_corners,
-                image_w=image_w,
-                image_h=image_h,
-                min_ratio=outer_size_lock_target_area_ratio_image * 0.95,
-                max_ratio=outer_size_lock_target_area_ratio_image * 1.05,
-                anchor_xy=before_anchor,
-            )
-            before_detection.outer_sheet_corners = before_clamped_outer
-            before_details = dict(outer_size_lock_details.get("before", {}))
-            before_details["area_ratio_clamp"] = before_clamp_info
-            outer_size_lock_details["before"] = before_details
-        if (
-            outer_size_lock_target_bbox_w_px is not None
-            and outer_size_lock_target_bbox_h_px is not None
-            and before_detection.outer_sheet_corners is not None
-        ):
-            before_anchor = None
-            if before_detection.outer_sheet_corners is not None:
-                before_anchor = np.mean(before_detection.outer_sheet_corners.astype(np.float32), axis=0)
-            before_bbox_outer, before_bbox_info = _clamp_quad_bbox_size(
-                quad=before_detection.outer_sheet_corners,
-                target_w_px=outer_size_lock_target_bbox_w_px,
-                target_h_px=outer_size_lock_target_bbox_h_px,
-                tolerance=0.05,
-                anchor_xy=before_anchor,
-                must_enclose_quad=before_detection.chessboard_corners,
-            )
-            before_detection.outer_sheet_corners = before_bbox_outer
-            before_details = dict(outer_size_lock_details.get("before", {}))
-            before_details["bbox_size_clamp"] = before_bbox_info
-            outer_size_lock_details["before"] = before_details
-
-        if after_detection.chessboard_corners is not None:
-            if outer_size_lock_margins is not None:
-                after_detection.outer_sheet_corners = estimate_outer_sheet_from_chessboard(
-                    chessboard_corners=after_detection.chessboard_corners,
-                    board_size=board_size,
-                    margins_squares=outer_size_lock_margins,
-                )
-                outer_size_lock_details["after"] = {
-                    "mode": "reference_margins_from_chessboard",
-                    "applied": True,
-                }
-            elif after_detection.outer_sheet_corners is not None:
-                after_locked_outer, after_lock_info = _scale_outer_to_target_ratio(
-                    outer_quad=after_detection.outer_sheet_corners,
-                    chess_quad=after_detection.chessboard_corners,
-                    target_outer_to_chess_ratio=outer_size_lock_target_ratio,
-                )
-                after_detection.outer_sheet_corners = after_locked_outer
-                outer_size_lock_details["after"] = after_lock_info
-
-        if (
-            outer_size_lock_target_area_ratio_image is not None
-            and after_detection.outer_sheet_corners is not None
-        ):
-            after_anchor = None
-            if after_detection.chessboard_corners is not None:
-                after_anchor = np.mean(after_detection.chessboard_corners.astype(np.float32), axis=0)
-            after_clamped_outer, after_clamp_info = _clamp_quad_area_ratio_image(
-                quad=after_detection.outer_sheet_corners,
-                image_w=image_w,
-                image_h=image_h,
-                min_ratio=outer_size_lock_target_area_ratio_image * 0.95,
-                max_ratio=outer_size_lock_target_area_ratio_image * 1.05,
-                anchor_xy=after_anchor,
-            )
-            after_detection.outer_sheet_corners = after_clamped_outer
-            after_details = dict(outer_size_lock_details.get("after", {}))
-            after_details["area_ratio_clamp"] = after_clamp_info
-            outer_size_lock_details["after"] = after_details
-        if (
-            outer_size_lock_target_bbox_w_px is not None
-            and outer_size_lock_target_bbox_h_px is not None
-            and after_detection.outer_sheet_corners is not None
-        ):
-            after_anchor = None
-            if after_detection.outer_sheet_corners is not None:
-                after_anchor = np.mean(after_detection.outer_sheet_corners.astype(np.float32), axis=0)
-            after_bbox_outer, after_bbox_info = _clamp_quad_bbox_size(
-                quad=after_detection.outer_sheet_corners,
-                target_w_px=outer_size_lock_target_bbox_w_px,
-                target_h_px=outer_size_lock_target_bbox_h_px,
-                tolerance=0.05,
-                anchor_xy=after_anchor,
-                must_enclose_quad=after_detection.chessboard_corners,
-            )
-            after_detection.outer_sheet_corners = after_bbox_outer
-            after_details = dict(outer_size_lock_details.get("after", {}))
-            after_details["bbox_size_clamp"] = after_bbox_info
-            outer_size_lock_details["after"] = after_details
 
     chosen_board, chosen_outer, board_source = _choose_detection(before_detection, after_detection)
     if locked_board_raw is None:
@@ -1379,132 +1377,41 @@ def main() -> int:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = Path(args.out_dir) if args.out_dir else Path("debug_output") / f"board_analysis_{timestamp}"
     _mkdir(out_dir)
-    official_dir = _mkdir(out_dir / "official")
-    algorithm_live_dir = _mkdir(out_dir / "algorithm_live")
+    artifact_mode = str(args.artifact_mode).strip().lower()
+    full_artifacts = artifact_mode == "full"
+    official_dir = _mkdir(out_dir / "official") if full_artifacts else None
+    algorithm_live_dir = _mkdir(out_dir / "algorithm_live") if full_artifacts else None
 
-    before_overlay = draw_detection_overlay(
-        before_raw,
-        BoardDetection(outer_sheet_corners=locked_outer, chessboard_corners=locked_board),
-    )
-    after_overlay = draw_detection_overlay(
-        after_raw,
-        BoardDetection(outer_sheet_corners=locked_outer, chessboard_corners=locked_board),
-    )
-    before_outer_only_overlay = draw_detection_overlay(
-        before_raw,
-        BoardDetection(outer_sheet_corners=locked_outer, chessboard_corners=None),
-    )
-    after_outer_only_overlay = draw_detection_overlay(
-        after_raw,
-        BoardDetection(outer_sheet_corners=locked_outer, chessboard_corners=None),
-    )
-    before_chess_only_overlay = draw_detection_overlay(
-        before_raw,
-        BoardDetection(outer_sheet_corners=None, chessboard_corners=locked_board),
-    )
-    after_chess_only_overlay = draw_detection_overlay(
-        after_raw,
-        BoardDetection(outer_sheet_corners=None, chessboard_corners=locked_board),
-    )
-    live_outer_source_before = "candidate"
-    live_outer_source_after = "candidate"
+    live_outer_source_before = "calibrated_outer_to_inner"
+    live_outer_source_after = "calibrated_outer_to_inner"
+    live_inner_source_before = "derived_from_outer_calibration"
+    live_inner_source_after = "derived_from_outer_calibration"
 
-    before_live_outer = before_outer_candidate_raw
-    if before_live_outer is None:
-        before_live_outer = before_detection.outer_sheet_corners
-        live_outer_source_before = "detected"
-    if before_live_outer is None and locked_outer is not None:
-        before_live_outer = locked_outer.astype(np.float32).copy()
-        live_outer_source_before = "locked_fallback"
-
-    after_live_outer = after_outer_candidate_raw
-    if after_live_outer is None:
-        after_live_outer = after_detection.outer_sheet_corners
-        live_outer_source_after = "detected"
-    if after_live_outer is None and locked_outer is not None:
-        after_live_outer = locked_outer.astype(np.float32).copy()
-        live_outer_source_after = "locked_fallback"
-
-    # Keep algorithm_live green size within reference band while preserving position.
-    if (
-        outer_size_lock_target_area_ratio_image is not None
-        and before_live_outer is not None
-    ):
-        before_anchor = None
-        if before_detection.chessboard_corners is not None:
-            before_anchor = np.mean(before_detection.chessboard_corners.astype(np.float32), axis=0)
-        before_live_outer, _ = _clamp_quad_area_ratio_image(
-            quad=before_live_outer,
-            image_w=image_w,
-            image_h=image_h,
-            min_ratio=outer_size_lock_target_area_ratio_image * 0.95,
-            max_ratio=outer_size_lock_target_area_ratio_image * 1.05,
-            anchor_xy=before_anchor,
-        )
-    if (
-        outer_size_lock_target_bbox_w_px is not None
-        and outer_size_lock_target_bbox_h_px is not None
-        and before_live_outer is not None
-    ):
-        before_anchor = np.mean(before_live_outer.astype(np.float32), axis=0)
-        before_live_outer, _ = _clamp_quad_bbox_size(
-            quad=before_live_outer,
-            target_w_px=outer_size_lock_target_bbox_w_px,
-            target_h_px=outer_size_lock_target_bbox_h_px,
-            tolerance=0.05,
-            anchor_xy=before_anchor,
-            must_enclose_quad=before_detection.chessboard_corners,
-        )
-
-    if (
-        outer_size_lock_target_area_ratio_image is not None
-        and after_live_outer is not None
-    ):
-        after_anchor = None
-        if after_detection.chessboard_corners is not None:
-            after_anchor = np.mean(after_detection.chessboard_corners.astype(np.float32), axis=0)
-        after_live_outer, _ = _clamp_quad_area_ratio_image(
-            quad=after_live_outer,
-            image_w=image_w,
-            image_h=image_h,
-            min_ratio=outer_size_lock_target_area_ratio_image * 0.95,
-            max_ratio=outer_size_lock_target_area_ratio_image * 1.05,
-            anchor_xy=after_anchor,
-        )
-    if (
-        outer_size_lock_target_bbox_w_px is not None
-        and outer_size_lock_target_bbox_h_px is not None
-        and after_live_outer is not None
-    ):
-        after_anchor = np.mean(after_live_outer.astype(np.float32), axis=0)
-        after_live_outer, _ = _clamp_quad_bbox_size(
-            quad=after_live_outer,
-            target_w_px=outer_size_lock_target_bbox_w_px,
-            target_h_px=outer_size_lock_target_bbox_h_px,
-            tolerance=0.05,
-            anchor_xy=after_anchor,
-            must_enclose_quad=after_detection.chessboard_corners,
-        )
-
-    live_inner_source_before = "detected"
-    live_inner_source_after = "detected"
+    before_anchor_board = before_geometry_debug.get("anchor_board")
+    before_anchor_debug = before_geometry_debug.get("anchor_debug")
+    before_live_outer_debug = before_geometry_debug.get("outer_debug")
+    before_live_predicted_outer = before_geometry_debug.get("predicted_outer")
+    before_live_contour_outer = before_geometry_debug.get("contour_outer")
+    before_live_outer = before_detection.outer_sheet_corners
     before_live_board = before_detection.chessboard_corners
+    if before_live_outer_debug is not None and before_live_outer is not None and before_live_board is not None:
+        live_outer_source_before = str(before_live_outer_debug.get("method"))
+    else:
+        live_outer_source_before = "anchor_chess_detection_failed"
+        live_inner_source_before = "anchor_chess_detection_failed"
+
+    after_anchor_board = after_geometry_debug.get("anchor_board")
+    after_anchor_debug = after_geometry_debug.get("anchor_debug")
+    after_live_outer_debug = after_geometry_debug.get("outer_debug")
+    after_live_predicted_outer = after_geometry_debug.get("predicted_outer")
+    after_live_contour_outer = after_geometry_debug.get("contour_outer")
+    after_live_outer = after_detection.outer_sheet_corners
     after_live_board = after_detection.chessboard_corners
-    if inner_from_outer_reference_margins is not None:
-        if before_live_outer is not None:
-            before_live_board = estimate_chessboard_from_outer_sheet(
-                outer_sheet_corners=before_live_outer,
-                board_size=board_size,
-                margins_squares=inner_from_outer_reference_margins,
-            )
-            live_inner_source_before = "outer_relative_reference"
-        if after_live_outer is not None:
-            after_live_board = estimate_chessboard_from_outer_sheet(
-                outer_sheet_corners=after_live_outer,
-                board_size=board_size,
-                margins_squares=inner_from_outer_reference_margins,
-            )
-            live_inner_source_after = "outer_relative_reference"
+    if after_live_outer_debug is not None and after_live_outer is not None and after_live_board is not None:
+        live_outer_source_after = str(after_live_outer_debug.get("method"))
+    else:
+        live_outer_source_after = "anchor_chess_detection_failed"
+        live_inner_source_after = "anchor_chess_detection_failed"
 
     before_live_detection = BoardDetection(
         outer_sheet_corners=before_live_outer,
@@ -1515,34 +1422,16 @@ def main() -> int:
         chessboard_corners=after_live_board,
     )
 
-    before_live_regions_overlay, before_live_grid_overlay = _draw_live_regions_and_grid(
-        frame_bgr=before_raw,
-        detection=before_live_detection,
-        board_size=board_size,
-        label_mode=args.label_mode,
-        camera_square_orientation=args.camera_square_orientation,
-    )
-    after_live_regions_overlay, after_live_grid_overlay = _draw_live_regions_and_grid(
-        frame_bgr=after_raw,
-        detection=after_live_detection,
-        board_size=board_size,
-        label_mode=args.label_mode,
-        camera_square_orientation=args.camera_square_orientation,
-    )
-
     before_squares = generate_square_geometry(board_corners=locked_board, board_size=board_size)
     after_squares = generate_square_geometry(board_corners=locked_board, board_size=board_size)
-    before_squares_labeled = _game_labeled_squares(before_squares, args.camera_square_orientation)
-    after_squares_labeled = _game_labeled_squares(after_squares, args.camera_square_orientation)
+    before_squares_labeled = _game_labeled_squares(before_squares, args.camera_square_orientation) if full_artifacts else []
+    after_squares_labeled = _game_labeled_squares(after_squares, args.camera_square_orientation) if full_artifacts else []
     squares_payload = [item.to_dict() for item in after_squares]
     for item in squares_payload:
         raw_camera_label = str(item.get("label"))
         game_label = _game_label_from_camera_coord(int(item["x"]), int(item["y"]), args.camera_square_orientation)
         item["raw_camera_label"] = raw_camera_label
         item["label"] = game_label
-    squares_by_coord = {(int(item["x"]), int(item["y"])): item for item in squares_payload}
-    before_grid_overlay = draw_square_grid_overlay(before_overlay, squares=before_squares_labeled, label_mode=args.label_mode)
-    after_grid_overlay = draw_square_grid_overlay(after_overlay, squares=after_squares_labeled, label_mode=args.label_mode)
 
     warped_before, _ = warp_to_board(
         frame_bgr=before_raw,
@@ -1602,81 +1491,68 @@ def main() -> int:
             changes=diff.changes,
         )
     )
+    outputs: dict[str, str] = {}
+    if full_artifacts:
+        before_overlay = draw_detection_overlay(
+            before_raw,
+            BoardDetection(outer_sheet_corners=locked_outer, chessboard_corners=locked_board),
+        )
+        after_overlay = draw_detection_overlay(
+            after_raw,
+            BoardDetection(outer_sheet_corners=locked_outer, chessboard_corners=locked_board),
+        )
+        _before_live_regions_overlay, before_live_grid_overlay = _draw_live_regions_and_grid(
+            frame_bgr=before_raw,
+            detection=before_live_detection,
+            board_size=board_size,
+            label_mode=args.label_mode,
+            camera_square_orientation=args.camera_square_orientation,
+        )
+        _after_live_regions_overlay, after_live_grid_overlay = _draw_live_regions_and_grid(
+            frame_bgr=after_raw,
+            detection=after_live_detection,
+            board_size=board_size,
+            label_mode=args.label_mode,
+            camera_square_orientation=args.camera_square_orientation,
+        )
+        squares_by_coord = {(int(item["x"]), int(item["y"])): item for item in squares_payload}
+        before_grid_overlay = draw_square_grid_overlay(before_overlay, squares=before_squares_labeled, label_mode=args.label_mode)
+        after_grid_overlay = draw_square_grid_overlay(after_overlay, squares=after_squares_labeled, label_mode=args.label_mode)
+        changed_raw_overlay = _draw_changed_overlay_on_raw(after_raw, squares_by_coord=squares_by_coord, changed=changed_squares)
+        changed_warp_overlay = _draw_changed_overlay_on_warp(warped_after, changed=changed_squares, board_size=board_size)
 
-    changed_raw_overlay = _draw_changed_overlay_on_raw(after_raw, squares_by_coord=squares_by_coord, changed=changed_squares)
-    changed_warp_overlay = _draw_changed_overlay_on_warp(warped_after, changed=changed_squares, board_size=board_size)
+        outputs = {
+            "before_grid_overlay": str(official_dir / "before_grid_overlay.png"),
+            "after_grid_overlay": str(official_dir / "after_grid_overlay.png"),
+            "before_grid_overlay_live": str(algorithm_live_dir / "before_grid_overlay_live.png"),
+            "after_grid_overlay_live": str(algorithm_live_dir / "after_grid_overlay_live.png"),
+            "diff_threshold": str(official_dir / "diff_threshold.png"),
+            "changed_raw_overlay": str(official_dir / "changed_raw_overlay.png"),
+            "changed_warp_overlay": str(official_dir / "changed_warp_overlay.png"),
+            "analysis_summary_txt": str(official_dir / "analysis_summary.txt"),
+        }
 
-    outputs = {
-        "before_overlay": str(official_dir / "before_regions_overlay.png"),
-        "after_overlay": str(official_dir / "after_regions_overlay.png"),
-        "before_live_overlay": str(algorithm_live_dir / "before_regions_overlay_live.png"),
-        "after_live_overlay": str(algorithm_live_dir / "after_regions_overlay_live.png"),
-        "before_outer_only_overlay": str(official_dir / "before_outer_only_overlay.png"),
-        "after_outer_only_overlay": str(official_dir / "after_outer_only_overlay.png"),
-        "before_chess_only_overlay": str(official_dir / "before_chess_only_overlay.png"),
-        "after_chess_only_overlay": str(official_dir / "after_chess_only_overlay.png"),
-        "before_grid_overlay": str(official_dir / "before_grid_overlay.png"),
-        "after_grid_overlay": str(official_dir / "after_grid_overlay.png"),
-        "before_grid_overlay_live": str(algorithm_live_dir / "before_grid_overlay_live.png"),
-        "after_grid_overlay_live": str(algorithm_live_dir / "after_grid_overlay_live.png"),
-        "before_warped": str(official_dir / "before_warped.png"),
-        "after_warped": str(official_dir / "after_warped.png"),
-        "before_processed": str(official_dir / "before_processed.png"),
-        "after_processed": str(official_dir / "after_processed.png"),
-        "diff_gray": str(official_dir / "diff_gray.png"),
-        "diff_threshold": str(official_dir / "diff_threshold.png"),
-        "changed_raw_overlay": str(official_dir / "changed_raw_overlay.png"),
-        "changed_warp_overlay": str(official_dir / "changed_warp_overlay.png"),
-        "analysis_summary_txt": str(official_dir / "analysis_summary.txt"),
-    }
-
-    cv2.imwrite(outputs["before_overlay"], before_overlay)
-    cv2.imwrite(outputs["after_overlay"], after_overlay)
-    cv2.imwrite(outputs["before_live_overlay"], before_live_regions_overlay)
-    cv2.imwrite(outputs["after_live_overlay"], after_live_regions_overlay)
-    cv2.imwrite(outputs["before_outer_only_overlay"], before_outer_only_overlay)
-    cv2.imwrite(outputs["after_outer_only_overlay"], after_outer_only_overlay)
-    cv2.imwrite(outputs["before_chess_only_overlay"], before_chess_only_overlay)
-    cv2.imwrite(outputs["after_chess_only_overlay"], after_chess_only_overlay)
-    cv2.imwrite(outputs["before_grid_overlay"], before_grid_overlay)
-    cv2.imwrite(outputs["after_grid_overlay"], after_grid_overlay)
-    cv2.imwrite(outputs["before_grid_overlay_live"], before_live_grid_overlay)
-    cv2.imwrite(outputs["after_grid_overlay_live"], after_live_grid_overlay)
-    cv2.imwrite(outputs["before_warped"], warped_before)
-    cv2.imwrite(outputs["after_warped"], warped_after)
-    cv2.imwrite(outputs["before_processed"], before_pre.enhanced)
-    cv2.imwrite(outputs["after_processed"], after_pre.enhanced)
-    cv2.imwrite(outputs["diff_gray"], diff.diff_image)
-    cv2.imwrite(outputs["diff_threshold"], diff.threshold_image)
-    cv2.imwrite(outputs["changed_raw_overlay"], changed_raw_overlay)
-    cv2.imwrite(outputs["changed_warp_overlay"], changed_warp_overlay)
-    _write_analysis_summary_text(
-        out_path=Path(outputs["analysis_summary_txt"]),
-        changed_squares=changed_squares,
-        resolver_changed_squares=resolver_changed_squares,
-        inferred_move=inferred.to_dict(),
-    )
-    before_debug_meta = _save_detector_debug_images(
-        debug_data=before_debug,
-        prefix="before_detector",
-        out_dir=algorithm_live_dir,
-        outputs=outputs,
-        skip_image_keys=detector_debug_skip_image_keys,
-    )
-    after_debug_meta = _save_detector_debug_images(
-        debug_data=after_debug,
-        prefix="after_detector",
-        out_dir=algorithm_live_dir,
-        outputs=outputs,
-        skip_image_keys=detector_debug_skip_image_keys,
-    )
+        cv2.imwrite(outputs["before_grid_overlay"], before_grid_overlay)
+        cv2.imwrite(outputs["after_grid_overlay"], after_grid_overlay)
+        cv2.imwrite(outputs["before_grid_overlay_live"], before_live_grid_overlay)
+        cv2.imwrite(outputs["after_grid_overlay_live"], after_live_grid_overlay)
+        cv2.imwrite(outputs["diff_threshold"], diff.threshold_image)
+        cv2.imwrite(outputs["changed_raw_overlay"], changed_raw_overlay)
+        cv2.imwrite(outputs["changed_warp_overlay"], changed_warp_overlay)
+        _write_analysis_summary_text(
+            out_path=Path(outputs["analysis_summary_txt"]),
+            changed_squares=changed_squares,
+            resolver_changed_squares=resolver_changed_squares,
+            inferred_move=inferred.to_dict(),
+        )
 
     payload = {
         "before_image": str(before_path),
         "after_image": str(after_path),
         "analysis_root_dir": str(out_dir),
-        "official_dir": str(official_dir),
-        "algorithm_live_dir": str(algorithm_live_dir),
+        "artifact_mode": artifact_mode,
+        "official_dir": str(official_dir) if official_dir is not None else None,
+        "algorithm_live_dir": str(algorithm_live_dir) if algorithm_live_dir is not None else None,
         "board_size": [board_size[0], board_size[1]],
         "board_detection_source": board_source,
         "locked_geometry_source": locked_source,
@@ -1689,18 +1565,19 @@ def main() -> int:
         "fast_locked_geometry": {
             "requested": bool(args.fast_locked_geometry),
             "used": bool(fast_locked_geometry_used),
-            "reference_status": preloaded_ref_status,
+            "reference_status": ref_status,
         },
         "outer_size_lock": {
             "enabled": outer_size_lock_target_ratio is not None,
             "target_outer_to_chess_ratio": outer_size_lock_target_ratio,
             "details": outer_size_lock_details,
         },
-        "algorithm_live_green_source": "raw_detector_candidate_outer",
+        "algorithm_live_green_source": "black_tape_outer_with_games_1_to_14_calibration",
         "algorithm_live_outer_source_before": live_outer_source_before,
         "algorithm_live_outer_source_after": live_outer_source_after,
         "algorithm_live_inner_source_before": live_inner_source_before,
         "algorithm_live_inner_source_after": live_inner_source_after,
+        "algorithm_live_outer_to_inner_calibration": _strip_numpy_debug(live_outer_to_inner_stats),
         "inner_from_outer_reference": {
             "enabled": supports_inner_from_outer and not bool(args.disable_inner_from_outer_reference),
             "path": str(inner_from_outer_reference_path),
@@ -1727,6 +1604,40 @@ def main() -> int:
         "shared_after_drift_threshold": max_allowed_drift,
         "before_chessboard_corners_px": before_board.tolist(),
         "after_chessboard_corners_px": after_board.tolist(),
+        "algorithm_live_before_chessboard_corners_px": (
+            before_live_board.tolist() if before_live_board is not None else None
+        ),
+        "algorithm_live_after_chessboard_corners_px": (
+            after_live_board.tolist() if after_live_board is not None else None
+        ),
+        "algorithm_live_before_detected_chessboard_corners_px": (
+            before_anchor_board.tolist()
+            if before_anchor_board is not None
+            else None
+        ),
+        "algorithm_live_after_detected_chessboard_corners_px": (
+            after_anchor_board.tolist()
+            if after_anchor_board is not None
+            else None
+        ),
+        "algorithm_live_before_outer_sheet_corners_px": (
+            before_live_outer.tolist() if before_live_outer is not None else None
+        ),
+        "algorithm_live_after_outer_sheet_corners_px": (
+            after_live_outer.tolist() if after_live_outer is not None else None
+        ),
+        "algorithm_live_before_predicted_outer_sheet_corners_px": (
+            before_live_predicted_outer.tolist() if before_live_predicted_outer is not None else None
+        ),
+        "algorithm_live_after_predicted_outer_sheet_corners_px": (
+            after_live_predicted_outer.tolist() if after_live_predicted_outer is not None else None
+        ),
+        "algorithm_live_before_contour_outer_candidate_px": (
+            before_live_contour_outer.tolist() if before_live_contour_outer is not None else None
+        ),
+        "algorithm_live_after_contour_outer_candidate_px": (
+            after_live_contour_outer.tolist() if after_live_contour_outer is not None else None
+        ),
         "outer_sheet_corners_px": locked_outer.tolist() if locked_outer is not None else None,
         "chessboard_corners_px": locked_board.tolist() if locked_board is not None else None,
         "geometry_metrics": {
@@ -1761,7 +1672,7 @@ def main() -> int:
             ),
         },
         "pre_detection_crop": {
-            "enabled": True,
+            "enabled": False,
             "source_image_width_px": int(full_w),
             "source_image_height_px": int(full_h),
             "before": crop_meta_before,
@@ -1776,9 +1687,27 @@ def main() -> int:
         "contour_changed_square_count": len(contour_changed_squares),
         "inferred_move": inferred.to_dict(),
         "outputs": outputs,
-        "detector_debug": {
-            "before": before_debug_meta,
-            "after": after_debug_meta,
+        "algorithm_live_geometry_debug": {
+            "before": _strip_numpy_debug(before_live_outer_debug),
+            "after": _strip_numpy_debug(after_live_outer_debug),
+            "before_anchor_debug": {
+                "method": str(before_anchor_debug.get("method")),
+                "score": float(before_anchor_debug.get("score")),
+                "used_components": int(before_anchor_debug.get("used_components")),
+                "threshold": int(before_anchor_debug.get("threshold")),
+                "square_size": float(before_anchor_debug.get("square_size")),
+            }
+            if before_anchor_debug is not None
+            else None,
+            "after_anchor_debug": {
+                "method": str(after_anchor_debug.get("method")),
+                "score": float(after_anchor_debug.get("score")),
+                "used_components": int(after_anchor_debug.get("used_components")),
+                "threshold": int(after_anchor_debug.get("threshold")),
+                "square_size": float(after_anchor_debug.get("square_size")),
+            }
+            if after_anchor_debug is not None
+            else None,
         },
     }
 

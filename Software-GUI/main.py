@@ -5,22 +5,25 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass, field
+from datetime import datetime
 import io
 import json
 from pathlib import Path
 import subprocess
 import sys
 import threading
+import time
 
 import pygame
 
 import config
 from ai_player import choose_p2_move, close_engine
 from board_ui import BoardUI # Keep for other games if needed
-from checkers_state import CheckersState
-from chess_state import ChessState
+from checkers_state import CheckersState, Piece as CheckersPiece
+from chess_state import ChessPiece, ChessState
 from chess_ui import ChessUI # Keep for other games if needed
-from parcheesi_state import ParcheesiState
+from coords import parse_square
+from parcheesi_state import ParcheesiState, Piece as ParcheesiPiece
 from parcheesi_ui import ParcheesiUI
 from ipc.mock_transport import MockTransport
 from ipc.protocol import P1MoveMessage, P2MoveMessage, decode_line
@@ -34,6 +37,35 @@ from motor_sequence import (
 )
 
 ROOT = Path(__file__).resolve().parent
+
+
+class _TeeStream:
+    def __init__(self, primary: object, mirror: object) -> None:
+        self._primary = primary
+        self._mirror = mirror
+
+    def write(self, data: str) -> int:
+        self._primary.write(data)
+        self._mirror.write(data)
+        return len(data)
+
+    def flush(self) -> None:
+        self._primary.flush()
+        self._mirror.flush()
+
+    def isatty(self) -> bool:
+        return bool(getattr(self._primary, "isatty", lambda: False)())
+
+
+def _install_runtime_log() -> Path:
+    logs_dir = ROOT / "debug_output" / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = logs_dir / f"gui_runtime_{timestamp}.log"
+    handle = log_path.open("a", encoding="utf-8")
+    sys.stdout = _TeeStream(sys.stdout, handle)  # type: ignore[assignment]
+    sys.stderr = _TeeStream(sys.stderr, handle)  # type: ignore[assignment]
+    return log_path
 
 
 def _piece_name(piece: object) -> str:
@@ -63,6 +95,28 @@ class _Button:
     def __init__(self, rect: pygame.Rect, label: str) -> None:
         self.rect = rect
         self.label = label
+
+
+@dataclass
+class _ManualFixDrag:
+    source_kind: str
+    source_ref: str | None
+    piece: object
+    label: str
+    mouse_pos: tuple[int, int]
+    origin_pos: tuple[int, int]
+    moved: bool = False
+
+
+@dataclass
+class _ManualFixSession:
+    kind: str
+    backup_state: object
+    opened_at: float = field(default_factory=time.perf_counter)
+    palette_rects: list[tuple[pygame.Rect, str, object]] = field(default_factory=list)
+    done_rect: pygame.Rect = field(default_factory=lambda: pygame.Rect(0, 0, 0, 0))
+    cancel_rect: pygame.Rect = field(default_factory=lambda: pygame.Rect(0, 0, 0, 0))
+    dragging: _ManualFixDrag | None = None
 
 
 class _GeometryPreview:
@@ -197,6 +251,11 @@ def _mode_button_rect(ui: object) -> pygame.Rect:
     return pygame.Rect(screen.get_width() - w - margin, margin, w, h)
 
 
+def _manual_fix_button_rect(ui: object) -> pygame.Rect:
+    margin = int(getattr(ui, "margin", 16))
+    return pygame.Rect(margin // 2, 58, 126, 36)
+
+
 def _draw_mode_button(ui: object, ai_mode: bool, game_kind: str) -> None:
     rect = _mode_button_rect(ui)
     mx, my = pygame.mouse.get_pos()
@@ -221,6 +280,280 @@ def _draw_mode_button(ui: object, ai_mode: bool, game_kind: str) -> None:
 
     label = ui.font.render(text, True, (244, 244, 248))
     ui.screen.blit(label, label.get_rect(center=rect.center))
+
+
+def _draw_manual_fix_button(ui: object) -> None:
+    rect = _manual_fix_button_rect(ui)
+    mx, my = pygame.mouse.get_pos()
+    hover = rect.collidepoint(mx, my)
+    bg = (96, 72, 34) if not hover else (116, 86, 40)
+    border = (236, 178, 70)
+
+    pygame.draw.rect(ui.screen, bg, rect, border_radius=10)
+    pygame.draw.rect(ui.screen, border, rect, width=1, border_radius=10)
+
+    label = ui.font.render("Fix Manual", True, (248, 245, 238))
+    ui.screen.blit(label, label.get_rect(center=rect.center))
+
+
+def _manual_fix_palette_items(kind: str, state: object) -> list[tuple[str, object]]:
+    if kind == "chess":
+        return [
+            ("WP", ChessPiece.P1_PAWN),
+            ("WN", ChessPiece.P1_KNIGHT),
+            ("WB", ChessPiece.P1_BISHOP),
+            ("WR", ChessPiece.P1_ROOK),
+            ("WQ", ChessPiece.P1_QUEEN),
+            ("WK", ChessPiece.P1_KING),
+            ("BP", ChessPiece.P2_PAWN),
+            ("BN", ChessPiece.P2_KNIGHT),
+            ("BB", ChessPiece.P2_BISHOP),
+            ("BR", ChessPiece.P2_ROOK),
+            ("BQ", ChessPiece.P2_QUEEN),
+            ("BK", ChessPiece.P2_KING),
+        ]
+    if kind == "checkers":
+        return [
+            ("P1M", CheckersPiece.P1_MAN),
+            ("P1K", CheckersPiece.P1_KING),
+            ("P2M", CheckersPiece.P2_MAN),
+            ("P2K", CheckersPiece.P2_KING),
+        ]
+    if kind == "parcheesi" and isinstance(state, ParcheesiState):
+        items: list[tuple[str, object]] = []
+        for player in range(1, ParcheesiState.NUM_PLAYERS + 1):
+            for token in range(1, ParcheesiState.TOKENS_PER_PLAYER + 1):
+                piece = ParcheesiPiece[f"P{player}_TOKEN_{token}"]
+                loc = state.piece_locations.get(piece)
+                if loc is None:
+                    continue
+                if loc.kind in {"nest", "homearea"}:
+                    items.append((f"{player}.{token}", piece))
+        return items
+    raise ValueError(f"Unsupported manual fix kind: {kind}")
+
+
+def _manual_fix_piece_label(kind: str, piece: object) -> str:
+    if kind == "chess" and isinstance(piece, ChessPiece):
+        labels = {
+            ChessPiece.P1_PAWN: "WP",
+            ChessPiece.P1_KNIGHT: "WN",
+            ChessPiece.P1_BISHOP: "WB",
+            ChessPiece.P1_ROOK: "WR",
+            ChessPiece.P1_QUEEN: "WQ",
+            ChessPiece.P1_KING: "WK",
+            ChessPiece.P2_PAWN: "BP",
+            ChessPiece.P2_KNIGHT: "BN",
+            ChessPiece.P2_BISHOP: "BB",
+            ChessPiece.P2_ROOK: "BR",
+            ChessPiece.P2_QUEEN: "BQ",
+            ChessPiece.P2_KING: "BK",
+        }
+        return labels.get(piece, piece.name)
+    if kind == "checkers" and isinstance(piece, CheckersPiece):
+        labels = {
+            CheckersPiece.P1_MAN: "P1M",
+            CheckersPiece.P1_KING: "P1K",
+            CheckersPiece.P2_MAN: "P2M",
+            CheckersPiece.P2_KING: "P2K",
+        }
+        return labels.get(piece, piece.name)
+    if kind == "parcheesi" and isinstance(piece, ParcheesiPiece):
+        return f"{piece.to_player_num()}.{piece.to_token_num()}"
+    return _piece_name(piece)
+
+
+def _draw_manual_fix_palette_entry(
+    ui: object,
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    kind: str,
+    rect: pygame.Rect,
+    label: str,
+    piece: object,
+    hover: bool,
+) -> None:
+    bg = (62, 72, 88)
+    border = (145, 150, 170)
+    if hover:
+        bg = tuple(min(255, c + 18) for c in bg)
+    pygame.draw.rect(screen, bg, rect, border_radius=9)
+    pygame.draw.rect(screen, border, rect, width=1, border_radius=9)
+
+    if kind == "chess" and isinstance(piece, ChessPiece) and hasattr(ui, "_sprites") and ui._sprites.has(piece):
+        src = ui._sprites.board[piece]
+        max_w = max(1, rect.width - 10)
+        max_h = max(1, rect.height - 8)
+        scale = min(max_w / src.get_width(), max_h / src.get_height())
+        scaled = pygame.transform.smoothscale(
+            src,
+            (
+                max(1, int(src.get_width() * scale)),
+                max(1, int(src.get_height() * scale)),
+            ),
+        )
+        screen.blit(scaled, scaled.get_rect(center=rect.center))
+        return
+
+    surf = font.render(label, True, (248, 248, 250))
+    screen.blit(surf, surf.get_rect(center=rect.center))
+
+
+def _draw_manual_fix_drag_ghost(
+    ui: object,
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    kind: str,
+    drag: _ManualFixDrag,
+) -> None:
+    if kind == "chess" and isinstance(drag.piece, ChessPiece) and hasattr(ui, "_sprites") and ui._sprites.has(drag.piece):
+        img = ui._sprites.board[drag.piece]
+        screen.blit(img, img.get_rect(center=drag.mouse_pos))
+        return
+
+    ghost_rect = pygame.Rect(0, 0, 74, 40)
+    ghost_rect.center = drag.mouse_pos
+    pygame.draw.rect(screen, (32, 38, 48), ghost_rect, border_radius=10)
+    pygame.draw.rect(screen, (120, 220, 150), ghost_rect, width=1, border_radius=10)
+    ghost = font.render(drag.label, True, (248, 248, 250))
+    screen.blit(ghost, ghost.get_rect(center=ghost_rect.center))
+
+
+def _begin_manual_fix(kind: str, state: object) -> _ManualFixSession:
+    return _ManualFixSession(
+        kind=kind,
+        backup_state=state.copy(),
+    )
+
+
+def _manual_fix_palette_layout(
+    ui: object,
+    session: _ManualFixSession,
+    state: object,
+) -> list[tuple[pygame.Rect, str, object]]:
+    panel = pygame.Rect(
+        max(16, getattr(ui, "sidebar_x", getattr(ui, "screen").get_width() - 240) - 20),
+        getattr(ui, "header_height", 128) + 44,
+        228,
+        getattr(ui, "screen").get_height() - getattr(ui, "header_height", 128) - 96,
+    )
+    top = panel.y + 56
+    items = _manual_fix_palette_items(session.kind, state)
+    cols = 2 if session.kind == "parcheesi" else 2
+    button_w = 100 if session.kind == "chess" else 92
+    button_h = 54 if session.kind == "chess" else 38
+    gap_x = 10
+    gap_y = 10
+    row_w = cols * button_w + (cols - 1) * gap_x
+    start_x = panel.x + max(0, (panel.width - row_w) // 2)
+    rects: list[tuple[pygame.Rect, str, object]] = []
+    for index, (label, value) in enumerate(items):
+        row = index // cols
+        col = index % cols
+        rect = pygame.Rect(
+            start_x + col * (button_w + gap_x),
+            top + row * (button_h + gap_y),
+            button_w,
+            button_h,
+        )
+        rects.append((rect, label, value))
+    session.palette_rects = rects
+    return rects
+
+
+def _manual_fix_pick_from_board(
+    kind: str,
+    state: object,
+    ui: object,
+    pos: tuple[int, int],
+) -> tuple[str, object, tuple[int, int]] | None:
+    if kind == "chess" and isinstance(state, ChessState):
+        square = ui.square_at_pixel(*pos)
+        if square is None:
+            return None
+        piece = state.get(square)
+        if piece == ChessPiece.EMPTY:
+            return None
+        return square.to_id(), piece, ui.cell_rect(square).center
+
+    if kind == "checkers" and isinstance(state, CheckersState):
+        square = ui.square_at_pixel(*pos)
+        if square is None:
+            return None
+        piece = state.get(square)
+        if piece == CheckersPiece.EMPTY:
+            return None
+        return square.to_id(), piece, ui.cell_rect(square).center
+
+    if kind == "parcheesi" and isinstance(state, ParcheesiState):
+        location_id = ui.location_id_at_pixel(pos)
+        if location_id is None:
+            return None
+        piece = state.piece_at_id(location_id)
+        if piece is ParcheesiPiece.EMPTY:
+            return None
+        gx, gy = ParcheesiState.location_id_to_grid(location_id)
+        center = ui._grid_point_to_screen(gx, gy)
+        return location_id, piece, center
+
+    return None
+
+
+def _manual_fix_drop_drag(
+    session: _ManualFixSession,
+    state: object,
+    ui: object,
+    drop_pos: tuple[int, int],
+) -> str | None:
+    drag = session.dragging
+    if drag is None:
+        return None
+
+    if session.kind == "chess" and isinstance(state, ChessState):
+        turn_side = state.turn_side()
+        square = ui.square_at_pixel(*drop_pos)
+        if square is None:
+            if drag.source_kind == "board" and drag.source_ref is not None:
+                state.set(parse_square(drag.source_ref), ChessPiece.EMPTY)
+                state.manual_resync_engine(turn_side=turn_side)
+                return f"deleted {drag.label}"
+            return None
+        if drag.source_kind == "board" and drag.source_ref is not None:
+            state.set(parse_square(drag.source_ref), ChessPiece.EMPTY)
+        state.set(square, drag.piece)
+        state.manual_resync_engine(turn_side=turn_side)
+        return f"{drag.label} -> {square.to_id()}"
+
+    if session.kind == "checkers" and isinstance(state, CheckersState):
+        square = ui.square_at_pixel(*drop_pos)
+        if square is None:
+            if drag.source_kind == "board" and drag.source_ref is not None:
+                state.set(parse_square(drag.source_ref), CheckersPiece.EMPTY)
+                state.clear_forced_continuations()
+                return f"deleted {drag.label}"
+            return None
+        if drag.source_kind == "board" and drag.source_ref is not None:
+            state.set(parse_square(drag.source_ref), CheckersPiece.EMPTY)
+        state.set(square, drag.piece)
+        state.clear_forced_continuations()
+        return f"{drag.label} -> {square.to_id()}"
+
+    if session.kind == "parcheesi" and isinstance(state, ParcheesiState):
+        location_id = ui.location_id_at_pixel(drop_pos)
+        if location_id is None:
+            state.manual_move_piece(drag.piece, ParcheesiState.location_id("nest", drag.piece.to_player_num(), drag.piece.to_token_num()))
+            return f"removed {drag.label} to nest"
+        dest = state.parse_location_id(location_id)
+        if dest.kind in {"home", "homearea"}:
+            err = state.manual_clear_location(location_id)
+            if err is not None:
+                return f"error: {err}"
+        err = state.manual_move_piece(drag.piece, location_id)
+        if err is not None:
+            return f"error: {err}"
+        return f"{drag.label} -> {location_id}"
+
+    return None
 
 
 def _draw_capture_inventory_overlay(ui: object, inventory_lines: list[str], manual_actions: list[str]) -> None:
@@ -377,6 +710,18 @@ def _send_geometry_calibration_payload(
     sender = getattr(transport, "send_control_message", None)
     if callable(sender):
         sender(payload)
+
+
+def _send_runtime_control_message(transport: object, payload: dict[str, object]) -> bool:
+    sender = getattr(transport, "send_control_message", None)
+    if not callable(sender):
+        return False
+    try:
+        sender(payload)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"Failed to send runtime control message: {exc}", file=sys.stderr)
+        return False
 
 
 def _current_status_notice(
@@ -788,6 +1133,54 @@ def _handle_geometry_calibration_event(
     return calibration, True
 
 
+def _draw_manual_fix_modal(
+    ui: object,
+    state: object,
+    session: _ManualFixSession,
+) -> None:
+    screen = ui.screen
+    font = ui.font
+    panel = pygame.Rect(
+        max(16, getattr(ui, "sidebar_x", screen.get_width() - 240) - 20),
+        getattr(ui, "header_height", 128) + 44,
+        228,
+        screen.get_height() - getattr(ui, "header_height", 128) - 96,
+    )
+    pygame.draw.rect(screen, (24, 28, 34), panel, border_radius=14)
+    pygame.draw.rect(screen, (150, 170, 190), panel, width=1, border_radius=14)
+
+    title_font = pygame.font.SysFont("sf pro display, helvetica, arial", 25, bold=True)
+    title = title_font.render("Manual Fix", True, (248, 248, 250))
+    screen.blit(title, (panel.x + 18, panel.y + 14))
+    text_y = panel.y + 56
+
+    mx, my = pygame.mouse.get_pos()
+    for rect, label, value in _manual_fix_palette_layout(ui, session, state):
+        hover = rect.collidepoint(mx, my)
+        _draw_manual_fix_palette_entry(ui, screen, font, session.kind, rect, label, value, hover)
+
+    session.done_rect = pygame.Rect(panel.right - 214, panel.bottom - 52, 90, 36)
+    session.cancel_rect = pygame.Rect(panel.right - 114, panel.bottom - 52, 90, 36)
+    for rect, label, good in [
+        (session.done_rect, "Done", True),
+        (session.cancel_rect, "Cancel", False),
+    ]:
+        hover = rect.collidepoint(mx, my)
+        if good:
+            bg = (35, 105, 62) if not hover else (47, 130, 78)
+            border = (120, 220, 150)
+        else:
+            bg = (92, 54, 54) if not hover else (118, 66, 66)
+            border = (215, 130, 130)
+        pygame.draw.rect(screen, bg, rect, border_radius=10)
+        pygame.draw.rect(screen, border, rect, width=1, border_radius=10)
+        surf = font.render(label, True, (248, 248, 250))
+        screen.blit(surf, surf.get_rect(center=rect.center))
+
+    if session.dragging is not None:
+        _draw_manual_fix_drag_ghost(ui, screen, font, session.kind, session.dragging)
+
+
 def _draw_menu(screen: pygame.Surface, font: pygame.font.Font, buttons: list[_Button]) -> None:
     screen.fill((32, 32, 38))
     title_font = pygame.font.SysFont("sf pro display, helvetica, arial", 34, bold=True)
@@ -836,6 +1229,10 @@ def _make_transport() -> object:
 
 
 def _run_game_loop(kind: str, transport: object) -> None:
+    _send_runtime_control_message(
+        transport,
+        {"type": "set_game", "game": kind, "reason": "ui_game_selected"},
+    )
     waiting_for_p1 = True
     ai_mode = config.CONTROL_MODE == "ai"
     ai_pending = False
@@ -861,6 +1258,7 @@ def _run_game_loop(kind: str, transport: object) -> None:
 
     geometry_preview: _GeometryPreview | None = None
     geometry_calibration: _GeometryCalibration | None = None
+    manual_fix_session: _ManualFixSession | None = None
     status_notice: _StatusNotice | None = None
     pending_checkers_turn = _QueuedCheckersTurn()
 
@@ -879,14 +1277,43 @@ def _run_game_loop(kind: str, transport: object) -> None:
         msg: P1MoveMessage,
     ) -> tuple[int, int]:
         new_captured = _new_captured_by_p1(state_before, state_after)
-        if not new_captured:
+        expected_records: list[tuple[str, object]] = [("p2", piece) for piece in new_captured]
+
+        if kind == "chess" and isinstance(state_before, ChessState):
+            try:
+                start_sq = parse_square(msg.frm)
+                end_sq = parse_square(msg.to)
+                legal_move = state_before._choose_legal_move(start_sq, end_sq)
+            except Exception:  # noqa: BLE001
+                legal_move = None
+            if legal_move is not None and legal_move.promotion is not None:
+                promoted_from_piece = state_before.get(start_sq)
+                if promoted_from_piece != ChessPiece.EMPTY:
+                    expected_records.append(("p1", promoted_from_piece))
+                promoted_piece = state_after.get(end_sq) if isinstance(state_after, ChessState) else ChessPiece.EMPTY
+                if promoted_piece != ChessPiece.EMPTY:
+                    pulled = capture_inventory.take_piece("p1", _piece_name(promoted_piece))
+                    if pulled is not None:
+                        print(
+                            "[PROMOTION] Reused "
+                            f"{pulled.captured_side}[{pulled.slot_index}]="
+                            f"{pulled.slot.x_pct:.2f}%,{pulled.slot.y_pct:.2f}%:{pulled.piece_name}",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            f"[PROMOTION] No reusable {_piece_name(promoted_piece)} found in capture inventory for P1 promotion.",
+                            file=sys.stderr,
+                        )
+
+        if not expected_records:
             return (0, 0)
 
         raw_captures = msg.manual_green_captures or []
         if not raw_captures and kind != "chess":
             return (0, 0)
         tracked = 0
-        for piece, raw in zip(new_captured, raw_captures):
+        for (captured_side, piece), raw in zip(expected_records, raw_captures):
             if not isinstance(raw, dict):
                 continue
             try:
@@ -895,12 +1322,12 @@ def _run_game_loop(kind: str, transport: object) -> None:
             except (KeyError, TypeError, ValueError):
                 continue
             capture_inventory.add_manual_capture(
-                "p2",
+                captured_side,
                 _piece_name(piece),
                 PercentEndpoint(x_pct=x_pct, y_pct=y_pct),
             )
             tracked += 1
-        return (tracked, len(new_captured))
+        return (tracked, len(expected_records))
 
     # Add a "Roll Dice" button for Parcheesi.
     roll_dice_button_rect = pygame.Rect(
@@ -926,6 +1353,7 @@ def _run_game_loop(kind: str, transport: object) -> None:
             print(json.dumps(msg.to_obj(), separators=(",", ":")), flush=True, file=sys.stderr)
 
         if config.WRITE_STM_SEQUENCE:
+            write_started_at = time.perf_counter()
             out_path = write_sequence_file(
                 config.STM_SEQUENCE_FILE,
                 msg.stm_sequence or [],
@@ -942,7 +1370,8 @@ def _run_game_loop(kind: str, transport: object) -> None:
                 f" temp_relocations={temporary_relocations},"
                 f" fallback_direct={fallback_direct_segments},"
                 f" steps={len(msg.stm_sequence or [])},"
-                f" capture_slots={len(capture_slots_used)})",
+                f" capture_slots={len(capture_slots_used)})"
+                f" write_time={time.perf_counter() - write_started_at:.3f}s",
                 file=sys.stderr,
             )
             if manual_actions:
@@ -960,10 +1389,34 @@ def _run_game_loop(kind: str, transport: object) -> None:
         if kind == "chess" and hasattr(state, "is_checkmate"):
             if state.is_checkmate():
                 print(f"Game over: checkmate. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}", file=sys.stderr)
+                status_notice = _make_status_notice(
+                    level="error",
+                    title="Checkmate",
+                    message=f"Game over. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}. Press R to play again.",
+                    sticky=True,
+                )
+                waiting_for_p1 = True
+                ai_pending = False
+                return
             elif state.is_stalemate():
                 print("Game over: stalemate.", file=sys.stderr)
+                status_notice = _make_status_notice(
+                    level="warning",
+                    title="Stalemate",
+                    message="Game over. Stalemate. Press R to play again.",
+                    sticky=True,
+                )
+                waiting_for_p1 = True
+                ai_pending = False
+                return
             elif state.is_check():
                 print(f"Check on {state.turn_side().upper()}.", file=sys.stderr)
+                status_notice = _make_status_notice(
+                    level="warning",
+                    title="Check",
+                    message=f"Check on {state.turn_side().upper()}.",
+                    duration_ms=1800,
+                )
 
         if kind == "parcheesi":
             if state.check_win_condition(2):
@@ -1002,12 +1455,22 @@ def _run_game_loop(kind: str, transport: object) -> None:
         last_move = (start_id, end_id)
         print(f"P2 move: {start_id} -> {end_id}", file=sys.stderr)
 
+        planner_started_at = time.perf_counter()
         generated = generate_p2_sequence(
             kind,
             state_before,
             start_id,
             end_id,
             capture_inventory=capture_inventory,
+        )
+        print(
+            "Motion planner completed:"
+            f" {time.perf_counter() - planner_started_at:.3f}s"
+            f" (capture={generated.capture_detected},"
+            f" temp_relocations={generated.temporary_relocations},"
+            f" fallback_direct={generated.fallback_direct_segments},"
+            f" stm_steps={len(generated.lines)})",
+            file=sys.stderr,
         )
         if kind == "checkers":
             pending_checkers_turn.append(start_id, end_id, generated)
@@ -1088,6 +1551,108 @@ def _run_game_loop(kind: str, transport: object) -> None:
             if consumed_by_preview:
                 continue
 
+            if manual_fix_session is not None:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    state = manual_fix_session.backup_state.copy()
+                    ui.clear_drag()
+                    duration_s = time.perf_counter() - manual_fix_session.opened_at
+                    print(f"Manual fix canceled after {duration_s:.3f}s", file=sys.stderr)
+                    status_notice = _make_status_notice(
+                        level="info",
+                        title="Manual Fix Canceled",
+                        message="Restored the software state to the snapshot from when manual fix opened.",
+                        duration_ms=2200,
+                    )
+                    manual_fix_session = None
+                    continue
+
+                if event.type == pygame.MOUSEMOTION and manual_fix_session.dragging is not None:
+                    manual_fix_session.dragging.mouse_pos = event.pos
+                    dx = event.pos[0] - manual_fix_session.dragging.origin_pos[0]
+                    dy = event.pos[1] - manual_fix_session.dragging.origin_pos[1]
+                    if (dx * dx + dy * dy) >= 25:
+                        manual_fix_session.dragging.moved = True
+                    continue
+
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if manual_fix_session.done_rect.collidepoint(*event.pos):
+                        duration_s = time.perf_counter() - manual_fix_session.opened_at
+                        refresh_requested = _send_runtime_control_message(
+                            transport,
+                            {"type": "refresh_reference", "reason": "manual_fix_commit"},
+                        )
+                        print(f"Manual fix committed after {duration_s:.3f}s", file=sys.stderr)
+                        status_notice = _make_status_notice(
+                            level="success",
+                            title="Manual Fix Applied",
+                            message=(
+                                "Kept the manual software-state corrections and requested a fresh reference capture from the Pi."
+                                if refresh_requested
+                                else "Kept the manual software-state corrections."
+                            ),
+                            duration_ms=2200,
+                        )
+                        manual_fix_session = None
+                        continue
+                    if manual_fix_session.cancel_rect.collidepoint(*event.pos):
+                        state = manual_fix_session.backup_state.copy()
+                        ui.clear_drag()
+                        duration_s = time.perf_counter() - manual_fix_session.opened_at
+                        print(f"Manual fix canceled after {duration_s:.3f}s", file=sys.stderr)
+                        status_notice = _make_status_notice(
+                            level="info",
+                            title="Manual Fix Canceled",
+                            message="Restored the software state to the snapshot from when manual fix opened.",
+                            duration_ms=2200,
+                        )
+                        manual_fix_session = None
+                        continue
+
+                    for rect, label, value in _manual_fix_palette_layout(ui, manual_fix_session, state):
+                        if rect.collidepoint(*event.pos):
+                            manual_fix_session.dragging = _ManualFixDrag(
+                                source_kind="palette",
+                                source_ref=None,
+                                piece=value,
+                                label=label,
+                                mouse_pos=event.pos,
+                                origin_pos=event.pos,
+                            )
+                            break
+                    else:
+                        picked = _manual_fix_pick_from_board(kind, state, ui, event.pos)
+                        if picked is not None:
+                            source_ref, piece, origin = picked
+                            manual_fix_session.dragging = _ManualFixDrag(
+                                source_kind="board",
+                                source_ref=source_ref,
+                                piece=piece,
+                                label=_manual_fix_piece_label(kind, piece),
+                                mouse_pos=event.pos,
+                                origin_pos=origin,
+                            )
+                    continue
+
+                if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    if manual_fix_session.dragging is not None:
+                        description = _manual_fix_drop_drag(manual_fix_session, state, ui, event.pos)
+                        manual_fix_session.dragging = None
+                        if description is not None:
+                            ui.clear_drag()
+                            print(f"[MANUAL_FIX] {description}", file=sys.stderr)
+                            level = "warning" if description.startswith("error:") else "success"
+                            title = "Manual Fix Error" if level == "warning" else "Manual Fix Applied"
+                            message = description[7:] if description.startswith("error: ") else description
+                            status_notice = _make_status_notice(
+                                level=level,
+                                title=title,
+                                message=message,
+                                duration_ms=2400,
+                            )
+                    continue
+
+                continue
+
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if _back_button_rect(ui).collidepoint(*event.pos):
                     if hasattr(ui, "clear_drag"):
@@ -1100,6 +1665,18 @@ def _run_game_loop(kind: str, transport: object) -> None:
                         ai_pending = True
                     mode_name = "AI (Stockfish)" if ai_mode else "Manual"
                     print(f"Control mode set to: {mode_name}", file=sys.stderr)
+                    continue
+
+                if _manual_fix_button_rect(ui).collidepoint(*event.pos):
+                    ui.clear_drag()
+                    manual_fix_session = _begin_manual_fix(kind, state)
+                    print(f"Manual fix opened for {kind}", file=sys.stderr)
+                    status_notice = _make_status_notice(
+                        level="warning",
+                        title="Manual Fix",
+                        message="Editing the software state directly. Click Done to keep or Cancel to restore.",
+                        sticky=True,
+                    )
                     continue
                 
                 if kind == "parcheesi" and roll_dice_button_rect.collidepoint(*event.pos):
@@ -1136,10 +1713,18 @@ def _run_game_loop(kind: str, transport: object) -> None:
                 waiting_for_p1 = True
                 ai_pending = False
                 last_move = None
+                reset_requested = _send_runtime_control_message(
+                    transport,
+                    {"type": "reset_game", "reason": "board_reset", "game": kind},
+                )
                 status_notice = _make_status_notice(
                     level="info",
                     title="Board Reset",
-                    message="Returned to the opening position and cleared queued moves.",
+                    message=(
+                        "Returned to the opening position, cleared queued moves, and requested a Pi-side game reset."
+                        if reset_requested
+                        else "Returned to the opening position and cleared queued moves."
+                    ),
                     duration_ms=1800,
                 )
                 print("Board reset to starting position.", file=sys.stderr)
@@ -1151,8 +1736,9 @@ def _run_game_loop(kind: str, transport: object) -> None:
                     _apply_and_dispatch_p2_move(start_id, end_id)
 
         geometry_modal_active = geometry_preview is not None or geometry_calibration is not None
+        manual_fix_active = manual_fix_session is not None
 
-        if waiting_for_p1 and not geometry_modal_active:
+        if waiting_for_p1 and not geometry_modal_active and not manual_fix_active:
             msg = transport.poll_p1_move()
             if msg is not None:
                 state_before = state.copy()
@@ -1222,10 +1808,32 @@ def _run_game_loop(kind: str, transport: object) -> None:
                             f"Game over: checkmate. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}",
                             file=sys.stderr,
                         )
+                        status_notice = _make_status_notice(
+                            level="error",
+                            title="Checkmate",
+                            message=f"Game over. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}. Press R to play again.",
+                            sticky=True,
+                        )
+                        waiting_for_p1 = True
+                        ai_pending = False
                     elif state.is_stalemate():
                         print("Game over: stalemate.", file=sys.stderr)
+                        status_notice = _make_status_notice(
+                            level="warning",
+                            title="Stalemate",
+                            message="Game over. Stalemate. Press R to play again.",
+                            sticky=True,
+                        )
+                        waiting_for_p1 = True
+                        ai_pending = False
                     elif state.is_check():
                         print(f"Check on {state.turn_side().upper()}.", file=sys.stderr)
+                        status_notice = _make_status_notice(
+                            level="warning",
+                            title="Check",
+                            message=f"Check on {state.turn_side().upper()}.",
+                            duration_ms=1800,
+                        )
                 if kind == "checkers" and hasattr(state, "p1_must_continue_jump") and state.p1_must_continue_jump():
                     forced = state.p1_forced_square_id() if hasattr(state, "p1_forced_square_id") else None
                     if forced:
@@ -1234,11 +1842,14 @@ def _run_game_loop(kind: str, transport: object) -> None:
                 elif kind == "parcheesi":
                     waiting_for_p1 = False
                     ai_pending = ai_mode
+                elif kind == "chess" and hasattr(state, "is_checkmate") and (state.is_checkmate() or state.is_stalemate()):
+                    waiting_for_p1 = True
+                    ai_pending = False
                 else:
                     waiting_for_p1 = False
                     ai_pending = ai_mode
 
-        if not geometry_modal_active and (not waiting_for_p1) and ai_mode and ai_pending:
+        if not geometry_modal_active and not manual_fix_active and (not waiting_for_p1) and ai_mode and ai_pending:
             chosen = choose_p2_move(kind, state)
             ai_pending = False
             if chosen is None:
@@ -1250,6 +1861,7 @@ def _run_game_loop(kind: str, transport: object) -> None:
         ui.draw(state, p2_turn=not waiting_for_p1, last_move=last_move)
         _draw_back_button(ui)
         # _draw_capture_inventory_overlay(ui, capture_inventory.to_summary_strings(), latest_manual_actions)
+        _draw_manual_fix_button(ui)
         _draw_mode_button(ui, ai_mode, kind)
         _draw_status_notice(
             ui.screen,
@@ -1269,11 +1881,15 @@ def _run_game_loop(kind: str, transport: object) -> None:
             _draw_geometry_preview(ui.screen, ui.font, geometry_preview)
         if geometry_calibration is not None:
             _draw_geometry_calibration(ui.screen, ui.font, geometry_calibration)
+        if manual_fix_session is not None:
+            _draw_manual_fix_modal(ui, state, manual_fix_session)
         pygame.display.flip()
         ui.tick(60)
 
 
 def main() -> None:
+    runtime_log_path = _install_runtime_log()
+    print(f"GUI runtime log: {runtime_log_path}", file=sys.stderr)
     pygame.init()
 
     # Transport stays open while you switch between games.

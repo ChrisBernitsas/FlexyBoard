@@ -115,6 +115,25 @@ class MixedRoutePlan:
     blockers: frozenset[BoardCoord]
 
 
+@dataclass(frozen=True)
+class OffboardGeometry:
+    board_square_x_pct: float
+    board_square_y_pct: float
+    right_edge_x_pct: float
+    left_edge_x_pct: float
+    top_edge_y_pct: float
+    bottom_edge_y_pct: float
+    right_lane_x_pct: float
+    left_lane_x_pct: float
+    top_row_y_pcts: tuple[float, ...]
+    bottom_row_y_pcts: tuple[float, ...]
+    capture_bottom_x_pcts: tuple[float, ...]
+    capture_top_x_pcts: tuple[float, ...]
+    temp_left_x_pct: float
+    temp_right_x_pct: float
+    temp_side_y_pcts: tuple[float, ...]
+
+
 class CaptureInventory:
     """Tracks captured pieces by slot, side, and piece type for physical tray usage."""
 
@@ -131,16 +150,22 @@ class CaptureInventory:
         self._manual_pending = {}
         self._next_manual_id = 1
 
-    def _next_free_index(self) -> int:
+    def _next_free_index(self, blocked_indices: set[int] | None = None) -> int:
+        blocked = blocked_indices or set()
         idx = 0
-        while idx in self._slots:
+        while idx in self._slots or idx in blocked:
             idx += 1
         return idx
 
-    def add_captured_piece(self, captured_side: str, piece_name: str) -> CaptureSlotRecord:
+    def add_captured_piece(
+        self,
+        captured_side: str,
+        piece_name: str,
+        blocked_indices: set[int] | None = None,
+    ) -> CaptureSlotRecord:
         if captured_side not in {"p1", "p2"}:
             raise ValueError(f"invalid captured_side: {captured_side}")
-        idx = self._next_free_index()
+        idx = self._next_free_index(blocked_indices)
         self._slots[idx] = (captured_side, piece_name)
         slot = _capture_slot_by_index(idx)
         return CaptureSlotRecord(
@@ -184,11 +209,15 @@ class CaptureInventory:
             )
         return out
 
-    def finalize_manual_capture(self, record_id: int) -> tuple[ManualCaptureRecord, CaptureSlotRecord]:
+    def finalize_manual_capture(
+        self,
+        record_id: int,
+        blocked_indices: set[int] | None = None,
+    ) -> tuple[ManualCaptureRecord, CaptureSlotRecord]:
         if record_id not in self._manual_pending:
             raise KeyError(f"unknown manual capture record: {record_id}")
         side, piece_name, source = self._manual_pending.pop(record_id)
-        assigned = self.add_captured_piece(side, piece_name)
+        assigned = self.add_captured_piece(side, piece_name, blocked_indices=blocked_indices)
         return (
             ManualCaptureRecord(
                 record_id=record_id,
@@ -341,12 +370,28 @@ def _segment_intersects_rect_interior(
     return u1 < u2 and (0.0 < u2 and u1 < 1.0)
 
 
-def _parse_define_int(header_text: str, name: str) -> int:
-    pattern = rf"^\s*#define\s+{re.escape(name)}\s+(-?\d+)"
+def _parse_define_int(header_text: str, name: str, _seen: set[str] | None = None) -> int:
+    if _seen is None:
+        _seen = set()
+    if name in _seen:
+        raise ValueError(f"Circular define reference for {name} in {_MOTOR_MAIN_H}")
+    _seen.add(name)
+
+    pattern = rf"^\s*#define\s+{re.escape(name)}\s+(.+?)\s*$"
     match = re.search(pattern, header_text, flags=re.MULTILINE)
     if not match:
         raise ValueError(f"Missing {name} in {_MOTOR_MAIN_H}")
-    return int(match.group(1))
+
+    value_text = match.group(1).split("//", 1)[0].strip()
+    int_match = re.fullmatch(r"-?\d+", value_text)
+    if int_match:
+        return int(int_match.group(0))
+
+    alias_match = re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value_text)
+    if alias_match:
+        return _parse_define_int(header_text, alias_match.group(0), _seen)
+
+    raise ValueError(f"Unsupported define value for {name} in {_MOTOR_MAIN_H}: {value_text!r}")
 
 
 def _load_motor_workspace_mapping() -> dict[str, int] | None:
@@ -380,6 +425,176 @@ def _load_motor_workspace_mapping() -> dict[str, int] | None:
 _MOTOR_WORKSPACE_MAPPING = _load_motor_workspace_mapping()
 
 
+def _capture_slot_count() -> int:
+    return max(1, int(config.CAPTURE_BOTTOM_COLUMNS)) * max(1, int(config.CAPTURE_BOTTOM_ROWS)) + max(
+        1, int(config.CAPTURE_TOP_OVERFLOW_COLUMNS)
+    )
+
+
+def _capture_slot_index_from_key(key: tuple[float, float]) -> int | None:
+    for idx in range(_capture_slot_count()):
+        if _pct_key(_capture_slot_by_index(idx)) == key:
+            return idx
+    return None
+
+
+def _board_coord_to_pct_from_mapping(coord: BoardCoord) -> PercentEndpoint:
+    if _MOTOR_WORKSPACE_MAPPING is None:
+        return _pct_ep(
+            ((7.0 - float(coord[1])) / 7.0) * 100.0,
+            (float(coord[0]) / 7.0) * 100.0,
+        )
+
+    c = _MOTOR_WORKSPACE_MAPPING
+    max_i = c["BOARD_GRID_MAX_INDEX"]
+    board_x, board_y = coord
+    if board_x < 0 or board_x > max_i or board_y < 0 or board_y > max_i:
+        raise ValueError(f"Board coordinate out of range: {coord}")
+
+    motor_x = max_i - board_y
+    motor_y = board_x
+
+    u = float(motor_x) / float(max_i)
+    v = float(motor_y) / float(max_i)
+
+    x_interp = (
+        (1.0 - u) * (1.0 - v) * float(c["CORNER_00_X_STEPS"])
+        + u * (1.0 - v) * float(c["CORNER_70_X_STEPS"])
+        + (1.0 - u) * v * float(c["CORNER_07_X_STEPS"])
+        + u * v * float(c["CORNER_77_X_STEPS"])
+    )
+    y_interp = (
+        (1.0 - u) * (1.0 - v) * float(c["CORNER_00_Y_STEPS"])
+        + u * (1.0 - v) * float(c["CORNER_70_Y_STEPS"])
+        + (1.0 - u) * v * float(c["CORNER_07_Y_STEPS"])
+        + u * v * float(c["CORNER_77_Y_STEPS"])
+    )
+
+    x_range = float(c["WORKSPACE_MAX_X_STEPS"] - c["WORKSPACE_MIN_X_STEPS"])
+    y_range = float(c["WORKSPACE_MAX_Y_STEPS"] - c["WORKSPACE_MIN_Y_STEPS"])
+    x_pct = ((x_interp - float(c["WORKSPACE_MIN_X_STEPS"])) / max(1.0, x_range)) * 100.0
+    y_pct = ((y_interp - float(c["WORKSPACE_MIN_Y_STEPS"])) / max(1.0, y_range)) * 100.0
+    return _pct_ep(x_pct, y_pct)
+
+
+def _fit_centers_in_span(start: float, end: float, count: int, square_size: float) -> tuple[float, ...]:
+    if count <= 0:
+        return tuple()
+
+    span_start = float(min(start, end))
+    span_end = float(max(start, end))
+    span = max(0.0, span_end - span_start)
+    side = max(1e-6, float(square_size))
+
+    if span <= (count * side) + 1e-6:
+        step = span / float(count)
+        return tuple(span_start + ((idx + 0.5) * step) for idx in range(count))
+
+    gap = (span - (count * side)) / float(count + 1)
+    first = span_start + gap + (side / 2.0)
+    step = side + gap
+    return tuple(first + (idx * step) for idx in range(count))
+
+
+def _build_offboard_geometry() -> OffboardGeometry:
+    x_spans: list[float] = []
+    y_spans: list[float] = []
+    for x in range(8):
+        for y in range(7):
+            a = _board_coord_to_pct_from_mapping((x, y))
+            b = _board_coord_to_pct_from_mapping((x, y + 1))
+            x_spans.append(abs(a.x_pct - b.x_pct))
+    for x in range(7):
+        for y in range(8):
+            a = _board_coord_to_pct_from_mapping((x, y))
+            b = _board_coord_to_pct_from_mapping((x + 1, y))
+            y_spans.append(abs(a.y_pct - b.y_pct))
+
+    board_square_x_pct = (sum(x_spans) / len(x_spans)) if x_spans else 10.0
+    board_square_y_pct = (sum(y_spans) / len(y_spans)) if y_spans else 10.0
+
+    top_edge_y_pct = sum(_board_coord_to_pct_from_mapping((0, rank)).y_pct for rank in range(8)) / 8.0
+    bottom_edge_y_pct = sum(_board_coord_to_pct_from_mapping((7, rank)).y_pct for rank in range(8)) / 8.0
+    right_edge_x_pct = sum(_board_coord_to_pct_from_mapping((file_index, 7)).x_pct for file_index in range(8)) / 8.0
+    left_edge_x_pct = sum(_board_coord_to_pct_from_mapping((file_index, 0)).x_pct for file_index in range(8)) / 8.0
+
+    top_outer_end = max(0.0, top_edge_y_pct - (board_square_y_pct / 2.0))
+    bottom_outer_start = min(100.0, bottom_edge_y_pct + (board_square_y_pct / 2.0))
+    right_outer_end = max(0.0, right_edge_x_pct - (board_square_x_pct / 2.0))
+    left_outer_start = min(100.0, left_edge_x_pct + (board_square_x_pct / 2.0))
+
+    bottom_row_y_pcts = _fit_centers_in_span(
+        bottom_outer_start,
+        100.0,
+        max(1, int(config.CAPTURE_BOTTOM_ROWS)),
+        board_square_y_pct,
+    )
+    top_row_y_pcts = _fit_centers_in_span(
+        0.0,
+        top_outer_end,
+        max(1, 1),
+        board_square_y_pct,
+    )
+    right_lane_x_pct = _fit_centers_in_span(
+        0.0,
+        right_outer_end,
+        1,
+        board_square_x_pct,
+    )[0]
+    left_lane_x_pct = _fit_centers_in_span(
+        left_outer_start,
+        100.0,
+        1,
+        board_square_x_pct,
+    )[0]
+
+    capture_bottom_x_pcts = _fit_centers_in_span(
+        0.0,
+        100.0,
+        max(1, int(config.CAPTURE_BOTTOM_COLUMNS)),
+        board_square_x_pct,
+    )
+    capture_top_x_pcts = _fit_centers_in_span(
+        0.0,
+        100.0,
+        max(1, int(config.CAPTURE_TOP_OVERFLOW_COLUMNS)),
+        board_square_x_pct,
+    )
+    # Temp parking should sit in the middle of the side bands between the
+    # chessboard edge and the outer workspace edge, not on the extreme edge.
+    temp_left_x_pct = right_lane_x_pct
+    temp_right_x_pct = left_lane_x_pct
+    top_reserved_end = max(top_row_y_pcts) + (board_square_y_pct / 2.0)
+    bottom_reserved_start = min(bottom_row_y_pcts) - (board_square_y_pct / 2.0)
+    temp_side_y_pcts = _fit_centers_in_span(
+        top_reserved_end,
+        bottom_reserved_start,
+        max(1, int(config.TEMP_RELOCATE_SIDE_SLOTS)),
+        board_square_y_pct,
+    )
+
+    return OffboardGeometry(
+        board_square_x_pct=board_square_x_pct,
+        board_square_y_pct=board_square_y_pct,
+        right_edge_x_pct=right_edge_x_pct,
+        left_edge_x_pct=left_edge_x_pct,
+        top_edge_y_pct=top_edge_y_pct,
+        bottom_edge_y_pct=bottom_edge_y_pct,
+        right_lane_x_pct=right_lane_x_pct,
+        left_lane_x_pct=left_lane_x_pct,
+        top_row_y_pcts=top_row_y_pcts,
+        bottom_row_y_pcts=bottom_row_y_pcts,
+        capture_bottom_x_pcts=capture_bottom_x_pcts,
+        capture_top_x_pcts=capture_top_x_pcts,
+        temp_left_x_pct=temp_left_x_pct,
+        temp_right_x_pct=temp_right_x_pct,
+        temp_side_y_pcts=temp_side_y_pcts,
+    )
+
+
+_OFFBOARD_GEOMETRY = _build_offboard_geometry()
+
+
 def _capture_slot_by_index(slot_index: int) -> PercentEndpoint:
     """Return the physical capture slot for a global capture index.
 
@@ -396,16 +611,18 @@ def _capture_slot_by_index(slot_index: int) -> PercentEndpoint:
     if slot_index < bottom_capacity:
         col = slot_index % bottom_cols
         row = slot_index // bottom_cols
-        x = config.CAPTURE_BOTTOM_X_START_PCT + (col * config.CAPTURE_BOTTOM_X_STEP_PCT)
-        y = config.CAPTURE_BOTTOM_BASE_Y_PCT - (row * config.CAPTURE_BOTTOM_ROW_STEP_Y_PCT)
+        x = _OFFBOARD_GEOMETRY.capture_bottom_x_pcts[col]
+        y_rows = tuple(reversed(_OFFBOARD_GEOMETRY.bottom_row_y_pcts))
+        y = y_rows[row]
         return _pct_ep(x, y)
 
     overflow_index = slot_index - bottom_capacity
     top_cols = max(1, int(config.CAPTURE_TOP_OVERFLOW_COLUMNS))
     col = overflow_index % top_cols
-    row = overflow_index // top_cols
-    x = config.CAPTURE_TOP_OVERFLOW_X_START_PCT + (col * config.CAPTURE_TOP_OVERFLOW_X_STEP_PCT)
-    y = config.CAPTURE_TOP_OVERFLOW_Y_PCT + (row * config.CAPTURE_BOTTOM_ROW_STEP_Y_PCT)
+    x = _OFFBOARD_GEOMETRY.capture_top_x_pcts[col]
+    top_rows = _OFFBOARD_GEOMETRY.top_row_y_pcts or (50.0,)
+    row = min(overflow_index // top_cols, len(top_rows) - 1)
+    y = top_rows[row]
     return _pct_ep(x, y)
 
 
@@ -646,6 +863,7 @@ class MotionPlanner:
         self._temp_slot_next_index = 0
         self._fallback_direct_segments = 0
         self._capture_slots_used: list[str] = []
+        self._reserved_capture_slot_indices: set[int] = set()
         self._board_square_x_pct, self._board_square_y_pct = self._estimate_board_square_size_pct()
         self.offboard_occupied: dict[tuple[float, float], str] = {}
         if capture_inventory is not None:
@@ -668,15 +886,21 @@ class MotionPlanner:
 
     def capture_slot_next(self, captured_side: str, piece_name: str) -> PercentEndpoint:
         if self._capture_inventory is not None:
-            rec = self._capture_inventory.add_captured_piece(captured_side, piece_name)
+            rec = self._capture_inventory.add_captured_piece(
+                captured_side,
+                piece_name,
+                blocked_indices=self._reserved_capture_slot_indices,
+            )
             self._capture_slots_used.append(
                 f"{captured_side}[{rec.slot_index}]={rec.slot.x_pct:.2f}%,{rec.slot.y_pct:.2f}%:{piece_name}"
             )
             return rec.slot
 
         slot_index = self._captured_count[captured_side]
+        while slot_index in self._reserved_capture_slot_indices:
+            slot_index += 1
         slot = _capture_slot(captured_side, slot_index)
-        self._captured_count[captured_side] += 1
+        self._captured_count[captured_side] = slot_index + 1
         self._capture_slots_used.append(
             f"{captured_side}[{slot_index}]={slot.x_pct:.2f}%,{slot.y_pct:.2f}%:{piece_name}"
         )
@@ -696,6 +920,16 @@ class MotionPlanner:
 
     def _is_offboard_occupied(self, slot: PercentEndpoint) -> bool:
         return _pct_key(slot) in self.offboard_occupied
+
+    def _reserve_capture_slot_if_needed(self, slot: PercentEndpoint) -> None:
+        idx = _capture_slot_index_from_key(_pct_key(slot))
+        if idx is not None:
+            self._reserved_capture_slot_indices.add(idx)
+
+    def _release_capture_slot_if_needed(self, slot: PercentEndpoint) -> None:
+        idx = _capture_slot_index_from_key(_pct_key(slot))
+        if idx is not None:
+            self._reserved_capture_slot_indices.discard(idx)
 
     def move_board_piece_direct(self, start: BoardCoord, dst: BoardCoord) -> None:
         self.append_segment(_board_ep(start[0], start[1]), _board_ep(dst[0], dst[1]))
@@ -838,10 +1072,10 @@ class MotionPlanner:
         side_index = index // side_slots
         slot_in_side = index % side_slots
         if side_index % 2 == 0:
-            x = config.TEMP_RELOCATE_X_PCT
+            x = _OFFBOARD_GEOMETRY.temp_left_x_pct
         else:
-            x = config.TEMP_RELOCATE_LEFT_X_PCT
-        y = config.TEMP_RELOCATE_BASE_Y_PCT + (slot_in_side * config.TEMP_RELOCATE_STEP_Y_PCT)
+            x = _OFFBOARD_GEOMETRY.temp_right_x_pct
+        y = _OFFBOARD_GEOMETRY.temp_side_y_pcts[min(slot_in_side, len(_OFFBOARD_GEOMETRY.temp_side_y_pcts) - 1)]
         return _pct_ep(x, y)
 
     def _rank_hint_from_motor_x(self, x_pct: float) -> int:
@@ -867,46 +1101,7 @@ class MotionPlanner:
         return self._board_coord_to_pct((file_index, 0)).y_pct
 
     def _board_coord_to_pct(self, coord: BoardCoord) -> PercentEndpoint:
-        if _MOTOR_WORKSPACE_MAPPING is None:
-            # Fallback to the original normalized model if the STM32 mapping
-            # header is unavailable in this workspace.
-            return _pct_ep(
-                ((7.0 - float(coord[1])) / 7.0) * 100.0,
-                (float(coord[0]) / 7.0) * 100.0,
-            )
-
-        c = _MOTOR_WORKSPACE_MAPPING
-        max_i = c["BOARD_GRID_MAX_INDEX"]
-        board_x, board_y = coord
-        if board_x < 0 or board_x > max_i or board_y < 0 or board_y > max_i:
-            raise ValueError(f"Board coordinate out of range: {coord}")
-
-        # Must match send_moves_from_file.py orientation so the planner reasons
-        # in the same workspace that the STM32 actually executes in.
-        motor_x = max_i - board_y
-        motor_y = board_x
-
-        u = float(motor_x) / float(max_i)
-        v = float(motor_y) / float(max_i)
-
-        x_interp = (
-            (1.0 - u) * (1.0 - v) * float(c["CORNER_00_X_STEPS"])
-            + u * (1.0 - v) * float(c["CORNER_70_X_STEPS"])
-            + (1.0 - u) * v * float(c["CORNER_07_X_STEPS"])
-            + u * v * float(c["CORNER_77_X_STEPS"])
-        )
-        y_interp = (
-            (1.0 - u) * (1.0 - v) * float(c["CORNER_00_Y_STEPS"])
-            + u * (1.0 - v) * float(c["CORNER_70_Y_STEPS"])
-            + (1.0 - u) * v * float(c["CORNER_07_Y_STEPS"])
-            + u * v * float(c["CORNER_77_Y_STEPS"])
-        )
-
-        x_range = float(c["WORKSPACE_MAX_X_STEPS"] - c["WORKSPACE_MIN_X_STEPS"])
-        y_range = float(c["WORKSPACE_MAX_Y_STEPS"] - c["WORKSPACE_MIN_Y_STEPS"])
-        x_pct = ((x_interp - float(c["WORKSPACE_MIN_X_STEPS"])) / max(1.0, x_range)) * 100.0
-        y_pct = ((y_interp - float(c["WORKSPACE_MIN_Y_STEPS"])) / max(1.0, y_range)) * 100.0
-        return _pct_ep(x_pct, y_pct)
+        return _board_coord_to_pct_from_mapping(coord)
 
     def _node_to_pct(self, node: MixedNode) -> PercentEndpoint:
         if isinstance(node, PercentEndpoint):
@@ -919,33 +1114,16 @@ class MotionPlanner:
         return _board_ep(node[0], node[1])
 
     def _estimate_board_square_size_pct(self) -> tuple[float, float]:
-        x_spans: list[float] = []
-        y_spans: list[float] = []
-        for x in range(8):
-            for y in range(7):
-                a = self._board_coord_to_pct((x, y))
-                b = self._board_coord_to_pct((x, y + 1))
-                x_spans.append(abs(a.x_pct - b.x_pct))
-        for x in range(7):
-            for y in range(8):
-                a = self._board_coord_to_pct((x, y))
-                b = self._board_coord_to_pct((x + 1, y))
-                y_spans.append(abs(a.y_pct - b.y_pct))
-
         return (
-            (sum(x_spans) / len(x_spans)) if x_spans else 10.0,
-            (sum(y_spans) / len(y_spans)) if y_spans else 10.0,
+            _OFFBOARD_GEOMETRY.board_square_x_pct,
+            _OFFBOARD_GEOMETRY.board_square_y_pct,
         )
 
     def _board_bounds_pct(self) -> tuple[float, float, float, float]:
-        rank_top_x = self._motor_x_for_rank(7)
-        rank_bottom_x = self._motor_x_for_rank(0)
-        file_left_y = self._motor_y_for_file(0)
-        file_right_y = self._motor_y_for_file(7)
-        min_x = (config.BOARD_EXIT_RIGHT_X_PCT + rank_top_x) / 2.0
-        max_x = (config.BOARD_EXIT_LEFT_X_PCT + rank_bottom_x) / 2.0
-        min_y = (config.BOARD_EXIT_TOP_Y_PCT + file_left_y) / 2.0
-        max_y = (config.BOARD_EXIT_BOTTOM_Y_PCT + file_right_y) / 2.0
+        min_x = (_OFFBOARD_GEOMETRY.right_lane_x_pct + _OFFBOARD_GEOMETRY.right_edge_x_pct) / 2.0
+        max_x = (_OFFBOARD_GEOMETRY.left_lane_x_pct + _OFFBOARD_GEOMETRY.left_edge_x_pct) / 2.0
+        min_y = (_OFFBOARD_GEOMETRY.top_row_y_pcts[0] + _OFFBOARD_GEOMETRY.top_edge_y_pct) / 2.0
+        max_y = (_OFFBOARD_GEOMETRY.bottom_row_y_pcts[0] + _OFFBOARD_GEOMETRY.bottom_edge_y_pct) / 2.0
         return (min_x, max_x, min_y, max_y)
 
     def _segment_hits_piece_square(
@@ -960,6 +1138,20 @@ class MotionPlanner:
             center=occupied_center,
             half_w=self._board_square_x_pct,
             half_h=self._board_square_y_pct,
+        )
+
+    def _direct_board_segment_blockers(
+        self,
+        start: BoardCoord,
+        dst: BoardCoord,
+        *,
+        protected: set[BoardCoord],
+    ) -> set[BoardCoord] | None:
+        return self._segment_board_blockers(
+            self._board_coord_to_pct(start),
+            self._board_coord_to_pct(dst),
+            protected=protected,
+            ignore_board={start, dst},
         )
 
     def _pct_is_in_green_area(self, point: PercentEndpoint) -> bool:
@@ -1019,20 +1211,19 @@ class MotionPlanner:
     ) -> list[PercentEndpoint]:
         x_values = {
             0.0,
-            config.BOARD_EXIT_RIGHT_X_PCT,
-            config.BOARD_EXIT_LEFT_X_PCT,
+            _OFFBOARD_GEOMETRY.right_lane_x_pct,
+            _OFFBOARD_GEOMETRY.left_lane_x_pct,
             100.0,
-            config.TEMP_RELOCATE_X_PCT,
-            config.TEMP_RELOCATE_LEFT_X_PCT,
+            _OFFBOARD_GEOMETRY.temp_left_x_pct,
+            _OFFBOARD_GEOMETRY.temp_right_x_pct,
+            *_OFFBOARD_GEOMETRY.capture_bottom_x_pcts,
         }
         y_values = {
             0.0,
-            config.BOARD_EXIT_TOP_Y_PCT,
-            config.BOARD_EXIT_BOTTOM_Y_PCT,
+            *_OFFBOARD_GEOMETRY.top_row_y_pcts,
+            *_OFFBOARD_GEOMETRY.bottom_row_y_pcts,
             100.0,
-            config.CAPTURE_BOTTOM_BASE_Y_PCT,
-            config.CAPTURE_BOTTOM_BASE_Y_PCT - config.CAPTURE_BOTTOM_ROW_STEP_Y_PCT,
-            config.CAPTURE_TOP_OVERFLOW_Y_PCT,
+            *_OFFBOARD_GEOMETRY.temp_side_y_pcts,
         }
 
         for rank in range(8):
@@ -1040,12 +1231,12 @@ class MotionPlanner:
         for file_index in range(8):
             y_values.add(self._motor_y_for_file(file_index))
 
-        for col in range(max(1, int(config.CAPTURE_BOTTOM_COLUMNS))):
-            x_values.add(config.CAPTURE_BOTTOM_X_START_PCT + (col * config.CAPTURE_BOTTOM_X_STEP_PCT))
-        for col in range(max(1, int(config.CAPTURE_TOP_OVERFLOW_COLUMNS))):
-            x_values.add(config.CAPTURE_TOP_OVERFLOW_X_START_PCT + (col * config.CAPTURE_TOP_OVERFLOW_X_STEP_PCT))
-        for slot_idx in range(max(1, config.TEMP_RELOCATE_SIDE_SLOTS)):
-            y_values.add(config.TEMP_RELOCATE_BASE_Y_PCT + (slot_idx * config.TEMP_RELOCATE_STEP_Y_PCT))
+        for x_pct in _OFFBOARD_GEOMETRY.capture_bottom_x_pcts:
+            x_values.add(x_pct)
+        for x_pct in _OFFBOARD_GEOMETRY.capture_top_x_pcts:
+            x_values.add(x_pct)
+        for y_pct in _OFFBOARD_GEOMETRY.temp_side_y_pcts:
+            y_values.add(y_pct)
 
         for point in extra_points or ():
             x_values.add(point.x_pct)
@@ -1334,11 +1525,13 @@ class MotionPlanner:
         return None
 
     def _pct_is_in_green_lane(self, point: PercentEndpoint) -> bool:
-        return (
-            point.y_pct <= config.BOARD_EXIT_TOP_Y_PCT
-            or point.y_pct >= config.BOARD_EXIT_BOTTOM_Y_PCT
-            or point.x_pct <= config.BOARD_EXIT_RIGHT_X_PCT
-            or point.x_pct >= config.BOARD_EXIT_LEFT_X_PCT
+        lane_y_pcts = set(_OFFBOARD_GEOMETRY.top_row_y_pcts) | set(_OFFBOARD_GEOMETRY.bottom_row_y_pcts)
+        lane_x_pcts = set(_OFFBOARD_GEOMETRY.capture_bottom_x_pcts) | {
+            _OFFBOARD_GEOMETRY.right_lane_x_pct,
+            _OFFBOARD_GEOMETRY.left_lane_x_pct,
+        }
+        return any(abs(point.y_pct - y) <= 1e-6 for y in lane_y_pcts) or any(
+            abs(point.x_pct - x) <= 1e-6 for x in lane_x_pcts
         )
 
     def _continuous_board_segment_clear(
@@ -1424,26 +1617,26 @@ class MotionPlanner:
             exits.append(
                 BoardExit(
                     edge=(0, rank),
-                    outside=_pct_ep(self._motor_x_for_rank(rank), config.BOARD_EXIT_TOP_Y_PCT),
+                    outside=_pct_ep(self._motor_x_for_rank(rank), _OFFBOARD_GEOMETRY.top_row_y_pcts[0]),
                 )
             )
             exits.append(
                 BoardExit(
                     edge=(7, rank),
-                    outside=_pct_ep(self._motor_x_for_rank(rank), config.BOARD_EXIT_BOTTOM_Y_PCT),
+                    outside=_pct_ep(self._motor_x_for_rank(rank), _OFFBOARD_GEOMETRY.bottom_row_y_pcts[0]),
                 )
             )
         for file_index in range(8):
             exits.append(
                 BoardExit(
                     edge=(file_index, 7),
-                    outside=_pct_ep(config.BOARD_EXIT_RIGHT_X_PCT, self._motor_y_for_file(file_index)),
+                    outside=_pct_ep(_OFFBOARD_GEOMETRY.right_lane_x_pct, self._motor_y_for_file(file_index)),
                 )
             )
             exits.append(
                 BoardExit(
                     edge=(file_index, 0),
-                    outside=_pct_ep(config.BOARD_EXIT_LEFT_X_PCT, self._motor_y_for_file(file_index)),
+                    outside=_pct_ep(_OFFBOARD_GEOMETRY.left_lane_x_pct, self._motor_y_for_file(file_index)),
                 )
             )
 
@@ -1489,7 +1682,7 @@ class MotionPlanner:
                     exits.append(
                         BoardExit(
                             edge=(7, rank),
-                            outside=_pct_ep(self._motor_x_for_rank(rank), config.BOARD_EXIT_BOTTOM_Y_PCT),
+                            outside=_pct_ep(self._motor_x_for_rank(rank), _OFFBOARD_GEOMETRY.bottom_row_y_pcts[0]),
                         )
                     )
             elif side == "top_file_a":
@@ -1497,7 +1690,7 @@ class MotionPlanner:
                     exits.append(
                         BoardExit(
                             edge=(0, rank),
-                            outside=_pct_ep(self._motor_x_for_rank(rank), config.BOARD_EXIT_TOP_Y_PCT),
+                            outside=_pct_ep(self._motor_x_for_rank(rank), _OFFBOARD_GEOMETRY.top_row_y_pcts[0]),
                         )
                     )
             elif side == "right_rank8":
@@ -1505,7 +1698,7 @@ class MotionPlanner:
                     exits.append(
                         BoardExit(
                             edge=(file_index, 7),
-                            outside=_pct_ep(config.BOARD_EXIT_RIGHT_X_PCT, self._motor_y_for_file(file_index)),
+                            outside=_pct_ep(_OFFBOARD_GEOMETRY.right_lane_x_pct, self._motor_y_for_file(file_index)),
                         )
                     )
             else:
@@ -1513,31 +1706,30 @@ class MotionPlanner:
                     exits.append(
                         BoardExit(
                             edge=(file_index, 0),
-                            outside=_pct_ep(config.BOARD_EXIT_LEFT_X_PCT, self._motor_y_for_file(file_index)),
+                            outside=_pct_ep(_OFFBOARD_GEOMETRY.left_lane_x_pct, self._motor_y_for_file(file_index)),
                     )
                     )
         return exits
 
     def _offboard_anchor_nodes(self, src: PercentEndpoint, dst: PercentEndpoint) -> list[PercentEndpoint]:
-        right_x = config.BOARD_EXIT_RIGHT_X_PCT
-        left_x = config.BOARD_EXIT_LEFT_X_PCT
-        top_y = config.BOARD_EXIT_TOP_Y_PCT
-        bottom_y = config.BOARD_EXIT_BOTTOM_Y_PCT
         ys = {
             src.y_pct,
             dst.y_pct,
-            top_y,
-            bottom_y,
-            config.CAPTURE_BOTTOM_BASE_Y_PCT,
-            config.CAPTURE_BOTTOM_BASE_Y_PCT - config.CAPTURE_BOTTOM_ROW_STEP_Y_PCT,
-            config.CAPTURE_TOP_OVERFLOW_Y_PCT,
+            *_OFFBOARD_GEOMETRY.top_row_y_pcts,
+            *_OFFBOARD_GEOMETRY.bottom_row_y_pcts,
         }
-        xs = {src.x_pct, dst.x_pct, right_x, left_x}
+        xs = {
+            src.x_pct,
+            dst.x_pct,
+            *_OFFBOARD_GEOMETRY.capture_bottom_x_pcts,
+            _OFFBOARD_GEOMETRY.right_lane_x_pct,
+            _OFFBOARD_GEOMETRY.left_lane_x_pct,
+        }
         nodes = [src, dst]
-        for x in (right_x, left_x):
+        for x in {_OFFBOARD_GEOMETRY.right_lane_x_pct, _OFFBOARD_GEOMETRY.left_lane_x_pct}:
             for y in ys:
                 nodes.append(_pct_ep(x, y))
-        for y in (top_y, bottom_y, config.CAPTURE_TOP_OVERFLOW_Y_PCT, config.CAPTURE_BOTTOM_BASE_Y_PCT, config.CAPTURE_BOTTOM_BASE_Y_PCT - config.CAPTURE_BOTTOM_ROW_STEP_Y_PCT):
+        for y in {*_OFFBOARD_GEOMETRY.top_row_y_pcts, *_OFFBOARD_GEOMETRY.bottom_row_y_pcts}:
             for x in xs:
                 nodes.append(_pct_ep(x, y))
         unique: dict[tuple[float, float], PercentEndpoint] = {}
@@ -1550,15 +1742,14 @@ class MotionPlanner:
         same_y = abs(a.y_pct - b.y_pct) <= 1e-6
         if not same_x and not same_y:
             return False
+        lane_y_pcts = set(_OFFBOARD_GEOMETRY.top_row_y_pcts) | set(_OFFBOARD_GEOMETRY.bottom_row_y_pcts)
+        lane_x_pcts = set(_OFFBOARD_GEOMETRY.capture_bottom_x_pcts) | {
+            _OFFBOARD_GEOMETRY.right_lane_x_pct,
+            _OFFBOARD_GEOMETRY.left_lane_x_pct,
+        }
         if same_y:
-            return (
-                a.y_pct <= config.BOARD_EXIT_TOP_Y_PCT
-                or a.y_pct >= config.BOARD_EXIT_BOTTOM_Y_PCT
-            )
-        return (
-            a.x_pct <= config.BOARD_EXIT_RIGHT_X_PCT
-            or a.x_pct >= config.BOARD_EXIT_LEFT_X_PCT
-        )
+            return any(abs(a.y_pct - y) <= 1e-6 for y in lane_y_pcts)
+        return any(abs(a.x_pct - x) <= 1e-6 for x in lane_x_pcts)
 
     def _offboard_segment_clear(
         self,
@@ -1567,6 +1758,8 @@ class MotionPlanner:
         ignore: set[tuple[float, float]] | None = None,
     ) -> bool:
         if not self._offboard_segment_is_in_lane(a, b):
+            return False
+        if not self._offboard_segment_stays_in_green_area(a, b):
             return False
         ignore = ignore or set()
         for key in self.offboard_occupied:
@@ -1966,10 +2159,21 @@ class MotionPlanner:
 
     def _temp_slot_candidates(self) -> list[PercentEndpoint]:
         candidates: list[PercentEndpoint] = []
+        seen: set[tuple[float, float]] = set()
+
+        def add(slot: PercentEndpoint) -> None:
+            key = _pct_key(slot)
+            if key in seen or self._is_offboard_occupied(slot):
+                return
+            seen.add(key)
+            candidates.append(slot)
+
         for idx in range(config.MAX_TEMP_RELOCATIONS * 2):
-            slot = self._temp_slot(idx)
-            if not self._is_offboard_occupied(slot):
-                candidates.append(slot)
+            add(self._temp_slot(idx))
+        for idx in range(_capture_slot_count()):
+            add(_capture_slot_by_index(idx))
+        for slot in self._offboard_lattice_nodes():
+            add(slot)
         return candidates
 
     def _select_blocker(
@@ -2068,6 +2272,9 @@ class MotionPlanner:
                 self._emit_board_to_board_plan(plan)
                 self.occupied.remove(blocker)
                 self.occupied.add(destination)
+                self.record_note(
+                    f"temp_reloc=board:{blocker[0]},{blocker[1]}->{destination[0]},{destination[1]}"
+                )
                 self._temp_relocations.append(
                     TempRelocation(origin=blocker, slot=_board_ep(destination[0], destination[1]))
                 )
@@ -2077,6 +2284,17 @@ class MotionPlanner:
                 self._emit_board_to_pct_plan(plan)
                 self.occupied.remove(blocker)
                 self._mark_offboard_occupied(destination, f"temp:{blocker[0]},{blocker[1]}")
+                self._reserve_capture_slot_if_needed(destination)
+                cap_idx = _capture_slot_index_from_key(_pct_key(destination))
+                if cap_idx is not None:
+                    self.record_note(
+                        f"temp_reloc=capture_slot:{blocker[0]},{blocker[1]}->{cap_idx}"
+                    )
+                else:
+                    self.record_note(
+                        "temp_reloc=offboard:"
+                        f"{blocker[0]},{blocker[1]}->{destination.x_pct:.2f}%,{destination.y_pct:.2f}%"
+                    )
                 self._temp_relocations.append(TempRelocation(origin=blocker, slot=destination))
             active.remove(blocker)
             return True
@@ -2135,6 +2353,9 @@ class MotionPlanner:
 
         plan = self._best_route_board_to_pct(start, dst_pct, protected)
         if plan is None:
+            if self._fallback_move_board_piece_to_pct_via_exit(start, dst_pct, protected):
+                self._fallback_direct_segments += 1
+                return
             self.append_segment(_board_ep(start[0], start[1]), dst_pct)
             self.occupied.remove(start)
             self._mark_offboard_occupied(dst_pct, f"piece:{start[0]},{start[1]}")
@@ -2155,6 +2376,9 @@ class MotionPlanner:
                 return
             plan = self._best_route_board_to_pct(start, dst_pct, protected)
             if plan is None:
+                if self._fallback_move_board_piece_to_pct_via_exit(start, dst_pct, protected):
+                    self._fallback_direct_segments += 1
+                    return
                 self.append_segment(_board_ep(start[0], start[1]), dst_pct)
                 self.occupied.remove(start)
                 self._mark_offboard_occupied(dst_pct, f"piece:{start[0]},{start[1]}")
@@ -2169,6 +2393,9 @@ class MotionPlanner:
         protected = {dst}
         plan = self._best_route_pct_to_board(src_pct, dst, protected)
         if plan is None:
+            if self._fallback_move_pct_piece_to_board_via_exit(src_pct, dst, protected):
+                self._fallback_direct_segments += 1
+                return
             self.append_segment(src_pct, _board_ep(dst[0], dst[1]))
             self._unmark_offboard_occupied(src_pct)
             self.occupied.add(dst)
@@ -2189,6 +2416,9 @@ class MotionPlanner:
                 return
             plan = self._best_route_pct_to_board(src_pct, dst, protected)
             if plan is None:
+                if self._fallback_move_pct_piece_to_board_via_exit(src_pct, dst, protected):
+                    self._fallback_direct_segments += 1
+                    return
                 self.append_segment(src_pct, _board_ep(dst[0], dst[1]))
                 self._unmark_offboard_occupied(src_pct)
                 self.occupied.add(dst)
@@ -2200,17 +2430,113 @@ class MotionPlanner:
         self.occupied.add(dst)
 
     def move_pct_piece_to_pct(self, src_pct: PercentEndpoint, dst_pct: PercentEndpoint) -> None:
+        lane_path = self._offboard_path(
+            src_pct,
+            dst_pct,
+            ignore_slots={_pct_key(src_pct), _pct_key(dst_pct)},
+        )
+        if lane_path is not None:
+            self.record_note(
+                "pct_to_pct_route="
+                f"lane:{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
+                f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
+                f" hops={max(0, len(lane_path) - 1)}"
+            )
+            self._emit_offboard_path(lane_path)
+            self._unmark_offboard_occupied(src_pct)
+            self._mark_offboard_occupied(dst_pct, f"piece:{src_pct.x_pct:.2f},{src_pct.y_pct:.2f}")
+            return
+
         plan = self._best_route_pct_to_pct_mixed(src_pct, dst_pct)
         if plan is None:
-            self.append_segment(src_pct, dst_pct)
+            # Last resort: keep the move on the off-board perimeter instead of
+            # cutting diagonally across the yellow board.
+            route_y = (
+                _OFFBOARD_GEOMETRY.bottom_row_y_pcts[0]
+                if (src_pct.y_pct >= 50.0 or dst_pct.y_pct >= 50.0)
+                else _OFFBOARD_GEOMETRY.top_row_y_pcts[0]
+            )
+            fallback_points = [
+                src_pct,
+                _pct_ep(src_pct.x_pct, route_y),
+                _pct_ep(dst_pct.x_pct, route_y),
+                dst_pct,
+            ]
+            for src, dst in zip(fallback_points, fallback_points[1:]):
+                if _pct_key(src) == _pct_key(dst):
+                    continue
+                self.append_segment(src, dst)
+            self.record_note(
+                "pct_to_pct_route="
+                f"perimeter_fallback:{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
+                f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
+            )
             self._unmark_offboard_occupied(src_pct)
             self._mark_offboard_occupied(dst_pct, f"piece:{src_pct.x_pct:.2f},{src_pct.y_pct:.2f}")
             self._fallback_direct_segments += 1
             return
 
+        direct_diagonal = len(plan.nodes) == 2
+        self.record_note(
+            "pct_to_pct_route="
+            f"{'mixed_direct' if direct_diagonal else 'mixed_multi'}:"
+            f"{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
+            f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
+            f" hops={max(0, len(plan.nodes) - 1)}"
+            f" blockers={len(plan.blockers)}"
+        )
         self._emit_mixed_route_plan(plan)
         self._unmark_offboard_occupied(src_pct)
         self._mark_offboard_occupied(dst_pct, f"piece:{src_pct.x_pct:.2f},{src_pct.y_pct:.2f}")
+
+    def _fallback_move_board_piece_to_pct_via_exit(
+        self,
+        start: BoardCoord,
+        dst_pct: PercentEndpoint,
+        protected: set[BoardCoord],
+    ) -> bool:
+        for board_exit in self._edge_candidates_for_pct(dst_pct):
+            if board_exit.edge in protected and board_exit.edge != start:
+                continue
+            offboard_path = self._offboard_path(
+                board_exit.outside,
+                dst_pct,
+                ignore_slots={_pct_key(dst_pct)},
+            )
+            if offboard_path is None:
+                continue
+            self.move_board_piece_to_board(start, board_exit.edge, protected_extra=protected)
+            self.append_segment(_board_ep(board_exit.edge[0], board_exit.edge[1]), board_exit.outside)
+            self._emit_offboard_path(offboard_path)
+            self.occupied.discard(board_exit.edge)
+            self._mark_offboard_occupied(dst_pct, f"piece:{start[0]},{start[1]}")
+            return True
+        return False
+
+    def _fallback_move_pct_piece_to_board_via_exit(
+        self,
+        src_pct: PercentEndpoint,
+        dst: BoardCoord,
+        protected: set[BoardCoord],
+    ) -> bool:
+        for board_exit in self._edge_candidates_for_pct(src_pct):
+            if board_exit.edge in protected and board_exit.edge != dst:
+                continue
+            offboard_path = self._offboard_path(
+                src_pct,
+                board_exit.outside,
+                ignore_slots={_pct_key(src_pct)},
+            )
+            if offboard_path is None:
+                continue
+            self._emit_offboard_path(offboard_path)
+            self.append_segment(board_exit.outside, _board_ep(board_exit.edge[0], board_exit.edge[1]))
+            self._unmark_offboard_occupied(src_pct)
+            self.occupied.add(board_exit.edge)
+            if board_exit.edge != dst:
+                self.move_board_piece_to_board(board_exit.edge, dst, protected_extra=protected)
+            return True
+        return False
 
     def move_board_piece_to_board(
         self,
@@ -2221,6 +2547,16 @@ class MotionPlanner:
         protected = {start, dst}
         if protected_extra:
             protected |= protected_extra
+
+        direct_blockers = self._direct_board_segment_blockers(start, dst, protected=protected)
+        if direct_blockers == set():
+            self.record_note(
+                f"board_route=direct:{start[0]},{start[1]}->{dst[0]},{dst[1]}"
+            )
+            self.append_segment(_board_ep(start[0], start[1]), _board_ep(dst[0], dst[1]))
+            self.occupied.remove(start)
+            self.occupied.add(dst)
+            return
 
         planned: BoardToBoardPlan | BoardViaOffboardPlan | MixedRoutePlan | None = None
         for _ in range(config.MAX_TEMP_RELOCATIONS + 1):
@@ -2247,6 +2583,15 @@ class MotionPlanner:
 
         if planned.blockers:
             self._fallback_direct_segments += 1
+        if isinstance(planned, MixedRoutePlan):
+            uses_offboard = any(isinstance(node, PercentEndpoint) for node in planned.nodes)
+            self.record_note(
+                "board_route="
+                f"{'mixed_offboard' if uses_offboard else 'mixed_board'}:"
+                f"{start[0]},{start[1]}->{dst[0]},{dst[1]}"
+                f" hops={max(0, len(planned.nodes) - 1)}"
+                f" blockers={len(planned.blockers)}"
+            )
         self._emit_board_move_plan(planned)
 
         self.occupied.remove(start)
@@ -2258,6 +2603,7 @@ class MotionPlanner:
         for relocation in reversed(self._temp_relocations):
             if isinstance(relocation.slot, PercentEndpoint):
                 self.move_pct_piece_to_board(relocation.slot, relocation.origin)
+                self._release_capture_slot_if_needed(relocation.slot)
             else:
                 self.move_board_piece_to_board(
                     (relocation.slot.x, relocation.slot.y),
@@ -2273,7 +2619,10 @@ def _settle_pending_manual_captures(
     if capture_inventory is None:
         return
     for pending in capture_inventory.pending_manual_records():
-        manual_record, assigned_slot = capture_inventory.finalize_manual_capture(pending.record_id)
+        manual_record, assigned_slot = capture_inventory.finalize_manual_capture(
+            pending.record_id,
+            blocked_indices=planner._reserved_capture_slot_indices,
+        )
         planner.record_note(
             "manual_capture_settled="
             f"{manual_record.captured_side}:{manual_record.piece_name}:"
@@ -2338,11 +2687,12 @@ def generate_chess_p2_sequence(
                 rook_src = (0, rook_rank)
                 rook_dst = (3, rook_rank)
 
-            # Castling is a known chess special-case: emit explicit direct segments
-            # so we do not relocate unrelated back-rank pieces while searching routes.
+            # Castling is a known chess special-case. Move the king directly first,
+            # then route the rook with the planner so it does not sweep through the
+            # king's final square on the back rank.
             planner.move_board_piece_direct(king_src, king_dst)
             if rook_src in planner.occupied:
-                planner.move_board_piece_direct(rook_src, rook_dst)
+                planner.move_board_piece_to_board(rook_src, rook_dst, protected_extra={king_dst})
         else:
             planner.move_board_piece_to_board(start, end)
 

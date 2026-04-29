@@ -3,6 +3,8 @@
 *.log
 .DS_Store
 FlexyBoard-Camera/debug_output/Moves/
+FlexyBoard-Camera/debug_output/
 FlexyBoard-Camera/debug_output/board_analysis_*/
 FlexyBoard-Camera/debug_output/latest_live_review/
 Software-GUI/debug_output/
+FlexyBoard-Camera/flexyboard_camera/vision/__pycache__/

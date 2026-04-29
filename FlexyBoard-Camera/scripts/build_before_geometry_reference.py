@@ -63,8 +63,8 @@ def _aggregate_norm_quads(items: list[np.ndarray]) -> np.ndarray:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Build a persistent geometry reference from BEFORE captures "
-            "(outer sheet and chessboard location/size as px and normalized values)."
+            "Build a persistent corners_info reference from BEFORE captures "
+            "(raw outer-sheet and chessboard corners in the unprocessed image space)."
         )
     )
     parser.add_argument(
@@ -80,7 +80,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--out",
-        default=str(ROOT / "configs" / "before_geometry_reference.json"),
+        default=str(ROOT / "configs" / "corners_info.json"),
         help="Output JSON file path.",
     )
     return parser.parse_args()
@@ -145,15 +145,15 @@ def main() -> int:
     chess_px_med = np.stack([chess_norm_med[:, 0] * latest_w, chess_norm_med[:, 1] * latest_h], axis=1)
 
     out_payload = {
+        "version": 1,
+        "generated_by": "build_before_geometry_reference.py",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "source": "before_capture_median",
         "source_image_glob": args.image_glob,
         "sample_count": len(per_image),
-        "latest_image_size_px": {"width": int(latest_w), "height": int(latest_h)},
-        "median_geometry_for_latest_size": {
-            "outer_sheet": _quad_metrics(outer_px_med.astype(np.float32), latest_w, latest_h),
-            "chessboard": _quad_metrics(chess_px_med.astype(np.float32), latest_w, latest_h),
-        },
-        "per_image": per_image,
+        "image_size_px": {"width": int(latest_w), "height": int(latest_h)},
+        "outer_sheet_corners_px": [[float(x), float(y)] for x, y in outer_px_med.astype(np.float32)],
+        "chessboard_corners_px": [[float(x), float(y)] for x, y in chess_px_med.astype(np.float32)],
     }
 
     out_path = Path(args.out)

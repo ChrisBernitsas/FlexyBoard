@@ -57,7 +57,7 @@ python scripts/analyze_board_and_diff.py \
   --label-mode index
 ```
 
-By default, this script uses `configs/before_geometry_reference.json` (if present) to lock green/yellow geometry to a stable board layout.
+By default, this script uses `configs/corners_info.json` (if present) to lock green/yellow geometry to a stable board layout.
 Disable that behavior with `--disable-geometry-reference`.
 
 Manually draw outer/chessboard grids on a specific turn pair (BEFORE + AFTER), while viewing `raw` / `hsv_mask` / `dark_mask`:
@@ -174,7 +174,7 @@ Flow for this command:
 7. prints generated STM32 move payload/sequence without sending
 
 This flow also uses the geometry reference file by default:
-- `configs/before_geometry_reference.json`
+- `configs/corners_info.json`
 - if missing/invalid, it falls back to live detection
 
 It also writes a turn summary text file in the analysis folder:
@@ -443,7 +443,7 @@ Key settings:
 - `comms.port` (`mock://stm32` for dry run)
 - `safety.auto_home_before_move`
 
-Build/update geometry reference from BEFORE captures:
+Build/update `corners_info.json` from BEFORE captures:
 
 ```bash
 python scripts/build_before_geometry_reference.py

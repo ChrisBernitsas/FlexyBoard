@@ -146,7 +146,13 @@ class EndTurnController:
         logger.info("Calibration saved to %s", output)
         return calibration
 
-    def capture_before(self, image_path: str | None = None, *, reopen_stream: bool = True) -> Path:
+    def capture_before(
+        self,
+        image_path: str | None = None,
+        *,
+        reopen_stream: bool = True,
+        output_path: str | Path | None = None,
+    ) -> Path:
         if image_path:
             frame = self._camera.load_frame(image_path)
         else:
@@ -155,12 +161,18 @@ class EndTurnController:
                 self._camera.close()
             frame = self._camera.capture_frame()
         self._before_frame = frame
-        out = self._debug_root() / "before_latest.png"
+        out = Path(output_path) if output_path is not None else self._debug_root() / "before_latest.png"
         save_frame(frame, out)
         logger.info("Captured before-frame at %s", out)
         return out
 
-    def capture_after(self, image_path: str | None = None, *, reopen_stream: bool = True) -> Path:
+    def capture_after(
+        self,
+        image_path: str | None = None,
+        *,
+        reopen_stream: bool = True,
+        output_path: str | Path | None = None,
+    ) -> Path:
         if image_path:
             frame = self._camera.load_frame(image_path)
         else:
@@ -168,7 +180,7 @@ class EndTurnController:
             if reopen_stream:
                 self._camera.close()
             frame = self._camera.capture_frame()
-        out = self._debug_root() / "after_latest.png"
+        out = Path(output_path) if output_path is not None else self._debug_root() / "after_latest.png"
         save_frame(frame, out)
         logger.info("Captured after-frame at %s", out)
         return out
