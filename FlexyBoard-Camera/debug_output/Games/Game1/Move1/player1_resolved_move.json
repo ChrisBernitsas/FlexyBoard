@@ -2,20 +2,20 @@
   "steps": [
     {
       "source": {
-        "x": 6,
+        "x": 0,
         "y": 1
       },
       "destination": {
-        "x": 6,
-        "y": 2
+        "x": 0,
+        "y": 3
       }
     }
   ],
   "capture": false,
   "special": null,
   "resolver": "chess_legal_match",
-  "score": 14.312934027777777,
-  "matched_expected": false,
+  "score": 0.45052083333333337,
+  "matched_expected": true,
   "metadata": {
     "persistent_state": true,
     "state_before": {
@@ -63,7 +63,7 @@
     },
     "state_after": {
       "game": "chess",
-      "fen": "rnbqkbnr/pppppppp/8/8/8/6P1/PPPPPP1P/RNBQKBNR b KQkq - 0 1",
+      "fen": "rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq - 0 1",
       "turn": "p2",
       "occupied": {
         "a1": "P1_ROOK",
@@ -74,14 +74,14 @@
         "f1": "P1_BISHOP",
         "g1": "P1_KNIGHT",
         "h1": "P1_ROOK",
-        "a2": "P1_PAWN",
         "b2": "P1_PAWN",
         "c2": "P1_PAWN",
         "d2": "P1_PAWN",
         "e2": "P1_PAWN",
         "f2": "P1_PAWN",
+        "g2": "P1_PAWN",
         "h2": "P1_PAWN",
-        "g3": "P1_PAWN",
+        "a4": "P1_PAWN",
         "a7": "P2_PAWN",
         "b7": "P2_PAWN",
         "c7": "P2_PAWN",
@@ -104,144 +104,47 @@
       "is_checkmate": false,
       "is_stalemate": false
     },
-    "selected_uci": "g2g3",
+    "selected_uci": "a2a4",
     "legal_candidate_count": 20,
     "observed_changed": [
       {
         "x": 0,
-        "y": 0,
-        "square": "a1"
-      },
-      {
-        "x": 1,
-        "y": 0,
-        "square": "b1"
-      },
-      {
-        "x": 2,
-        "y": 0,
-        "square": "c1"
-      },
-      {
-        "x": 1,
         "y": 1,
-        "square": "b2"
+        "square": "a2"
       },
       {
-        "x": 2,
-        "y": 1,
-        "square": "c2"
-      },
-      {
-        "x": 3,
-        "y": 1,
-        "square": "d2"
-      },
-      {
-        "x": 6,
-        "y": 1,
-        "square": "g2"
-      },
-      {
-        "x": 6,
-        "y": 2,
-        "square": "g3"
+        "x": 0,
+        "y": 3,
+        "square": "a4"
       }
     ],
     "observed_changed_strengths": [
       {
         "x": 0,
-        "y": 0,
-        "square": "a1",
-        "strength": 0.536784
-      },
-      {
-        "x": 1,
-        "y": 0,
-        "square": "b1",
-        "strength": 0.294488
-      },
-      {
-        "x": 2,
-        "y": 0,
-        "square": "c1",
-        "strength": 0.205295
-      },
-      {
-        "x": 1,
         "y": 1,
-        "square": "b2",
-        "strength": 0.235135
+        "square": "a2",
+        "strength": 0.784614
       },
       {
-        "x": 2,
-        "y": 1,
-        "square": "c2",
-        "strength": 0.358615
-      },
-      {
-        "x": 3,
-        "y": 1,
-        "square": "d2",
-        "strength": 0.472114
-      },
-      {
-        "x": 6,
-        "y": 1,
-        "square": "g2",
-        "strength": 0.55816
-      },
-      {
-        "x": 6,
-        "y": 2,
-        "square": "g3",
-        "strength": 0.538628
+        "x": 0,
+        "y": 3,
+        "square": "a4",
+        "strength": 0.764865
       }
     ],
     "expected_changed": [
       {
-        "x": 6,
+        "x": 0,
         "y": 1,
-        "square": "g2"
+        "square": "a2"
       },
-      {
-        "x": 6,
-        "y": 2,
-        "square": "g3"
-      }
-    ],
-    "extra_changed": [
       {
         "x": 0,
-        "y": 0,
-        "square": "a1"
-      },
-      {
-        "x": 1,
-        "y": 0,
-        "square": "b1"
-      },
-      {
-        "x": 2,
-        "y": 0,
-        "square": "c1"
-      },
-      {
-        "x": 1,
-        "y": 1,
-        "square": "b2"
-      },
-      {
-        "x": 2,
-        "y": 1,
-        "square": "c2"
-      },
-      {
-        "x": 3,
-        "y": 1,
-        "square": "d2"
+        "y": 3,
+        "square": "a4"
       }
     ],
+    "extra_changed": [],
     "missing_changed": []
   }
 }

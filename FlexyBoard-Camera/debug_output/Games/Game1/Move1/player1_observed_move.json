@@ -1,35 +1,35 @@
 {
   "game": "chess",
   "source": {
-    "x": 2,
-    "y": 6
+    "x": 1,
+    "y": 0
   },
   "destination": {
-    "x": 0,
+    "x": 3,
     "y": 0
   },
   "moved_piece_type": null,
   "capture": false,
   "confidence": 1.0,
-  "timestamp": "2026-04-18T20:53:03.996152+00:00",
+  "timestamp": "2026-04-28T23:33:27.810131+00:00",
   "metadata": {
-    "changed_count": 8,
-    "significant_changed_count": 8,
+    "changed_count": 3,
+    "significant_changed_count": 3,
     "classifier_confidence": 0.0,
-    "source_score": -45.99989149305557,
-    "dest_score": 9.500651041666657,
+    "source_score": -32.80598958333334,
+    "dest_score": 30.9091796875,
     "capture_signals": {
       "capture_by_destination_prior": false,
       "capture_by_changed_count": false,
-      "occupied_margin": 21.017949218750005,
-      "source_before_occupied": false,
+      "occupied_margin": 8.0,
+      "source_before_occupied": true,
       "source_after_occupied": false,
       "dest_before_occupied": false,
-      "dest_after_occupied": false,
-      "source_before_occ_score": 8.462131076388886,
-      "source_after_occ_score": -36.73079427083334,
-      "dest_before_occ_score": -29.698133680555557,
-      "dest_after_occ_score": -19.39051649305557
+      "dest_after_occupied": true,
+      "source_before_occ_score": 23.1151801215278,
+      "source_after_occ_score": -9.276258680555543,
+      "dest_before_occ_score": -22.7568901909722,
+      "dest_after_occ_score": 8.5668402777778
     },
     "captured_at": null,
     "captured_piece_type": null

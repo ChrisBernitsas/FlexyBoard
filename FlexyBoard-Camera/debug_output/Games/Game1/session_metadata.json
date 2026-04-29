@@ -3,7 +3,12 @@
   "capture_mode": "rolling",
   "wait_mode": "enter",
   "bridge_port": 8765,
-  "startup_geometry_mode": "manual",
+  "startup_geometry_mode": "auto",
   "slow_live_analysis": false,
-  "reopen_camera_each_capture": false
+  "reopen_camera_each_capture": false,
+  "min_significant_changes": 2,
+  "max_significant_changes": 12,
+  "max_resolved_score": 20.0,
+  "allow_observed_fallback": false,
+  "max_p1_detection_attempts": 0
 }
