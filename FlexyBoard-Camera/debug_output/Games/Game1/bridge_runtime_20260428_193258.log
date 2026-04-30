@@ -1,0 +1,2115 @@
+[Bridge] Runtime log: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/bridge_runtime_20260428_193258.log
+[Bridge] Analysis thresholds: diff_threshold=30 min_changed_ratio=0.2 min_significant_changes=2 max_significant_changes=12 max_resolved_score=20.0
+[Bridge] Stateful resolver initialized: True
+[Bridge] Game debug folder: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16
+[Bridge] Listening for Software-GUI on 0.0.0.0:8765
+[Bridge] Start Software-GUI now; it should connect as TCP client.
+[Bridge] Software-GUI connected from 172.20.10.7:51988
+[Bridge] Make sure the physical board matches the software state, then press Enter to capture INITIAL reference...[Bridge] Initial reference capture completed in 6.469s
+[Bridge] Initial reference captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/initial_reference.png
+[Bridge] Building live session geometry from initial reference...
+[Bridge] Startup geometry baseline load+preview completed in 0.314s
+[Bridge] Live session geometry saved: /home/pi/FlexyBoard-Camera/debug_output/live_session_geometry.json
+[Bridge] Startup auto-geometry completed in 0.315s
+[Bridge] Startup grid preview: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/auto_startup_grid_overlay.png
+[Bridge] Sent startup grid preview to Software-GUI; waiting for Confirm...
+[Bridge] Startup grid confirmed.
+[Bridge] Auto startup geometry saved for game: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/corners_info.json
+[Bridge] Accepted auto geometry archive saved: /home/pi/FlexyBoard-Camera/configs/all_manual/game16_corners.json
+[Bridge] Auto startup geometry baseline saved: /home/pi/FlexyBoard-Camera/configs/corners_info.json
+[Bridge] Auto startup preview archived: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/auto_startup_grid_overlay.png
+[Bridge] Locked session geometry for this game: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/corners_info.json
+
+[Bridge] Turn 1: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.097s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move1/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/initial_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move1/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.847s
+[Bridge] Turn analysis completed in 0.847s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=0.45052083333333337
+[Bridge] Sent P1 step 1/1: a2 -> a4
+[Bridge] Received P2 move from Software-GUI: e7 -> e5
+[Bridge] Wrote 1 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 5.300s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 6,
+          "text": "4,6"
+        },
+        "endpoint_label": "4,6",
+        "motor_board_endpoint": {
+          "x": 1,
+          "y": 4,
+          "text": "1,4"
+        },
+        "x": 514,
+        "y": 1098
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "endpoint_label": "4,4",
+        "motor_board_endpoint": {
+          "x": 3,
+          "y": 4,
+          "text": "3,4"
+        },
+        "x": 899,
+        "y": 1098
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 1.936s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 2: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.075s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move2/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move2/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.829s
+[Bridge] Turn analysis completed in 0.829s
+[Bridge] WARNING: rejected Player 1 detection attempt 1: excessive_significant_changed_squares
+[Bridge] Rejection details: {"significant_changed_count":16,"changed_square_count":16,"min_significant_changes":2,"max_significant_changes":12,"max_resolved_score":20.0}
+[Bridge] Rejection record saved: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move2/player1_rejected_attempt.json
+[Bridge] Keeping the same before/reference image. Correct the physical board, then retry this same turn.
+
+[Bridge] Turn 2: make Player 1 move, then press Enter to capture current board...
+[Bridge] Type 'r' then Enter to recapture the rolling reference from the current board instead: [Bridge] Reference recapture completed in 2.157s
+[Bridge] Rolling reference recaptured from current board: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+[Bridge] Rolling reference updated. Retry the same turn when ready.
+
+[Bridge] Turn 2: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 1.982s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move2_Retry2/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move2_Retry2/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.820s
+[Bridge] Turn analysis completed in 0.821s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=0.6902126736111112
+[Bridge] Sent P1 step 1/1: b2 -> b3
+[Bridge] Received P2 move from Software-GUI: d7 -> d5
+[Bridge] Wrote 1 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 4.867s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 6,
+          "text": "3,6"
+        },
+        "endpoint_label": "3,6",
+        "motor_board_endpoint": {
+          "x": 1,
+          "y": 3,
+          "text": "1,3"
+        },
+        "x": 514,
+        "y": 906
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 4,
+          "text": "3,4"
+        },
+        "endpoint_label": "3,4",
+        "motor_board_endpoint": {
+          "x": 3,
+          "y": 3,
+          "text": "3,3"
+        },
+        "x": 899,
+        "y": 906
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 2.083s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 3: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.055s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move3/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move3/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.826s
+[Bridge] Turn analysis completed in 0.826s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=0.706814236111111
+[Bridge] Sent P1 step 1/1: d2 -> d3
+[Bridge] Received P2 move from Software-GUI: b8 -> c6
+[Bridge] Wrote 4 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 6.316s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 1,
+          "y": 7,
+          "text": "1,7"
+        },
+        "endpoint_label": "1,7",
+        "motor_board_endpoint": {
+          "x": 0,
+          "y": 1,
+          "text": "0,1"
+        },
+        "x": 321,
+        "y": 524
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 22.61,
+          "text": "5.45%,22.61%"
+        },
+        "endpoint_label": "5.45%,22.61%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 524
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 22.61,
+          "text": "5.45%,22.61%"
+        },
+        "endpoint_label": "5.45%,22.61%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 524
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 5.12,
+          "text": "5.45%,5.12%"
+        },
+        "endpoint_label": "5.45%,5.12%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 119
+      },
+      {
+        "stage": "move_3_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 5.12,
+          "text": "5.45%,5.12%"
+        },
+        "endpoint_label": "5.45%,5.12%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 119
+      },
+      {
+        "stage": "move_3_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 5.12,
+          "text": "34.29%,5.12%"
+        },
+        "endpoint_label": "34.29%,5.12%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 119
+      },
+      {
+        "stage": "move_4_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 5.12,
+          "text": "34.29%,5.12%"
+        },
+        "endpoint_label": "34.29%,5.12%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 119
+      },
+      {
+        "stage": "move_4_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 2,
+          "y": 5,
+          "text": "2,5"
+        },
+        "endpoint_label": "2,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 2,
+          "text": "2,2"
+        },
+        "x": 706,
+        "y": 715
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 2.029s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 4: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.091s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move4/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move4/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.831s
+[Bridge] Turn analysis completed in 0.831s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=0.6689453125
+[Bridge] Sent P1 step 1/1: e2 -> e4
+[Bridge] Received P2 move from Software-GUI: g8 -> f6
+[Bridge] Wrote 4 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 8.117s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 6,
+          "y": 7,
+          "text": "6,7"
+        },
+        "endpoint_label": "6,7",
+        "motor_board_endpoint": {
+          "x": 0,
+          "y": 6,
+          "text": "0,6"
+        },
+        "x": 321,
+        "y": 1480
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 63.84,
+          "text": "5.45%,63.84%"
+        },
+        "endpoint_label": "5.45%,63.84%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 1480
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 63.84,
+          "text": "5.45%,63.84%"
+        },
+        "endpoint_label": "5.45%,63.84%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 1480
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 82.77,
+          "text": "5.45%,82.77%"
+        },
+        "endpoint_label": "5.45%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 1919
+      },
+      {
+        "stage": "move_3_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 82.77,
+          "text": "5.45%,82.77%"
+        },
+        "endpoint_label": "5.45%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 1919
+      },
+      {
+        "stage": "move_3_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 82.77,
+          "text": "34.29%,82.77%"
+        },
+        "endpoint_label": "34.29%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 82.77,
+          "text": "34.29%,82.77%"
+        },
+        "endpoint_label": "34.29%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 5,
+          "y": 5,
+          "text": "5,5"
+        },
+        "endpoint_label": "5,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 5,
+          "text": "2,5"
+        },
+        "x": 706,
+        "y": 1289
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 1.934s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 5: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.005s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move5/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move5/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.825s
+[Bridge] Turn analysis completed in 0.826s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=0.5747612847222222
+[Bridge] Sent P1 step 1/1: c2 -> c4
+[Bridge] Received P2 move from Software-GUI: d5 -> e4
+[Bridge] Wrote 7 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 9.490s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "endpoint_label": "4,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "x": 1092,
+        "y": 1098
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 7,
+          "y": 3,
+          "text": "7,3"
+        },
+        "endpoint_label": "7,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 7,
+          "text": "4,7"
+        },
+        "x": 1092,
+        "y": 1671
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 7,
+          "y": 3,
+          "text": "7,3"
+        },
+        "endpoint_label": "7,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 7,
+          "text": "4,7"
+        },
+        "x": 1092,
+        "y": 1671
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 53.0,
+          "y_pct": 82.77,
+          "text": "53.00%,82.77%"
+        },
+        "endpoint_label": "53.00%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1092,
+        "y": 1919
+      },
+      {
+        "stage": "move_3_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 53.0,
+          "y_pct": 82.77,
+          "text": "53.00%,82.77%"
+        },
+        "endpoint_label": "53.00%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1092,
+        "y": 1919
+      },
+      {
+        "stage": "move_3_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 15.21,
+          "y_pct": 82.77,
+          "text": "15.21%,82.77%"
+        },
+        "endpoint_label": "15.21%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 313,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 15.21,
+          "y_pct": 82.77,
+          "text": "15.21%,82.77%"
+        },
+        "endpoint_label": "15.21%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 313,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.26,
+          "y_pct": 82.77,
+          "text": "5.26%,82.77%"
+        },
+        "endpoint_label": "5.26%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 108,
+        "y": 1919
+      },
+      {
+        "stage": "move_5_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.26,
+          "y_pct": 82.77,
+          "text": "5.26%,82.77%"
+        },
+        "endpoint_label": "5.26%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 108,
+        "y": 1919
+      },
+      {
+        "stage": "move_5_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.26,
+          "y_pct": 93.44,
+          "text": "5.26%,93.44%"
+        },
+        "endpoint_label": "5.26%,93.44%",
+        "motor_board_endpoint": null,
+        "x": 108,
+        "y": 2166
+      },
+      {
+        "stage": "move_6_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 4,
+          "text": "3,4"
+        },
+        "endpoint_label": "3,4",
+        "motor_board_endpoint": {
+          "x": 3,
+          "y": 3,
+          "text": "3,3"
+        },
+        "x": 899,
+        "y": 906
+      },
+      {
+        "stage": "move_6_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 3,
+          "text": "3,3"
+        },
+        "endpoint_label": "3,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "x": 1092,
+        "y": 906
+      },
+      {
+        "stage": "move_7_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 3,
+          "text": "3,3"
+        },
+        "endpoint_label": "3,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "x": 1092,
+        "y": 906
+      },
+      {
+        "stage": "move_7_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "endpoint_label": "4,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "x": 1092,
+        "y": 1098
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 2.149s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 6: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.043s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move6/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move6/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.828s
+[Bridge] Turn analysis completed in 0.829s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=True special=None score=2.9739583333333335
+[Bridge] Detected manual green-area capture source(s): 60.89%,84.81%
+[Bridge] Sent P1 step 1/1: d3 -> e4
+[Bridge] Received P2 move from Software-GUI: f8 -> b4
+[Bridge] Wrote 6 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 11.730s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 60.89,
+          "y_pct": 84.81,
+          "text": "60.89%,84.81%"
+        },
+        "endpoint_label": "60.89%,84.81%",
+        "motor_board_endpoint": null,
+        "x": 1254,
+        "y": 1966
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 15.21,
+          "y_pct": 93.44,
+          "text": "15.21%,93.44%"
+        },
+        "endpoint_label": "15.21%,93.44%",
+        "motor_board_endpoint": null,
+        "x": 313,
+        "y": 2166
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 5,
+          "y": 7,
+          "text": "5,7"
+        },
+        "endpoint_label": "5,7",
+        "motor_board_endpoint": {
+          "x": 0,
+          "y": 5,
+          "text": "0,5"
+        },
+        "x": 321,
+        "y": 1289
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 55.6,
+          "text": "5.45%,55.60%"
+        },
+        "endpoint_label": "5.45%,55.60%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 1289
+      },
+      {
+        "stage": "move_3_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 55.6,
+          "text": "5.45%,55.60%"
+        },
+        "endpoint_label": "5.45%,55.60%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 1289
+      },
+      {
+        "stage": "move_3_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 5.12,
+          "text": "5.45%,5.12%"
+        },
+        "endpoint_label": "5.45%,5.12%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 119
+      },
+      {
+        "stage": "move_4_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 5.12,
+          "text": "5.45%,5.12%"
+        },
+        "endpoint_label": "5.45%,5.12%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 119
+      },
+      {
+        "stage": "move_4_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 5.12,
+          "text": "34.29%,5.12%"
+        },
+        "endpoint_label": "34.29%,5.12%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 119
+      },
+      {
+        "stage": "move_5_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 5.12,
+          "text": "34.29%,5.12%"
+        },
+        "endpoint_label": "34.29%,5.12%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 119
+      },
+      {
+        "stage": "move_5_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 1,
+          "y": 4,
+          "text": "1,4"
+        },
+        "endpoint_label": "1,4",
+        "motor_board_endpoint": {
+          "x": 3,
+          "y": 1,
+          "text": "3,1"
+        },
+        "x": 899,
+        "y": 524
+      },
+      {
+        "stage": "move_6_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 1,
+          "y": 4,
+          "text": "1,4"
+        },
+        "endpoint_label": "1,4",
+        "motor_board_endpoint": {
+          "x": 3,
+          "y": 1,
+          "text": "3,1"
+        },
+        "x": 899,
+        "y": 524
+      },
+      {
+        "stage": "move_6_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 1,
+          "y": 3,
+          "text": "1,3"
+        },
+        "endpoint_label": "1,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 1,
+          "text": "4,1"
+        },
+        "x": 1092,
+        "y": 524
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 1.988s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 7: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.064s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move7/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move7/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.824s
+[Bridge] Turn analysis completed in 0.825s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=9.79904513888889
+[Bridge] Sent P1 step 1/1: c1 -> d2
+[Bridge] Received P2 move from Software-GUI: f6 -> e4
+[Bridge] Wrote 7 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 9.945s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "endpoint_label": "4,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "x": 1092,
+        "y": 1098
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 5,
+          "y": 3,
+          "text": "5,3"
+        },
+        "endpoint_label": "5,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 5,
+          "text": "4,5"
+        },
+        "x": 1092,
+        "y": 1289
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 5,
+          "y": 3,
+          "text": "5,3"
+        },
+        "endpoint_label": "5,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 5,
+          "text": "4,5"
+        },
+        "x": 1092,
+        "y": 1289
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 7,
+          "y": 5,
+          "text": "7,5"
+        },
+        "endpoint_label": "7,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 7,
+          "text": "2,7"
+        },
+        "x": 706,
+        "y": 1671
+      },
+      {
+        "stage": "move_3_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 7,
+          "y": 5,
+          "text": "7,5"
+        },
+        "endpoint_label": "7,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 7,
+          "text": "2,7"
+        },
+        "x": 706,
+        "y": 1671
+      },
+      {
+        "stage": "move_3_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 82.77,
+          "text": "34.29%,82.77%"
+        },
+        "endpoint_label": "34.29%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 82.77,
+          "text": "34.29%,82.77%"
+        },
+        "endpoint_label": "34.29%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 25.15,
+          "y_pct": 82.77,
+          "text": "25.15%,82.77%"
+        },
+        "endpoint_label": "25.15%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 518,
+        "y": 1919
+      },
+      {
+        "stage": "move_5_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 25.15,
+          "y_pct": 82.77,
+          "text": "25.15%,82.77%"
+        },
+        "endpoint_label": "25.15%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 518,
+        "y": 1919
+      },
+      {
+        "stage": "move_5_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 25.15,
+          "y_pct": 93.44,
+          "text": "25.15%,93.44%"
+        },
+        "endpoint_label": "25.15%,93.44%",
+        "motor_board_endpoint": null,
+        "x": 518,
+        "y": 2166
+      },
+      {
+        "stage": "move_6_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 5,
+          "y": 5,
+          "text": "5,5"
+        },
+        "endpoint_label": "5,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 5,
+          "text": "2,5"
+        },
+        "x": 706,
+        "y": 1289
+      },
+      {
+        "stage": "move_6_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 53.0,
+          "y_pct": 82.77,
+          "text": "53.00%,82.77%"
+        },
+        "endpoint_label": "53.00%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1092,
+        "y": 1919
+      },
+      {
+        "stage": "move_7_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 53.0,
+          "y_pct": 82.77,
+          "text": "53.00%,82.77%"
+        },
+        "endpoint_label": "53.00%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1092,
+        "y": 1919
+      },
+      {
+        "stage": "move_7_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "endpoint_label": "4,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "x": 1092,
+        "y": 1098
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 2.091s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 8: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.116s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move8/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move8/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.829s
+[Bridge] Turn analysis completed in 0.830s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=13.295464409722221
+[Bridge] Sent P1 step 1/1: f2 -> f3
+[Bridge] Received P2 move from Software-GUI: e4 -> d2
+[Bridge] Wrote 6 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 10.370s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 1,
+          "text": "3,1"
+        },
+        "endpoint_label": "3,1",
+        "motor_board_endpoint": {
+          "x": 6,
+          "y": 3,
+          "text": "6,3"
+        },
+        "x": 1477,
+        "y": 906
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 5,
+          "text": "3,5"
+        },
+        "endpoint_label": "3,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 3,
+          "text": "2,3"
+        },
+        "x": 706,
+        "y": 906
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 5,
+          "text": "3,5"
+        },
+        "endpoint_label": "3,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 3,
+          "text": "2,3"
+        },
+        "x": 706,
+        "y": 906
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 7,
+          "y": 5,
+          "text": "7,5"
+        },
+        "endpoint_label": "7,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 7,
+          "text": "2,7"
+        },
+        "x": 706,
+        "y": 1671
+      },
+      {
+        "stage": "move_3_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 7,
+          "y": 5,
+          "text": "7,5"
+        },
+        "endpoint_label": "7,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 7,
+          "text": "2,7"
+        },
+        "x": 706,
+        "y": 1671
+      },
+      {
+        "stage": "move_3_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 82.77,
+          "text": "34.29%,82.77%"
+        },
+        "endpoint_label": "34.29%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 82.77,
+          "text": "34.29%,82.77%"
+        },
+        "endpoint_label": "34.29%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 35.09,
+          "y_pct": 82.77,
+          "text": "35.09%,82.77%"
+        },
+        "endpoint_label": "35.09%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 723,
+        "y": 1919
+      },
+      {
+        "stage": "move_5_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 35.09,
+          "y_pct": 82.77,
+          "text": "35.09%,82.77%"
+        },
+        "endpoint_label": "35.09%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 723,
+        "y": 1919
+      },
+      {
+        "stage": "move_5_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 35.09,
+          "y_pct": 93.44,
+          "text": "35.09%,93.44%"
+        },
+        "endpoint_label": "35.09%,93.44%",
+        "motor_board_endpoint": null,
+        "x": 723,
+        "y": 2166
+      },
+      {
+        "stage": "move_6_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "endpoint_label": "4,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "x": 1092,
+        "y": 1098
+      },
+      {
+        "stage": "move_6_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 1,
+          "text": "3,1"
+        },
+        "endpoint_label": "3,1",
+        "motor_board_endpoint": {
+          "x": 6,
+          "y": 3,
+          "text": "6,3"
+        },
+        "x": 1477,
+        "y": 906
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 2.120s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 9: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 1.832s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move9/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move9/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.825s
+[Bridge] Turn analysis completed in 0.825s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=True special=None score=0.8364800347222223
+[Bridge] Detected manual green-area capture source(s): 94.36%,29.11%
+[Bridge] Sent P1 step 1/1: b1 -> d2
+[Bridge] Received P2 move from Software-GUI: d8 -> d4
+[Bridge] Wrote 3 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 10.802s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 94.36,
+          "y_pct": 29.11,
+          "text": "94.36%,29.11%"
+        },
+        "endpoint_label": "94.36%,29.11%",
+        "motor_board_endpoint": null,
+        "x": 1944,
+        "y": 675
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 92.87,
+          "y_pct": 82.77,
+          "text": "92.87%,82.77%"
+        },
+        "endpoint_label": "92.87%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1913,
+        "y": 1919
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 92.87,
+          "y_pct": 82.77,
+          "text": "92.87%,82.77%"
+        },
+        "endpoint_label": "92.87%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1913,
+        "y": 1919
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 45.03,
+          "y_pct": 93.44,
+          "text": "45.03%,93.44%"
+        },
+        "endpoint_label": "45.03%,93.44%",
+        "motor_board_endpoint": null,
+        "x": 928,
+        "y": 2166
+      },
+      {
+        "stage": "move_3_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 7,
+          "text": "3,7"
+        },
+        "endpoint_label": "3,7",
+        "motor_board_endpoint": {
+          "x": 0,
+          "y": 3,
+          "text": "0,3"
+        },
+        "x": 321,
+        "y": 906
+      },
+      {
+        "stage": "move_3_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 3,
+          "text": "3,3"
+        },
+        "endpoint_label": "3,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "x": 1092,
+        "y": 906
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 2.076s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 10: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 1.882s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move10/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move10/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.822s
+[Bridge] Turn analysis completed in 0.822s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=0.8253038194444444
+[Bridge] Sent P1 step 1/1: g1 -> e2
+[Bridge] Received P2 move from Software-GUI: d4 -> e3
+[Bridge] Wrote 1 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 5.319s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 3,
+          "text": "3,3"
+        },
+        "endpoint_label": "3,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "x": 1092,
+        "y": 906
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 2,
+          "text": "4,2"
+        },
+        "endpoint_label": "4,2",
+        "motor_board_endpoint": {
+          "x": 5,
+          "y": 4,
+          "text": "5,4"
+        },
+        "x": 1285,
+        "y": 1098
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 2.129s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 11: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.057s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move11/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move11/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.824s
+[Bridge] Turn analysis completed in 0.825s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=0.5769314236111112
+[Bridge] Sent P1 step 1/1: f3 -> f4
+[Bridge] Received P2 move from Software-GUI: c8 -> f5
+[Bridge] Wrote 4 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 7.915s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 2,
+          "y": 7,
+          "text": "2,7"
+        },
+        "endpoint_label": "2,7",
+        "motor_board_endpoint": {
+          "x": 0,
+          "y": 2,
+          "text": "0,2"
+        },
+        "x": 321,
+        "y": 715
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 39.1,
+          "text": "5.45%,39.10%"
+        },
+        "endpoint_label": "5.45%,39.10%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 906
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 5.45,
+          "y_pct": 39.1,
+          "text": "5.45%,39.10%"
+        },
+        "endpoint_label": "5.45%,39.10%",
+        "motor_board_endpoint": null,
+        "x": 112,
+        "y": 906
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 5,
+          "text": "3,5"
+        },
+        "endpoint_label": "3,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 3,
+          "text": "2,3"
+        },
+        "x": 706,
+        "y": 906
+      },
+      {
+        "stage": "move_3_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 5,
+          "text": "3,5"
+        },
+        "endpoint_label": "3,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 3,
+          "text": "2,3"
+        },
+        "x": 706,
+        "y": 906
+      },
+      {
+        "stage": "move_3_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 82.77,
+          "text": "34.29%,82.77%"
+        },
+        "endpoint_label": "34.29%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 34.29,
+          "y_pct": 82.77,
+          "text": "34.29%,82.77%"
+        },
+        "endpoint_label": "34.29%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 706,
+        "y": 1919
+      },
+      {
+        "stage": "move_4_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 5,
+          "y": 4,
+          "text": "5,4"
+        },
+        "endpoint_label": "5,4",
+        "motor_board_endpoint": {
+          "x": 3,
+          "y": 5,
+          "text": "3,5"
+        },
+        "x": 899,
+        "y": 1289
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 2.125s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 12: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 1.970s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move12/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move12/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.825s
+[Bridge] Turn analysis completed in 0.825s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=True special=None score=0.8978949652777778
+[Bridge] Detected manual green-area capture source(s): 88.91%,87.24%
+[Bridge] Sent P1 step 1/1: f4 -> e5
+[Bridge] Received P2 move from Software-GUI: c6 -> e5
+[Bridge] Wrote 7 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 12.626s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 88.91,
+          "y_pct": 87.24,
+          "text": "88.91%,87.24%"
+        },
+        "endpoint_label": "88.91%,87.24%",
+        "motor_board_endpoint": null,
+        "x": 1832,
+        "y": 2022
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 54.97,
+          "y_pct": 93.44,
+          "text": "54.97%,93.44%"
+        },
+        "endpoint_label": "54.97%,93.44%",
+        "motor_board_endpoint": null,
+        "x": 1132,
+        "y": 2166
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "endpoint_label": "4,4",
+        "motor_board_endpoint": {
+          "x": 3,
+          "y": 4,
+          "text": "3,4"
+        },
+        "x": 899,
+        "y": 1098
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "endpoint_label": "4,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "x": 1092,
+        "y": 1098
+      },
+      {
+        "stage": "move_3_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "endpoint_label": "4,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "x": 1092,
+        "y": 1098
+      },
+      {
+        "stage": "move_3_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 7,
+          "y": 3,
+          "text": "7,3"
+        },
+        "endpoint_label": "7,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 7,
+          "text": "4,7"
+        },
+        "x": 1092,
+        "y": 1671
+      },
+      {
+        "stage": "move_4_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 7,
+          "y": 3,
+          "text": "7,3"
+        },
+        "endpoint_label": "7,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 7,
+          "text": "4,7"
+        },
+        "x": 1092,
+        "y": 1671
+      },
+      {
+        "stage": "move_4_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 53.0,
+          "y_pct": 82.77,
+          "text": "53.00%,82.77%"
+        },
+        "endpoint_label": "53.00%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1092,
+        "y": 1919
+      },
+      {
+        "stage": "move_5_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 53.0,
+          "y_pct": 82.77,
+          "text": "53.00%,82.77%"
+        },
+        "endpoint_label": "53.00%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1092,
+        "y": 1919
+      },
+      {
+        "stage": "move_5_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 64.91,
+          "y_pct": 82.77,
+          "text": "64.91%,82.77%"
+        },
+        "endpoint_label": "64.91%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1337,
+        "y": 1919
+      },
+      {
+        "stage": "move_6_source",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 64.91,
+          "y_pct": 82.77,
+          "text": "64.91%,82.77%"
+        },
+        "endpoint_label": "64.91%,82.77%",
+        "motor_board_endpoint": null,
+        "x": 1337,
+        "y": 1919
+      },
+      {
+        "stage": "move_6_dest",
+        "endpoint": {
+          "kind": "pct",
+          "x_pct": 64.91,
+          "y_pct": 93.44,
+          "text": "64.91%,93.44%"
+        },
+        "endpoint_label": "64.91%,93.44%",
+        "motor_board_endpoint": null,
+        "x": 1337,
+        "y": 2166
+      },
+      {
+        "stage": "move_7_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 2,
+          "y": 5,
+          "text": "2,5"
+        },
+        "endpoint_label": "2,5",
+        "motor_board_endpoint": {
+          "x": 2,
+          "y": 2,
+          "text": "2,2"
+        },
+        "x": 706,
+        "y": 715
+      },
+      {
+        "stage": "move_7_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "endpoint_label": "4,4",
+        "motor_board_endpoint": {
+          "x": 3,
+          "y": 4,
+          "text": "3,4"
+        },
+        "x": 899,
+        "y": 1098
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 1.930s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 13: make Player 1 move, then press Enter to capture current board... [Bridge] CURRENT capture completed in 2.026s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move13/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move13/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.822s
+[Bridge] Turn analysis completed in 0.823s
+[Bridge] Resolved P1 move with chess_legal_match: steps=1 capture=False special=None score=3.8787977430555554
+[Bridge] Sent P1 step 1/1: g2 -> g3
+[Bridge] Received P2 move from Software-GUI: e5 -> d3
+[Bridge] Wrote 2 STM sequence steps to /home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt
+[Bridge] Sending sequence to STM32...
+[Bridge] STM32 dispatch completed in 5.557s
+{
+  "bridge_stm_result": {
+    "status": "ok",
+    "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+    "position_report": [
+      {
+        "stage": "initial",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "stage": "move_1_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 4,
+          "y": 4,
+          "text": "4,4"
+        },
+        "endpoint_label": "4,4",
+        "motor_board_endpoint": {
+          "x": 3,
+          "y": 4,
+          "text": "3,4"
+        },
+        "x": 899,
+        "y": 1098
+      },
+      {
+        "stage": "move_1_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 3,
+          "text": "3,3"
+        },
+        "endpoint_label": "3,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "x": 1092,
+        "y": 906
+      },
+      {
+        "stage": "move_2_source",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 3,
+          "text": "3,3"
+        },
+        "endpoint_label": "3,3",
+        "motor_board_endpoint": {
+          "x": 4,
+          "y": 3,
+          "text": "4,3"
+        },
+        "x": 1092,
+        "y": 906
+      },
+      {
+        "stage": "move_2_dest",
+        "endpoint": {
+          "kind": "board",
+          "x": 3,
+          "y": 2,
+          "text": "3,2"
+        },
+        "endpoint_label": "3,2",
+        "motor_board_endpoint": {
+          "x": 5,
+          "y": 3,
+          "text": "5,3"
+        },
+        "x": 1285,
+        "y": 906
+      },
+      {
+        "stage": "returned_start",
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+  }
+}
+[Bridge] Capturing updated reference after STM32 move...
+[Bridge] Updated reference capture completed in 1.911s
+[Bridge] Rolling reference refreshed: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+
+[Bridge] Turn 14: make Player 1 move, then press Enter to capture current board... 
+[Bridge] Runtime reset acknowledged. Start the next game and press Enter when ready.
+
+[Bridge] Turn 14: make Player 1 move, then press Enter to capture current board... [Bridge] Runtime game reset completed in 2.170s (reason=board_reset) -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png
+[Bridge] CURRENT capture completed in 1.682s
+[Bridge] CURRENT captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move14/after_capture.png
+[Bridge] Diffing previous reference -> current: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png -> /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move14/after_capture.png
+[Bridge] Analyzer subprocess completed in 0.835s
+[Bridge] Turn analysis completed in 0.836s
+[Bridge] WARNING: rejected Player 1 detection attempt 1: excessive_significant_changed_squares
+[Bridge] Rejection details: {"significant_changed_count":33,"changed_square_count":33,"min_significant_changes":2,"max_significant_changes":12,"max_resolved_score":20.0}
+[Bridge] Rejection record saved: /home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move14/player1_rejected_attempt.json
+[Bridge] Keeping the same before/reference image. Correct the physical board, then retry this same turn.
+
+[Bridge] Turn 14: make Player 1 move, then press Enter to capture current board...
+[Bridge] Type 'r' then Enter to recapture the rolling reference from the current board instead: Traceback (most recent call last):
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 2255, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 2236, in main
+    _serve_client(
+    ~~~~~~~~~~~~~^
+        args,
+        ^^^^^
+    ...<5 lines>...
+        game_debug_dir,
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 1844, in _serve_client
+    analysis_wrap = _capture_and_analyze_rolling(
+        controller=controller,
+    ...<7 lines>...
+        runtime_state=runtime_state,
+    )
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 1152, in _capture_and_analyze_rolling
+    action = _prompt_rolling_turn_action(
+        args,
+    ...<2 lines>...
+        runtime_state=runtime_state,
+    )
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 643, in _prompt_rolling_turn_action
+    raw = _read_terminal_prompt_with_runtime_control(prompt, runtime_state=runtime_state)
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 613, in _read_terminal_prompt_with_runtime_control
+    ready, _, _ = select.select([sys.stdin], [], [], 0.2)
+                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

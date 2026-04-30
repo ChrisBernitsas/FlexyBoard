@@ -1,0 +1,37 @@
+{
+  "game": "chess",
+  "source": {
+    "x": 3,
+    "y": 4
+  },
+  "destination": {
+    "x": 3,
+    "y": 3
+  },
+  "moved_piece_type": null,
+  "capture": false,
+  "confidence": 1.0,
+  "timestamp": "2026-04-28T23:35:58.885838+00:00",
+  "metadata": {
+    "changed_count": 5,
+    "significant_changed_count": 5,
+    "classifier_confidence": 0.0,
+    "source_score": -31.91937934027777,
+    "dest_score": 3.5808376736111143,
+    "capture_signals": {
+      "capture_by_destination_prior": false,
+      "capture_by_changed_count": false,
+      "occupied_margin": 8.86787868923611,
+      "source_before_occupied": true,
+      "source_after_occupied": false,
+      "dest_before_occupied": false,
+      "dest_after_occupied": false,
+      "source_before_occ_score": 34.213704427083314,
+      "source_after_occ_score": 2.87255859375,
+      "dest_before_occ_score": -3.0397135416666856,
+      "dest_after_occ_score": 2.015516493055543
+    },
+    "captured_at": null,
+    "captured_piece_type": null
+  }
+}

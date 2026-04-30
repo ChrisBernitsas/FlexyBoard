@@ -1,0 +1,95 @@
+{
+  "status": "rejected",
+  "reason": "excessive_significant_changed_squares",
+  "details": {
+    "significant_changed_count": 33,
+    "changed_square_count": 33,
+    "min_significant_changes": 2,
+    "max_significant_changes": 12,
+    "max_resolved_score": 20.0
+  },
+  "before_image": "/home/pi/FlexyBoard-Camera/debug_output/Games/Game16/rolling_reference.png",
+  "after_image": "/home/pi/FlexyBoard-Camera/debug_output/Games/Game16/Move14/after_capture.png",
+  "player1_observed_move": {
+    "game": "chess",
+    "source": {
+      "x": 4,
+      "y": 5
+    },
+    "destination": {
+      "x": 7,
+      "y": 2
+    },
+    "moved_piece_type": null,
+    "capture": false,
+    "confidence": 1.0,
+    "timestamp": "2026-04-28T23:44:00.230767+00:00",
+    "metadata": {
+      "changed_count": 33,
+      "significant_changed_count": 33,
+      "classifier_confidence": 0.0,
+      "source_score": -87.99620225694446,
+      "dest_score": 91.83376736111114,
+      "capture_signals": {
+        "capture_by_destination_prior": false,
+        "capture_by_changed_count": false,
+        "occupied_margin": 10.508712022569439,
+        "source_before_occupied": true,
+        "source_after_occupied": false,
+        "dest_before_occupied": false,
+        "dest_after_occupied": true,
+        "source_before_occ_score": 84.59510633680554,
+        "source_after_occ_score": -2.3812934027777715,
+        "dest_before_occ_score": -0.5002712673611427,
+        "dest_after_occ_score": 92.35329861111113
+      },
+      "captured_at": null,
+      "captured_piece_type": null
+    }
+  },
+  "resolver_state_unchanged": {
+    "game": "chess",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "turn": "p1",
+    "occupied": {
+      "a1": "P1_ROOK",
+      "b1": "P1_KNIGHT",
+      "c1": "P1_BISHOP",
+      "d1": "P1_QUEEN",
+      "e1": "P1_KING",
+      "f1": "P1_BISHOP",
+      "g1": "P1_KNIGHT",
+      "h1": "P1_ROOK",
+      "a2": "P1_PAWN",
+      "b2": "P1_PAWN",
+      "c2": "P1_PAWN",
+      "d2": "P1_PAWN",
+      "e2": "P1_PAWN",
+      "f2": "P1_PAWN",
+      "g2": "P1_PAWN",
+      "h2": "P1_PAWN",
+      "a7": "P2_PAWN",
+      "b7": "P2_PAWN",
+      "c7": "P2_PAWN",
+      "d7": "P2_PAWN",
+      "e7": "P2_PAWN",
+      "f7": "P2_PAWN",
+      "g7": "P2_PAWN",
+      "h7": "P2_PAWN",
+      "a8": "P2_ROOK",
+      "b8": "P2_KNIGHT",
+      "c8": "P2_BISHOP",
+      "d8": "P2_QUEEN",
+      "e8": "P2_KING",
+      "f8": "P2_BISHOP",
+      "g8": "P2_KNIGHT",
+      "h8": "P2_ROOK"
+    },
+    "legal_move_count": 20,
+    "is_check": false,
+    "is_checkmate": false,
+    "is_stalemate": false,
+    "persistent_state": true,
+    "camera_square_orientation": "image_tl_a1_tr_a8_br_h8_bl_h1"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "expected_count": 1,
+  "detected": [
+    {
+      "x_pct": 88.91,
+      "y_pct": 87.24,
+      "area_px": 2439.0,
+      "centroid_px": [
+        717.26,
+        896.49
+      ],
+      "bbox_px": [
+        691,
+        867,
+        54,
+        59
+      ]
+    }
+  ],
+  "min_contour_area_px": 271.4049525437462
+}

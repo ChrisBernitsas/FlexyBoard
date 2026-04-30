@@ -1,0 +1,9 @@
+{
+  "type": "p2_move",
+  "from": "d4",
+  "to": "e3",
+  "game": "chess",
+  "stm_sequence": [
+    "3,3 -> 4,2"
+  ]
+}

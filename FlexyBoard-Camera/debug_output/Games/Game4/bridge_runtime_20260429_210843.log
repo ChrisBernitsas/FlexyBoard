@@ -1,0 +1,24 @@
+[Bridge] Runtime log: /home/pi/FlexyBoard-Camera/debug_output/Games/Game5/bridge_runtime_20260429_210843.log
+[Bridge] Analysis thresholds: diff_threshold=30 min_changed_ratio=0.2 min_significant_changes=2 max_significant_changes=12 max_resolved_score=20.0
+[Bridge] Stateful resolver initialized: True
+[Bridge] Game debug folder: /home/pi/FlexyBoard-Camera/debug_output/Games/Game5
+[Bridge] Listening for Software-GUI on 0.0.0.0:8765
+[Bridge] Start Software-GUI now; it should connect as TCP client.
+[Bridge] Software-GUI connected from 172.20.10.7:65187
+[Bridge] Startup ready: active game = chess
+[Bridge] Make sure the physical board matches the software state, then press Enter to capture INITIAL reference...[Bridge] Startup game selection updated before initial capture: chess -> checkers
+[Bridge] Startup selection: active game = checkers
+[Bridge] Startup game selection updated before initial capture: checkers -> chess
+[Bridge] Startup selection: active game = chess
+[Bridge] Startup game selection updated before initial capture: chess -> parcheesi
+[Bridge] Startup selection: active game = parcheesi
+[Bridge] Initial reference capture completed in 6.611s
+[Bridge] Initial reference captured: /home/pi/FlexyBoard-Camera/debug_output/Games/Game5/initial_reference.png
+[Bridge] Building live session geometry from initial reference...
+[Bridge] Startup live auto-detect analysis completed in 1.098s
+[Bridge] Startup live preview render completed in 0.294s
+[Bridge] Live session geometry saved: /home/pi/FlexyBoard-Camera/debug_output/live_session_geometry.json
+[Bridge] Startup auto-geometry completed in 1.393s
+[Bridge] Startup grid preview: /home/pi/FlexyBoard-Camera/debug_output/Games/Game5/auto_startup_grid_overlay.png
+[Bridge] Sent startup grid preview to Software-GUI; waiting for Confirm...
+[Bridge] Connection closed: GUI disconnected

@@ -1,0 +1,29 @@
+[
+  {
+    "index": 9,
+    "x": 1,
+    "y": 1,
+    "label": "b2",
+    "raw_camera_label": "b2",
+    "pixel_ratio": 0.7124565972222222,
+    "signed_intensity_delta": -2.1201171875,
+    "detection_sources": [
+      "contour_top2",
+      "square_ratio"
+    ],
+    "contour_area": 22106.5,
+    "contour_rank": 1
+  },
+  {
+    "index": 10,
+    "x": 2,
+    "y": 1,
+    "label": "b3",
+    "raw_camera_label": "c2",
+    "pixel_ratio": 0.5973307291666666,
+    "signed_intensity_delta": -20.950520833333332,
+    "detection_sources": [
+      "square_ratio"
+    ]
+  }
+]

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "generated_by": "run_pi_software_bridge.py",
+  "source": "auto_startup_geometry",
+  "source_image": "/home/pi/FlexyBoard-Camera/debug_output/Games/Game1/initial_reference.png",
+  "image_size_px": {
+    "width": 1920,
+    "height": 1080
+  },
+  "outer_sheet_corners_px": [
+    [
+      634.0,
+      161.0
+    ],
+    [
+      1442.0,
+      152.0
+    ],
+    [
+      1462.0,
+      1015.0
+    ],
+    [
+      642.0,
+      1017.9999999999999
+    ]
+  ],
+  "chessboard_corners_px": [
+    [
+      749.7320556640625,
+      246.9985809326172
+    ],
+    [
+      1339.2943115234375,
+      242.47740173339844
+    ],
+    [
+      1350.3453369140625,
+      814.4112548828125
+    ],
+    [
+      758.1890869140625,
+      824.2671508789064
+    ]
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "status": "ok",
+  "move_file": "/home/pi/FlexyBoard-Camera/sample_data/stm32_move_sequence.txt",
+  "position_report": [
+    {
+      "stage": "initial",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "stage": "move_1_source",
+      "endpoint": {
+        "kind": "pct",
+        "x_pct": 94.36,
+        "y_pct": 29.11,
+        "text": "94.36%,29.11%"
+      },
+      "endpoint_label": "94.36%,29.11%",
+      "motor_board_endpoint": null,
+      "x": 1944,
+      "y": 675
+    },
+    {
+      "stage": "move_1_dest",
+      "endpoint": {
+        "kind": "pct",
+        "x_pct": 92.87,
+        "y_pct": 82.77,
+        "text": "92.87%,82.77%"
+      },
+      "endpoint_label": "92.87%,82.77%",
+      "motor_board_endpoint": null,
+      "x": 1913,
+      "y": 1919
+    },
+    {
+      "stage": "move_2_source",
+      "endpoint": {
+        "kind": "pct",
+        "x_pct": 92.87,
+        "y_pct": 82.77,
+        "text": "92.87%,82.77%"
+      },
+      "endpoint_label": "92.87%,82.77%",
+      "motor_board_endpoint": null,
+      "x": 1913,
+      "y": 1919
+    },
+    {
+      "stage": "move_2_dest",
+      "endpoint": {
+        "kind": "pct",
+        "x_pct": 45.03,
+        "y_pct": 93.44,
+        "text": "45.03%,93.44%"
+      },
+      "endpoint_label": "45.03%,93.44%",
+      "motor_board_endpoint": null,
+      "x": 928,
+      "y": 2166
+    },
+    {
+      "stage": "move_3_source",
+      "endpoint": {
+        "kind": "board",
+        "x": 3,
+        "y": 7,
+        "text": "3,7"
+      },
+      "endpoint_label": "3,7",
+      "motor_board_endpoint": {
+        "x": 0,
+        "y": 3,
+        "text": "0,3"
+      },
+      "x": 321,
+      "y": 906
+    },
+    {
+      "stage": "move_3_dest",
+      "endpoint": {
+        "kind": "board",
+        "x": 3,
+        "y": 3,
+        "text": "3,3"
+      },
+      "endpoint_label": "3,3",
+      "motor_board_endpoint": {
+        "x": 4,
+        "y": 3,
+        "text": "4,3"
+      },
+      "x": 1092,
+      "y": 906
+    },
+    {
+      "stage": "returned_start",
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "final_status": "STATUS cur_x=0 cur_y=0 cur_z=0"
+}

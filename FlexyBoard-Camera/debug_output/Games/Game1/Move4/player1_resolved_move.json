@@ -1,0 +1,150 @@
+{
+  "steps": [
+    {
+      "source": {
+        "x": 4,
+        "y": 1
+      },
+      "destination": {
+        "x": 4,
+        "y": 3
+      }
+    }
+  ],
+  "capture": false,
+  "special": null,
+  "resolver": "chess_legal_match",
+  "score": 0.6689453125,
+  "matched_expected": true,
+  "metadata": {
+    "persistent_state": true,
+    "state_before": {
+      "game": "chess",
+      "fen": "r1bqkbnr/ppp2ppp/2n5/3pp3/P7/1P1P4/2P1PPPP/RNBQKBNR w KQkq - 1 4",
+      "turn": "p1",
+      "occupied": {
+        "a1": "P1_ROOK",
+        "b1": "P1_KNIGHT",
+        "c1": "P1_BISHOP",
+        "d1": "P1_QUEEN",
+        "e1": "P1_KING",
+        "f1": "P1_BISHOP",
+        "g1": "P1_KNIGHT",
+        "h1": "P1_ROOK",
+        "c2": "P1_PAWN",
+        "e2": "P1_PAWN",
+        "f2": "P1_PAWN",
+        "g2": "P1_PAWN",
+        "h2": "P1_PAWN",
+        "b3": "P1_PAWN",
+        "d3": "P1_PAWN",
+        "a4": "P1_PAWN",
+        "d5": "P2_PAWN",
+        "e5": "P2_PAWN",
+        "c6": "P2_KNIGHT",
+        "a7": "P2_PAWN",
+        "b7": "P2_PAWN",
+        "c7": "P2_PAWN",
+        "f7": "P2_PAWN",
+        "g7": "P2_PAWN",
+        "h7": "P2_PAWN",
+        "a8": "P2_ROOK",
+        "c8": "P2_BISHOP",
+        "d8": "P2_QUEEN",
+        "e8": "P2_KING",
+        "f8": "P2_BISHOP",
+        "g8": "P2_KNIGHT",
+        "h8": "P2_ROOK"
+      },
+      "legal_move_count": 29,
+      "is_check": false,
+      "is_checkmate": false,
+      "is_stalemate": false
+    },
+    "state_after": {
+      "game": "chess",
+      "fen": "r1bqkbnr/ppp2ppp/2n5/3pp3/P3P3/1P1P4/2P2PPP/RNBQKBNR b KQkq - 0 4",
+      "turn": "p2",
+      "occupied": {
+        "a1": "P1_ROOK",
+        "b1": "P1_KNIGHT",
+        "c1": "P1_BISHOP",
+        "d1": "P1_QUEEN",
+        "e1": "P1_KING",
+        "f1": "P1_BISHOP",
+        "g1": "P1_KNIGHT",
+        "h1": "P1_ROOK",
+        "c2": "P1_PAWN",
+        "f2": "P1_PAWN",
+        "g2": "P1_PAWN",
+        "h2": "P1_PAWN",
+        "b3": "P1_PAWN",
+        "d3": "P1_PAWN",
+        "a4": "P1_PAWN",
+        "e4": "P1_PAWN",
+        "d5": "P2_PAWN",
+        "e5": "P2_PAWN",
+        "c6": "P2_KNIGHT",
+        "a7": "P2_PAWN",
+        "b7": "P2_PAWN",
+        "c7": "P2_PAWN",
+        "f7": "P2_PAWN",
+        "g7": "P2_PAWN",
+        "h7": "P2_PAWN",
+        "a8": "P2_ROOK",
+        "c8": "P2_BISHOP",
+        "d8": "P2_QUEEN",
+        "e8": "P2_KING",
+        "f8": "P2_BISHOP",
+        "g8": "P2_KNIGHT",
+        "h8": "P2_ROOK"
+      },
+      "legal_move_count": 39,
+      "is_check": false,
+      "is_checkmate": false,
+      "is_stalemate": false
+    },
+    "selected_uci": "e2e4",
+    "legal_candidate_count": 29,
+    "observed_changed": [
+      {
+        "x": 4,
+        "y": 1,
+        "square": "e2"
+      },
+      {
+        "x": 4,
+        "y": 3,
+        "square": "e4"
+      }
+    ],
+    "observed_changed_strengths": [
+      {
+        "x": 4,
+        "y": 1,
+        "square": "e2",
+        "strength": 0.679145
+      },
+      {
+        "x": 4,
+        "y": 3,
+        "square": "e4",
+        "strength": 0.65191
+      }
+    ],
+    "expected_changed": [
+      {
+        "x": 4,
+        "y": 1,
+        "square": "e2"
+      },
+      {
+        "x": 4,
+        "y": 3,
+        "square": "e4"
+      }
+    ],
+    "extra_changed": [],
+    "missing_changed": []
+  }
+}

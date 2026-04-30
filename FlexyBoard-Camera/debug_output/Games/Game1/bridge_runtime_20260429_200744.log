@@ -1,0 +1,31 @@
+[Bridge] Runtime log: /home/pi/FlexyBoard-Camera/debug_output/Games/Game1/bridge_runtime_20260429_200744.log
+[Bridge] Analysis thresholds: diff_threshold=30 min_changed_ratio=0.2 min_significant_changes=2 max_significant_changes=12 max_resolved_score=20.0
+[Bridge] Stateful resolver initialized: True
+[Bridge] Game debug folder: /home/pi/FlexyBoard-Camera/debug_output/Games/Game1
+[Bridge] Listening for Software-GUI on 0.0.0.0:8765
+[Bridge] Start Software-GUI now; it should connect as TCP client.
+[Bridge] Software-GUI connected from 172.20.10.7:64008
+[Bridge] Make sure the physical board matches the software state, then press Enter to capture INITIAL reference...Traceback (most recent call last):
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 2399, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 2380, in main
+    _serve_client(
+    ~~~~~~~~~~~~~^
+        args,
+        ^^^^^
+    ...<5 lines>...
+        game_debug_dir,
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 1866, in _serve_client
+    reference_path = _initialize_rolling_reference_for_game(
+        conn_file,
+    ...<6 lines>...
+        prompt="[Bridge] Make sure the physical board matches the software state, then press Enter to capture INITIAL reference...",
+    )
+  File "/home/pi/FlexyBoard-Camera/scripts/run_pi_software_bridge.py", line 1441, in _initialize_rolling_reference_for_game
+    input(prompt)
+    ~~~~~^^^^^^^^
+KeyboardInterrupt
