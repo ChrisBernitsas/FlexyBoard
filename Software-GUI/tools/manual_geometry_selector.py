@@ -18,13 +18,20 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Select outer and inner board geometry from an image.")
     parser.add_argument("--image", required=True, help="Image to annotate")
     parser.add_argument("--source-path", default="", help="Original source path to show in the selector")
+    parser.add_argument(
+        "--mode",
+        choices=("outer_inner", "outer_only"),
+        default="outer_inner",
+        help="Selection mode: chess/checkers use outer+inner, Parcheesi uses outer only.",
+    )
     return parser.parse_args()
 
 
 class SelectorState:
-    def __init__(self, image: pygame.Surface, source_path: str) -> None:
+    def __init__(self, image: pygame.Surface, source_path: str, *, mode: str = "outer_inner") -> None:
         self.image = image
         self.source_path = source_path
+        self.mode = str(mode or "outer_inner")
         self.outer: list[tuple[float, float]] = []
         self.inner: list[tuple[float, float]] = []
         self.image_rect = pygame.Rect(0, 0, 0, 0)
@@ -34,12 +41,16 @@ class SelectorState:
         self.cancel_rect = pygame.Rect(0, 0, 0, 0)
 
     def complete(self) -> bool:
+        if self.mode == "outer_only":
+            return len(self.outer) == 4
         return len(self.outer) == 4 and len(self.inner) == 4
 
     def instruction(self) -> str:
         order = ["top-left", "top-right", "bottom-right", "bottom-left"]
         if len(self.outer) < 4:
             return f"Green outer grid: click {order[len(self.outer)]} corner."
+        if self.mode == "outer_only":
+            return "Outer geometry complete. Click Save or press Enter."
         if len(self.inner) < 4:
             return f"Yellow inner grid: click {order[len(self.inner)]} corner."
         return "All corners selected. Click Save or press Enter."
@@ -71,7 +82,8 @@ class SelectorState:
         payload: dict[str, object] = {"accepted": bool(accepted)}
         if accepted:
             payload["outer_corners_px"] = [[x, y] for x, y in self.outer]
-            payload["chessboard_corners_px"] = [[x, y] for x, y in self.inner]
+            if self.mode != "outer_only":
+                payload["chessboard_corners_px"] = [[x, y] for x, y in self.inner]
         return payload
 
 
@@ -130,15 +142,25 @@ def _draw(screen: pygame.Surface, font: pygame.font.Font, title_font: pygame.fon
     screen.fill((20, 23, 30))
     width, height = screen.get_size()
 
-    title = title_font.render("Manual Board Geometry", True, (248, 248, 250))
+    title_text = "Manual Parcheesi Geometry" if state.mode == "outer_only" else "Manual Board Geometry"
+    title = title_font.render(title_text, True, (248, 248, 250))
     screen.blit(title, (22, 16))
 
-    lines = [
-        "Click 4 green outer corners, then 4 yellow inner corners.",
-        "Order for each grid: top-left, top-right, bottom-right, bottom-left.",
-        state.instruction(),
-        f"Green outer: {len(state.outer)}/4    Yellow inner: {len(state.inner)}/4",
-    ]
+    lines = (
+        [
+            "Click 4 green outer corners only.",
+            "Order: top-left, top-right, bottom-right, bottom-left.",
+            state.instruction(),
+            f"Green outer: {len(state.outer)}/4",
+        ]
+        if state.mode == "outer_only"
+        else [
+            "Click 4 green outer corners, then 4 yellow inner corners.",
+            "Order for each grid: top-left, top-right, bottom-right, bottom-left.",
+            state.instruction(),
+            f"Green outer: {len(state.outer)}/4    Yellow inner: {len(state.inner)}/4",
+        ]
+    )
     y = 52
     for line in lines:
         color = (242, 220, 120) if line == state.instruction() else (218, 224, 232)
@@ -168,7 +190,8 @@ def _draw(screen: pygame.Surface, font: pygame.font.Font, title_font: pygame.fon
     pygame.draw.rect(screen, (90, 100, 116), state.image_rect, width=1)
 
     _draw_points(screen, font, state, state.outer, (40, 230, 95), "G")
-    _draw_points(screen, font, state, state.inner, (245, 215, 45), "Y")
+    if state.mode != "outer_only":
+        _draw_points(screen, font, state, state.inner, (245, 215, 45), "Y")
 
     _draw_button(
         screen,
@@ -225,7 +248,7 @@ def main() -> int:
     font = pygame.font.SysFont("sf pro display, helvetica, arial", 20)
     title_font = pygame.font.SysFont("sf pro display, helvetica, arial", 28, bold=True)
     image = pygame.image.load(str(image_path)).convert()
-    state = SelectorState(image, args.source_path)
+    state = SelectorState(image, args.source_path, mode=args.mode)
     clock = pygame.time.Clock()
 
     while True:

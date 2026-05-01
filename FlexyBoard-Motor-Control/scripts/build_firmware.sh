@@ -9,6 +9,9 @@ TOOLCHAIN_PREFIX="${TOOLCHAIN_PREFIX:-arm-none-eabi}"
 CC="${TOOLCHAIN_PREFIX}-gcc"
 OBJCOPY="${TOOLCHAIN_PREFIX}-objcopy"
 SIZE="${TOOLCHAIN_PREFIX}-size"
+TARGET_MCU="STM32F401RE"
+STARTUP_FILE="${ROOT_DIR}/Startup/startup_stm32f401retx.s"
+LINKER_SCRIPT="${ROOT_DIR}/STM32F401RETX_FLASH.ld"
 
 COMMON_FLAGS=(
   -mcpu=cortex-m4
@@ -28,7 +31,7 @@ COMMON_FLAGS=(
 "${CC}" "${COMMON_FLAGS[@]}" -c "${ROOT_DIR}/Src/main.c" -o "${OUT_DIR}/main.o"
 "${CC}" "${COMMON_FLAGS[@]}" -c "${ROOT_DIR}/Src/syscalls.c" -o "${OUT_DIR}/syscalls.o"
 "${CC}" "${COMMON_FLAGS[@]}" -c "${ROOT_DIR}/Src/sysmem.c" -o "${OUT_DIR}/sysmem.o"
-"${CC}" "${COMMON_FLAGS[@]}" -x assembler-with-cpp -c "${ROOT_DIR}/Startup/startup_stm32f446retx.s" -o "${OUT_DIR}/startup.o"
+"${CC}" "${COMMON_FLAGS[@]}" -x assembler-with-cpp -c "${STARTUP_FILE}" -o "${OUT_DIR}/startup.o"
 
 "${CC}" \
   "${OUT_DIR}/main.o" \
@@ -39,7 +42,7 @@ COMMON_FLAGS=(
   -mthumb \
   -mfpu=fpv4-sp-d16 \
   -mfloat-abi=hard \
-  -T"${ROOT_DIR}/STM32F446RETX_FLASH.ld" \
+  -T"${LINKER_SCRIPT}" \
   --specs=nosys.specs \
   --specs=nano.specs \
   -Wl,-Map="${OUT_DIR}/FlexyBoard_MotorControl.map" \
@@ -54,3 +57,4 @@ echo "Built:"
 echo "  ${OUT_DIR}/FlexyBoard_MotorControl.elf"
 echo "  ${OUT_DIR}/FlexyBoard_MotorControl.bin"
 echo "  ${OUT_DIR}/FlexyBoard_MotorControl.map"
+echo "Target MCU: ${TARGET_MCU}"

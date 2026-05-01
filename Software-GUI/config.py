@@ -99,7 +99,7 @@ RESTORE_TEMP_RELOCATIONS = (
 #   2) reserve promoted piece slot -> promotion destination square
 # Keep disabled unless you have a real reserve-piece lane configured.
 P2_PROMOTION_REPLACE_PHYSICAL = (
-    os.environ.get("P2_PROMOTION_REPLACE_PHYSICAL", "0").strip() not in {"0", "false", "False"}
+    os.environ.get("P2_PROMOTION_REPLACE_PHYSICAL", "1").strip() not in {"0", "false", "False"}
 )
 P2_PROMOTION_STAGING_X_PCT = float(os.environ.get("P2_PROMOTION_STAGING_X_PCT", "50"))
 P2_PROMOTION_STAGING_Y_PCT = float(os.environ.get("P2_PROMOTION_STAGING_Y_PCT", "96"))

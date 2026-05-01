@@ -1,0 +1,4247 @@
+{
+  "version": 1,
+  "generated_by": "codex_assignment_from_parcheesi_state",
+  "template_file": "parcheesi_full_101_corner_distances_corrected.json",
+  "location_to_region": {
+    "main_0": {
+      "region_id": 1,
+      "region_label": "1",
+      "region_name": "A0_top_arm_cell_r1_c1",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.388317,
+        0.094187
+      ],
+      "polygon_board_normalized": [
+        [
+          0.331603,
+          0.076613
+        ],
+        [
+          0.44503,
+          0.076613
+        ],
+        [
+          0.44503,
+          0.111761
+        ],
+        [
+          0.331603,
+          0.111761
+        ]
+      ],
+      "location_id": "main_0",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.4444444444444444,
+        0.0
+      ]
+    },
+    "main_1": {
+      "region_id": 2,
+      "region_label": "2",
+      "region_name": "A0_top_arm_cell_r1_c2",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.501656,
+        0.094626
+      ],
+      "polygon_board_normalized": [
+        [
+          0.444704,
+          0.076961
+        ],
+        [
+          0.558608,
+          0.076961
+        ],
+        [
+          0.558608,
+          0.112291
+        ],
+        [
+          0.444704,
+          0.112291
+        ]
+      ],
+      "location_id": "main_1",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 1,
+      "target_normalized": [
+        0.5,
+        0.0
+      ]
+    },
+    "main_2": {
+      "region_id": 3,
+      "region_label": "3",
+      "region_name": "A0_top_arm_cell_r1_c3",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.614943,
+        0.094355
+      ],
+      "polygon_board_normalized": [
+        [
+          0.558065,
+          0.077163
+        ],
+        [
+          0.67182,
+          0.077163
+        ],
+        [
+          0.67182,
+          0.111547
+        ],
+        [
+          0.558065,
+          0.111547
+        ]
+      ],
+      "location_id": "main_2",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 2,
+      "target_normalized": [
+        0.5555555555555556,
+        0.0
+      ]
+    },
+    "main_3": {
+      "region_id": 6,
+      "region_label": "6",
+      "region_name": "A0_top_arm_cell_r2_c3",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.613976,
+        0.129902
+      ],
+      "polygon_board_normalized": [
+        [
+          0.55731,
+          0.114984
+        ],
+        [
+          0.670642,
+          0.114984
+        ],
+        [
+          0.670642,
+          0.144819
+        ],
+        [
+          0.55731,
+          0.144819
+        ]
+      ],
+      "location_id": "main_3",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 3,
+      "target_normalized": [
+        0.5555555555555556,
+        0.05555555555555555
+      ]
+    },
+    "main_4": {
+      "region_id": 9,
+      "region_label": "9",
+      "region_name": "A0_top_arm_cell_r3_c3",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.614284,
+        0.162507
+      ],
+      "polygon_board_normalized": [
+        [
+          0.557877,
+          0.145534
+        ],
+        [
+          0.670691,
+          0.145534
+        ],
+        [
+          0.670691,
+          0.179481
+        ],
+        [
+          0.557877,
+          0.179481
+        ]
+      ],
+      "location_id": "main_4",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 4,
+      "target_normalized": [
+        0.5555555555555556,
+        0.1111111111111111
+      ]
+    },
+    "main_5": {
+      "region_id": 12,
+      "region_label": "12",
+      "region_name": "A0_top_arm_cell_r4_c3",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.614229,
+        0.195587
+      ],
+      "polygon_board_normalized": [
+        [
+          0.55784,
+          0.179921
+        ],
+        [
+          0.670619,
+          0.179921
+        ],
+        [
+          0.670619,
+          0.211253
+        ],
+        [
+          0.55784,
+          0.211253
+        ]
+      ],
+      "location_id": "main_5",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 5,
+      "target_normalized": [
+        0.5555555555555556,
+        0.16666666666666666
+      ]
+    },
+    "main_6": {
+      "region_id": 15,
+      "region_label": "15",
+      "region_name": "A0_top_arm_cell_r6_c3",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.614426,
+        0.229487
+      ],
+      "polygon_board_normalized": [
+        [
+          0.557143,
+          0.212543
+        ],
+        [
+          0.67171,
+          0.212543
+        ],
+        [
+          0.67171,
+          0.24643
+        ],
+        [
+          0.557143,
+          0.24643
+        ]
+      ],
+      "location_id": "main_6",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 6,
+      "target_normalized": [
+        0.5555555555555556,
+        0.2222222222222222
+      ]
+    },
+    "main_7": {
+      "region_id": 18,
+      "region_label": "18",
+      "region_name": "custom_rectangle",
+      "region_group": "custom",
+      "region_type": "custom_rectangle",
+      "centroid_normalized": [
+        0.614088,
+        0.262022
+      ],
+      "polygon_board_normalized": [
+        [
+          0.55772,
+          0.245953
+        ],
+        [
+          0.670457,
+          0.245953
+        ],
+        [
+          0.670457,
+          0.27809
+        ],
+        [
+          0.55772,
+          0.27809
+        ]
+      ],
+      "location_id": "main_7",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 7,
+      "target_normalized": [
+        0.5555555555555556,
+        0.2777777777777778
+      ]
+    },
+    "main_8": {
+      "region_id": 21,
+      "region_label": "21",
+      "region_name": "custom_rectangle",
+      "region_group": "custom",
+      "region_type": "custom_rectangle",
+      "centroid_normalized": [
+        0.613248,
+        0.295666
+      ],
+      "polygon_board_normalized": [
+        [
+          0.556914,
+          0.278849
+        ],
+        [
+          0.669582,
+          0.278849
+        ],
+        [
+          0.669582,
+          0.312484
+        ],
+        [
+          0.556914,
+          0.312484
+        ]
+      ],
+      "location_id": "main_8",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 8,
+      "target_normalized": [
+        0.5555555555555556,
+        0.3333333333333333
+      ]
+    },
+    "main_9": {
+      "region_id": 24,
+      "region_label": "24",
+      "region_name": "custom_irregular_2",
+      "region_group": "custom_irregular_2",
+      "region_type": "irregular_home_adjacent",
+      "centroid_normalized": [
+        0.63294,
+        0.335923
+      ],
+      "polygon_board_normalized": [
+        [
+          0.558109,
+          0.346717
+        ],
+        [
+          0.557936,
+          0.310185
+        ],
+        [
+          0.66958,
+          0.311848
+        ],
+        [
+          0.695411,
+          0.337994
+        ],
+        [
+          0.667438,
+          0.361993
+        ],
+        [
+          0.649164,
+          0.3468
+        ]
+      ],
+      "location_id": "main_9",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 9,
+      "target_normalized": [
+        0.5555555555555556,
+        0.3888888888888889
+      ]
+    },
+    "main_10": {
+      "region_id": 25,
+      "region_label": "25",
+      "region_name": "custom_irregular_3",
+      "region_group": "custom_irregular_3",
+      "region_type": "irregular_home_adjacent",
+      "centroid_normalized": [
+        0.696718,
+        0.395751
+      ],
+      "polygon_board_normalized": [
+        [
+          0.667063,
+          0.363092
+        ],
+        [
+          0.694318,
+          0.33775
+        ],
+        [
+          0.722222,
+          0.364357
+        ],
+        [
+          0.72072,
+          0.463025
+        ],
+        [
+          0.68786,
+          0.463393
+        ],
+        [
+          0.688125,
+          0.382887
+        ]
+      ],
+      "location_id": "main_10",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 10,
+      "target_normalized": [
+        0.6111111111111112,
+        0.3888888888888889
+      ]
+    },
+    "main_11": {
+      "region_id": 34,
+      "region_label": "34",
+      "region_name": "custom_rectangle",
+      "region_group": "custom",
+      "region_type": "custom_rectangle",
+      "centroid_normalized": [
+        0.736634,
+        0.513464
+      ],
+      "polygon_board_normalized": [
+        [
+          0.720061,
+          0.464991
+        ],
+        [
+          0.753208,
+          0.464991
+        ],
+        [
+          0.753208,
+          0.561937
+        ],
+        [
+          0.720061,
+          0.561937
+        ]
+      ],
+      "location_id": "main_11",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 11,
+      "target_normalized": [
+        0.6666666666666666,
+        0.4444444444444444
+      ]
+    },
+    "main_12": {
+      "region_id": 27,
+      "region_label": "27",
+      "region_name": "A1_right_arm_cell_r1_c1",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.77005,
+        0.414661
+      ],
+      "polygon_board_normalized": [
+        [
+          0.752072,
+          0.363604
+        ],
+        [
+          0.788028,
+          0.363604
+        ],
+        [
+          0.788028,
+          0.465718
+        ],
+        [
+          0.752072,
+          0.465718
+        ]
+      ],
+      "location_id": "main_12",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 12,
+      "target_normalized": [
+        0.7222222222222222,
+        0.4444444444444444
+      ]
+    },
+    "main_13": {
+      "region_id": 28,
+      "region_label": "28",
+      "region_name": "A1_right_arm_cell_r1_c2",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.804868,
+        0.415323
+      ],
+      "polygon_board_normalized": [
+        [
+          0.787231,
+          0.36465
+        ],
+        [
+          0.822505,
+          0.36465
+        ],
+        [
+          0.822505,
+          0.465995
+        ],
+        [
+          0.787231,
+          0.465995
+        ]
+      ],
+      "location_id": "main_13",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 13,
+      "target_normalized": [
+        0.7777777777777778,
+        0.4444444444444444
+      ]
+    },
+    "main_14": {
+      "region_id": 29,
+      "region_label": "29",
+      "region_name": "A1_right_arm_cell_r1_c3",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.839827,
+        0.415523
+      ],
+      "polygon_board_normalized": [
+        [
+          0.82035,
+          0.364479
+        ],
+        [
+          0.859305,
+          0.364479
+        ],
+        [
+          0.859305,
+          0.466567
+        ],
+        [
+          0.82035,
+          0.466567
+        ]
+      ],
+      "location_id": "main_14",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 14,
+      "target_normalized": [
+        0.8333333333333334,
+        0.4444444444444444
+      ]
+    },
+    "main_15": {
+      "region_id": 30,
+      "region_label": "30",
+      "region_name": "A1_right_arm_cell_r1_c4",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.873137,
+        0.414239
+      ],
+      "polygon_board_normalized": [
+        [
+          0.856014,
+          0.363067
+        ],
+        [
+          0.890259,
+          0.363067
+        ],
+        [
+          0.890259,
+          0.465411
+        ],
+        [
+          0.856014,
+          0.465411
+        ]
+      ],
+      "location_id": "main_15",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 15,
+      "target_normalized": [
+        0.8888888888888888,
+        0.4444444444444444
+      ]
+    },
+    "main_16": {
+      "region_id": 31,
+      "region_label": "31",
+      "region_name": "A1_right_arm_cell_r1_c5",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.908308,
+        0.414368
+      ],
+      "polygon_board_normalized": [
+        [
+          0.890897,
+          0.362863
+        ],
+        [
+          0.925718,
+          0.362863
+        ],
+        [
+          0.925718,
+          0.465872
+        ],
+        [
+          0.890897,
+          0.465872
+        ]
+      ],
+      "location_id": "main_16",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 16,
+      "target_normalized": [
+        0.9444444444444444,
+        0.4444444444444444
+      ]
+    },
+    "main_17": {
+      "region_id": 32,
+      "region_label": "32",
+      "region_name": "A1_right_arm_cell_r1_c6",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.94365,
+        0.415062
+      ],
+      "polygon_board_normalized": [
+        [
+          0.926067,
+          0.362976
+        ],
+        [
+          0.961233,
+          0.362976
+        ],
+        [
+          0.961233,
+          0.467148
+        ],
+        [
+          0.926067,
+          0.467148
+        ]
+      ],
+      "location_id": "main_17",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 17,
+      "target_normalized": [
+        1.0,
+        0.4444444444444444
+      ]
+    },
+    "main_18": {
+      "region_id": 40,
+      "region_label": "40",
+      "region_name": "A1_right_arm_cell_r2_c6",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.942598,
+        0.514842
+      ],
+      "polygon_board_normalized": [
+        [
+          0.924751,
+          0.466912
+        ],
+        [
+          0.960444,
+          0.466912
+        ],
+        [
+          0.960444,
+          0.562773
+        ],
+        [
+          0.924751,
+          0.562773
+        ]
+      ],
+      "location_id": "main_18",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 18,
+      "target_normalized": [
+        1.0,
+        0.5
+      ]
+    },
+    "main_19": {
+      "region_id": 48,
+      "region_label": "48",
+      "region_name": "A1_right_arm_cell_r3_c6",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.941481,
+        0.615579
+      ],
+      "polygon_board_normalized": [
+        [
+          0.922551,
+          0.562947
+        ],
+        [
+          0.960412,
+          0.562947
+        ],
+        [
+          0.960412,
+          0.668211
+        ],
+        [
+          0.922551,
+          0.668211
+        ]
+      ],
+      "location_id": "main_19",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 19,
+      "target_normalized": [
+        1.0,
+        0.5555555555555556
+      ]
+    },
+    "main_20": {
+      "region_id": 47,
+      "region_label": "47",
+      "region_name": "A1_right_arm_cell_r3_c5",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.908031,
+        0.615715
+      ],
+      "polygon_board_normalized": [
+        [
+          0.887466,
+          0.564478
+        ],
+        [
+          0.928596,
+          0.564478
+        ],
+        [
+          0.928596,
+          0.666953
+        ],
+        [
+          0.887466,
+          0.666953
+        ]
+      ],
+      "location_id": "main_20",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 20,
+      "target_normalized": [
+        0.9444444444444444,
+        0.5555555555555556
+      ]
+    },
+    "main_21": {
+      "region_id": 46,
+      "region_label": "46",
+      "region_name": "A1_right_arm_cell_r3_c4",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.872477,
+        0.615859
+      ],
+      "polygon_board_normalized": [
+        [
+          0.85562,
+          0.564209
+        ],
+        [
+          0.889333,
+          0.564209
+        ],
+        [
+          0.889333,
+          0.667509
+        ],
+        [
+          0.85562,
+          0.667509
+        ]
+      ],
+      "location_id": "main_21",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 21,
+      "target_normalized": [
+        0.8888888888888888,
+        0.5555555555555556
+      ]
+    },
+    "main_22": {
+      "region_id": 45,
+      "region_label": "45",
+      "region_name": "A1_right_arm_cell_r3_c3",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.838099,
+        0.614212
+      ],
+      "polygon_board_normalized": [
+        [
+          0.820078,
+          0.562141
+        ],
+        [
+          0.856121,
+          0.562141
+        ],
+        [
+          0.856121,
+          0.666284
+        ],
+        [
+          0.820078,
+          0.666284
+        ]
+      ],
+      "location_id": "main_22",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 22,
+      "target_normalized": [
+        0.8333333333333334,
+        0.5555555555555556
+      ]
+    },
+    "main_23": {
+      "region_id": 44,
+      "region_label": "44",
+      "region_name": "A1_right_arm_cell_r3_c1",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.804339,
+        0.614478
+      ],
+      "polygon_board_normalized": [
+        [
+          0.787057,
+          0.562993
+        ],
+        [
+          0.821621,
+          0.562993
+        ],
+        [
+          0.821621,
+          0.665963
+        ],
+        [
+          0.787057,
+          0.665963
+        ]
+      ],
+      "location_id": "main_23",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 23,
+      "target_normalized": [
+        0.7777777777777778,
+        0.5555555555555556
+      ]
+    },
+    "main_24": {
+      "region_id": 43,
+      "region_label": "43",
+      "region_name": "A1_right_arm_cell_r3_c2",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.768542,
+        0.614914
+      ],
+      "polygon_board_normalized": [
+        [
+          0.748183,
+          0.563249
+        ],
+        [
+          0.788901,
+          0.563249
+        ],
+        [
+          0.788901,
+          0.666579
+        ],
+        [
+          0.748183,
+          0.666579
+        ]
+      ],
+      "location_id": "main_24",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 24,
+      "target_normalized": [
+        0.7222222222222222,
+        0.5555555555555556
+      ]
+    },
+    "main_25": {
+      "region_id": 42,
+      "region_label": "42",
+      "region_name": "custom_rectangle",
+      "region_group": "custom",
+      "region_type": "custom_rectangle",
+      "centroid_normalized": [
+        0.735562,
+        0.614055
+      ],
+      "polygon_board_normalized": [
+        [
+          0.719906,
+          0.561033
+        ],
+        [
+          0.751218,
+          0.561033
+        ],
+        [
+          0.751218,
+          0.667077
+        ],
+        [
+          0.719906,
+          0.667077
+        ]
+      ],
+      "location_id": "main_25",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 25,
+      "target_normalized": [
+        0.6666666666666666,
+        0.5555555555555556
+      ]
+    },
+    "main_26": {
+      "region_id": 41,
+      "region_label": "41",
+      "region_name": "custom_irregular_4",
+      "region_group": "custom_irregular_4",
+      "region_type": "irregular_home_adjacent",
+      "centroid_normalized": [
+        0.694061,
+        0.632528
+      ],
+      "polygon_board_normalized": [
+        [
+          0.685052,
+          0.560609
+        ],
+        [
+          0.720442,
+          0.561016
+        ],
+        [
+          0.719169,
+          0.669652
+        ],
+        [
+          0.691105,
+          0.690017
+        ],
+        [
+          0.667352,
+          0.664904
+        ],
+        [
+          0.681247,
+          0.648971
+        ]
+      ],
+      "location_id": "main_26",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 26,
+      "target_normalized": [
+        0.6111111111111112,
+        0.5555555555555556
+      ]
+    },
+    "main_27": {
+      "region_id": 51,
+      "region_label": "51",
+      "region_name": "custom_irregular_5",
+      "region_group": "custom_irregular_5",
+      "region_type": "irregular_home_adjacent",
+      "centroid_normalized": [
+        0.630226,
+        0.68914
+      ],
+      "polygon_board_normalized": [
+        [
+          0.648414,
+          0.680418
+        ],
+        [
+          0.665967,
+          0.665454
+        ],
+        [
+          0.691662,
+          0.689597
+        ],
+        [
+          0.665581,
+          0.709683
+        ],
+        [
+          0.55495,
+          0.708858
+        ],
+        [
+          0.554781,
+          0.680831
+        ]
+      ],
+      "location_id": "main_27",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 27,
+      "target_normalized": [
+        0.6111111111111112,
+        0.6111111111111112
+      ]
+    },
+    "main_28": {
+      "region_id": 57,
+      "region_label": "57",
+      "region_name": "A2_bottom_arm_cell_r1_c3",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.607717,
+        0.759388
+      ],
+      "polygon_board_normalized": [
+        [
+          0.552478,
+          0.742649
+        ],
+        [
+          0.662955,
+          0.742649
+        ],
+        [
+          0.662955,
+          0.776127
+        ],
+        [
+          0.552478,
+          0.776127
+        ]
+      ],
+      "location_id": "main_28",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 28,
+      "target_normalized": [
+        0.5555555555555556,
+        0.6666666666666666
+      ]
+    },
+    "main_29": {
+      "region_id": 56,
+      "region_label": "56",
+      "region_name": "A2_bottom_arm_cell_r1_c2",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.497572,
+        0.75982
+      ],
+      "polygon_board_normalized": [
+        [
+          0.442913,
+          0.743325
+        ],
+        [
+          0.55223,
+          0.743325
+        ],
+        [
+          0.55223,
+          0.776316
+        ],
+        [
+          0.442913,
+          0.776316
+        ]
+      ],
+      "location_id": "main_29",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 29,
+      "target_normalized": [
+        0.5555555555555556,
+        0.7222222222222222
+      ]
+    },
+    "main_30": {
+      "region_id": 60,
+      "region_label": "60",
+      "region_name": "A2_bottom_arm_cell_r2_c3",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.60729,
+        0.792462
+      ],
+      "polygon_board_normalized": [
+        [
+          0.551743,
+          0.775948
+        ],
+        [
+          0.662836,
+          0.775948
+        ],
+        [
+          0.662836,
+          0.808976
+        ],
+        [
+          0.551743,
+          0.808976
+        ]
+      ],
+      "location_id": "main_30",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 30,
+      "target_normalized": [
+        0.5555555555555556,
+        0.7777777777777778
+      ]
+    },
+    "main_31": {
+      "region_id": 63,
+      "region_label": "63",
+      "region_name": "A2_bottom_arm_cell_r3_c3",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.607549,
+        0.824961
+      ],
+      "polygon_board_normalized": [
+        [
+          0.552788,
+          0.807784
+        ],
+        [
+          0.66231,
+          0.807784
+        ],
+        [
+          0.66231,
+          0.842139
+        ],
+        [
+          0.552788,
+          0.842139
+        ]
+      ],
+      "location_id": "main_31",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 31,
+      "target_normalized": [
+        0.5555555555555556,
+        0.8333333333333334
+      ]
+    },
+    "main_32": {
+      "region_id": 66,
+      "region_label": "66",
+      "region_name": "A2_bottom_arm_cell_r4_c3",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.606974,
+        0.85856
+      ],
+      "polygon_board_normalized": [
+        [
+          0.551242,
+          0.842154
+        ],
+        [
+          0.662705,
+          0.842154
+        ],
+        [
+          0.662705,
+          0.874966
+        ],
+        [
+          0.551242,
+          0.874966
+        ]
+      ],
+      "location_id": "main_32",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 32,
+      "target_normalized": [
+        0.5555555555555556,
+        0.8888888888888888
+      ]
+    },
+    "main_33": {
+      "region_id": 69,
+      "region_label": "69",
+      "region_name": "A2_bottom_arm_cell_r5_c3",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.606713,
+        0.890309
+      ],
+      "polygon_board_normalized": [
+        [
+          0.551263,
+          0.873505
+        ],
+        [
+          0.662163,
+          0.873505
+        ],
+        [
+          0.662163,
+          0.907114
+        ],
+        [
+          0.551263,
+          0.907114
+        ]
+      ],
+      "location_id": "main_33",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 33,
+      "target_normalized": [
+        0.5555555555555556,
+        0.9444444444444444
+      ]
+    },
+    "main_34": {
+      "region_id": 72,
+      "region_label": "72",
+      "region_name": "A2_bottom_arm_cell_r6_c3",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.606816,
+        0.925469
+      ],
+      "polygon_board_normalized": [
+        [
+          0.550193,
+          0.907682
+        ],
+        [
+          0.663439,
+          0.907682
+        ],
+        [
+          0.663439,
+          0.943257
+        ],
+        [
+          0.550193,
+          0.943257
+        ]
+      ],
+      "location_id": "main_34",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 34,
+      "target_normalized": [
+        0.5555555555555556,
+        1.0
+      ]
+    },
+    "main_35": {
+      "region_id": 68,
+      "region_label": "68",
+      "region_name": "A2_bottom_arm_cell_r5_c2",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.497375,
+        0.890985
+      ],
+      "polygon_board_normalized": [
+        [
+          0.443258,
+          0.872756
+        ],
+        [
+          0.551492,
+          0.872756
+        ],
+        [
+          0.551492,
+          0.909214
+        ],
+        [
+          0.443258,
+          0.909214
+        ]
+      ],
+      "location_id": "main_35",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 35,
+      "target_normalized": [
+        0.5,
+        1.0
+      ]
+    },
+    "main_36": {
+      "region_id": 67,
+      "region_label": "67",
+      "region_name": "A2_bottom_arm_cell_r6_c1",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.388409,
+        0.891695
+      ],
+      "polygon_board_normalized": [
+        [
+          0.334065,
+          0.874626
+        ],
+        [
+          0.442754,
+          0.874626
+        ],
+        [
+          0.442754,
+          0.908763
+        ],
+        [
+          0.334065,
+          0.908763
+        ]
+      ],
+      "location_id": "main_36",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 36,
+      "target_normalized": [
+        0.4444444444444444,
+        1.0
+      ]
+    },
+    "main_37": {
+      "region_id": 64,
+      "region_label": "64",
+      "region_name": "A2_bottom_arm_cell_r5_c1",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.389019,
+        0.859036
+      ],
+      "polygon_board_normalized": [
+        [
+          0.334429,
+          0.842442
+        ],
+        [
+          0.443609,
+          0.842442
+        ],
+        [
+          0.443609,
+          0.87563
+        ],
+        [
+          0.334429,
+          0.87563
+        ]
+      ],
+      "location_id": "main_37",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 37,
+      "target_normalized": [
+        0.4444444444444444,
+        0.9444444444444444
+      ]
+    },
+    "main_38": {
+      "region_id": 65,
+      "region_label": "65",
+      "region_name": "A2_bottom_arm_cell_r4_c2",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.497554,
+        0.858806
+      ],
+      "polygon_board_normalized": [
+        [
+          0.443233,
+          0.842609
+        ],
+        [
+          0.551875,
+          0.842609
+        ],
+        [
+          0.551875,
+          0.875003
+        ],
+        [
+          0.443233,
+          0.875003
+        ]
+      ],
+      "location_id": "main_38",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 38,
+      "target_normalized": [
+        0.4444444444444444,
+        0.8888888888888888
+      ]
+    },
+    "main_39": {
+      "region_id": 61,
+      "region_label": "61",
+      "region_name": "A2_bottom_arm_cell_r4_c1",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.388179,
+        0.824781
+      ],
+      "polygon_board_normalized": [
+        [
+          0.33501,
+          0.808071
+        ],
+        [
+          0.441348,
+          0.808071
+        ],
+        [
+          0.441348,
+          0.841492
+        ],
+        [
+          0.33501,
+          0.841492
+        ]
+      ],
+      "location_id": "main_39",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 39,
+      "target_normalized": [
+        0.4444444444444444,
+        0.8333333333333334
+      ]
+    },
+    "main_40": {
+      "region_id": 58,
+      "region_label": "58",
+      "region_name": "A2_bottom_arm_cell_r3_c1",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.388051,
+        0.792923
+      ],
+      "polygon_board_normalized": [
+        [
+          0.33448,
+          0.775982
+        ],
+        [
+          0.441623,
+          0.775982
+        ],
+        [
+          0.441623,
+          0.809863
+        ],
+        [
+          0.33448,
+          0.809863
+        ]
+      ],
+      "location_id": "main_40",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 40,
+      "target_normalized": [
+        0.4444444444444444,
+        0.7777777777777778
+      ]
+    },
+    "main_41": {
+      "region_id": 55,
+      "region_label": "55",
+      "region_name": "A2_bottom_arm_cell_r2_c1",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.387863,
+        0.761189
+      ],
+      "polygon_board_normalized": [
+        [
+          0.334405,
+          0.745874
+        ],
+        [
+          0.441321,
+          0.745874
+        ],
+        [
+          0.441321,
+          0.776504
+        ],
+        [
+          0.334405,
+          0.776504
+        ]
+      ],
+      "location_id": "main_41",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 41,
+      "target_normalized": [
+        0.4444444444444444,
+        0.7222222222222222
+      ]
+    },
+    "main_42": {
+      "region_id": 52,
+      "region_label": "52",
+      "region_name": "A2_bottom_arm_cell_r1_c1",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.388138,
+        0.727955
+      ],
+      "polygon_board_normalized": [
+        [
+          0.334065,
+          0.710119
+        ],
+        [
+          0.442211,
+          0.710119
+        ],
+        [
+          0.442211,
+          0.745791
+        ],
+        [
+          0.334065,
+          0.745791
+        ]
+      ],
+      "location_id": "main_42",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 42,
+      "target_normalized": [
+        0.4444444444444444,
+        0.6666666666666666
+      ]
+    },
+    "main_43": {
+      "region_id": 49,
+      "region_label": "49",
+      "region_name": "custom_irregular_8",
+      "region_group": "custom_irregular_8",
+      "region_type": "irregular_home_adjacent",
+      "centroid_normalized": [
+        0.370946,
+        0.689324
+      ],
+      "polygon_board_normalized": [
+        [
+          0.335667,
+          0.710604
+        ],
+        [
+          0.442267,
+          0.709866
+        ],
+        [
+          0.442708,
+          0.679323
+        ],
+        [
+          0.356392,
+          0.678625
+        ],
+        [
+          0.337967,
+          0.665179
+        ],
+        [
+          0.310677,
+          0.69235
+        ]
+      ],
+      "location_id": "main_43",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 43,
+      "target_normalized": [
+        0.4444444444444444,
+        0.6111111111111112
+      ]
+    },
+    "main_44": {
+      "region_id": 96,
+      "region_label": "96",
+      "region_name": "custom_irregular_7",
+      "region_group": "custom_irregular_7",
+      "region_type": "irregular_home_adjacent",
+      "centroid_normalized": [
+        0.307416,
+        0.632815
+      ],
+      "polygon_board_normalized": [
+        [
+          0.281043,
+          0.560816
+        ],
+        [
+          0.318091,
+          0.56045
+        ],
+        [
+          0.31921,
+          0.652686
+        ],
+        [
+          0.335344,
+          0.665936
+        ],
+        [
+          0.309881,
+          0.690391
+        ],
+        [
+          0.280927,
+          0.666613
+        ]
+      ],
+      "location_id": "main_44",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 44,
+      "target_normalized": [
+        0.3888888888888889,
+        0.6111111111111112
+      ]
+    },
+    "main_45": {
+      "region_id": 95,
+      "region_label": "95",
+      "region_name": "A3_left_arm_cell_r3_c6",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.263999,
+        0.612863
+      ],
+      "polygon_board_normalized": [
+        [
+          0.246637,
+          0.558387
+        ],
+        [
+          0.281361,
+          0.558387
+        ],
+        [
+          0.281361,
+          0.66734
+        ],
+        [
+          0.246637,
+          0.66734
+        ]
+      ],
+      "location_id": "main_45",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 45,
+      "target_normalized": [
+        0.3333333333333333,
+        0.5555555555555556
+      ]
+    },
+    "main_46": {
+      "region_id": 94,
+      "region_label": "94",
+      "region_name": "A3_left_arm_cell_r3_c5",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.230087,
+        0.611991
+      ],
+      "polygon_board_normalized": [
+        [
+          0.21352,
+          0.557307
+        ],
+        [
+          0.246654,
+          0.557307
+        ],
+        [
+          0.246654,
+          0.666676
+        ],
+        [
+          0.21352,
+          0.666676
+        ]
+      ],
+      "location_id": "main_46",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 46,
+      "target_normalized": [
+        0.2777777777777778,
+        0.5555555555555556
+      ]
+    },
+    "main_47": {
+      "region_id": 93,
+      "region_label": "93",
+      "region_name": "A3_left_arm_cell_r3_c4",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.197194,
+        0.611891
+      ],
+      "polygon_board_normalized": [
+        [
+          0.180038,
+          0.558594
+        ],
+        [
+          0.21435,
+          0.558594
+        ],
+        [
+          0.21435,
+          0.665188
+        ],
+        [
+          0.180038,
+          0.665188
+        ]
+      ],
+      "location_id": "main_47",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 47,
+      "target_normalized": [
+        0.2222222222222222,
+        0.5555555555555556
+      ]
+    },
+    "main_48": {
+      "region_id": 92,
+      "region_label": "92",
+      "region_name": "A3_left_arm_cell_r3_c3",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.161412,
+        0.612839
+      ],
+      "polygon_board_normalized": [
+        [
+          0.143435,
+          0.557754
+        ],
+        [
+          0.179389,
+          0.557754
+        ],
+        [
+          0.179389,
+          0.667924
+        ],
+        [
+          0.143435,
+          0.667924
+        ]
+      ],
+      "location_id": "main_48",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 48,
+      "target_normalized": [
+        0.16666666666666666,
+        0.5555555555555556
+      ]
+    },
+    "main_49": {
+      "region_id": 91,
+      "region_label": "91",
+      "region_name": "A3_left_arm_cell_r3_c2",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.12751,
+        0.612287
+      ],
+      "polygon_board_normalized": [
+        [
+          0.110899,
+          0.55757
+        ],
+        [
+          0.144121,
+          0.55757
+        ],
+        [
+          0.144121,
+          0.667005
+        ],
+        [
+          0.110899,
+          0.667005
+        ]
+      ],
+      "location_id": "main_49",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 49,
+      "target_normalized": [
+        0.1111111111111111,
+        0.5555555555555556
+      ]
+    },
+    "main_50": {
+      "region_id": 90,
+      "region_label": "90",
+      "region_name": "A3_left_arm_cell_r3_c1",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.092905,
+        0.610951
+      ],
+      "polygon_board_normalized": [
+        [
+          0.075704,
+          0.556687
+        ],
+        [
+          0.110106,
+          0.556687
+        ],
+        [
+          0.110106,
+          0.665215
+        ],
+        [
+          0.075704,
+          0.665215
+        ]
+      ],
+      "location_id": "main_50",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 50,
+      "target_normalized": [
+        0.05555555555555555,
+        0.5555555555555556
+      ]
+    },
+    "main_51": {
+      "region_id": 82,
+      "region_label": "82",
+      "region_name": "A3_left_arm_cell_r2_c1",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.092137,
+        0.509146
+      ],
+      "polygon_board_normalized": [
+        [
+          0.074417,
+          0.460579
+        ],
+        [
+          0.109858,
+          0.460579
+        ],
+        [
+          0.109858,
+          0.557714
+        ],
+        [
+          0.074417,
+          0.557714
+        ]
+      ],
+      "location_id": "main_51",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 51,
+      "target_normalized": [
+        0.0,
+        0.5555555555555556
+      ]
+    },
+    "main_52": {
+      "region_id": 81,
+      "region_label": "81",
+      "region_name": "Y5_safety_marker",
+      "region_group": "Y5",
+      "region_type": "safety_marker",
+      "centroid_normalized": [
+        0.056754,
+        0.508352
+      ],
+      "polygon_board_normalized": [
+        [
+          0.038804,
+          0.460765
+        ],
+        [
+          0.074705,
+          0.460765
+        ],
+        [
+          0.074705,
+          0.555939
+        ],
+        [
+          0.038804,
+          0.555939
+        ]
+      ],
+      "location_id": "main_52",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 52,
+      "target_normalized": [
+        0.0,
+        0.5
+      ]
+    },
+    "main_53": {
+      "region_id": 74,
+      "region_label": "74",
+      "region_name": "A3_left_arm_cell_r1_c1",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.091477,
+        0.409957
+      ],
+      "polygon_board_normalized": [
+        [
+          0.074337,
+          0.35898
+        ],
+        [
+          0.108618,
+          0.35898
+        ],
+        [
+          0.108618,
+          0.460934
+        ],
+        [
+          0.074337,
+          0.460934
+        ]
+      ],
+      "location_id": "main_53",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 53,
+      "target_normalized": [
+        0.0,
+        0.4444444444444444
+      ]
+    },
+    "main_54": {
+      "region_id": 75,
+      "region_label": "75",
+      "region_name": "A3_left_arm_cell_r1_c2",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.124919,
+        0.410327
+      ],
+      "polygon_board_normalized": [
+        [
+          0.10698,
+          0.359994
+        ],
+        [
+          0.142858,
+          0.359994
+        ],
+        [
+          0.142858,
+          0.46066
+        ],
+        [
+          0.10698,
+          0.46066
+        ]
+      ],
+      "location_id": "main_54",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 54,
+      "target_normalized": [
+        0.05555555555555555,
+        0.4444444444444444
+      ]
+    },
+    "main_55": {
+      "region_id": 83,
+      "region_label": "83",
+      "region_name": "A3_left_arm_cell_r2_c2",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.126693,
+        0.509497
+      ],
+      "polygon_board_normalized": [
+        [
+          0.11023,
+          0.460552
+        ],
+        [
+          0.143155,
+          0.460552
+        ],
+        [
+          0.143155,
+          0.558443
+        ],
+        [
+          0.11023,
+          0.558443
+        ]
+      ],
+      "location_id": "main_55",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 55,
+      "target_normalized": [
+        0.1111111111111111,
+        0.4444444444444444
+      ]
+    },
+    "main_56": {
+      "region_id": 76,
+      "region_label": "76",
+      "region_name": "A3_left_arm_cell_r1_c3",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.159835,
+        0.410712
+      ],
+      "polygon_board_normalized": [
+        [
+          0.14129,
+          0.359235
+        ],
+        [
+          0.178381,
+          0.359235
+        ],
+        [
+          0.178381,
+          0.46219
+        ],
+        [
+          0.14129,
+          0.46219
+        ]
+      ],
+      "location_id": "main_56",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 56,
+      "target_normalized": [
+        0.16666666666666666,
+        0.4444444444444444
+      ]
+    },
+    "main_57": {
+      "region_id": 77,
+      "region_label": "77",
+      "region_name": "A3_left_arm_cell_r1_c4",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.194334,
+        0.411885
+      ],
+      "polygon_board_normalized": [
+        [
+          0.176589,
+          0.362274
+        ],
+        [
+          0.212079,
+          0.362274
+        ],
+        [
+          0.212079,
+          0.461495
+        ],
+        [
+          0.176589,
+          0.461495
+        ]
+      ],
+      "location_id": "main_57",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 57,
+      "target_normalized": [
+        0.2222222222222222,
+        0.4444444444444444
+      ]
+    },
+    "main_58": {
+      "region_id": 78,
+      "region_label": "78",
+      "region_name": "A3_left_arm_cell_r1_c5",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.228517,
+        0.410762
+      ],
+      "polygon_board_normalized": [
+        [
+          0.211797,
+          0.36012
+        ],
+        [
+          0.245236,
+          0.36012
+        ],
+        [
+          0.245236,
+          0.461404
+        ],
+        [
+          0.211797,
+          0.461404
+        ]
+      ],
+      "location_id": "main_58",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 58,
+      "target_normalized": [
+        0.2777777777777778,
+        0.4444444444444444
+      ]
+    },
+    "main_59": {
+      "region_id": 79,
+      "region_label": "79",
+      "region_name": "A3_left_arm_cell_r1_c6",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.264146,
+        0.410837
+      ],
+      "polygon_board_normalized": [
+        [
+          0.246672,
+          0.35936
+        ],
+        [
+          0.281621,
+          0.35936
+        ],
+        [
+          0.281621,
+          0.462315
+        ],
+        [
+          0.246672,
+          0.462315
+        ]
+      ],
+      "location_id": "main_59",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 59,
+      "target_normalized": [
+        0.3333333333333333,
+        0.4444444444444444
+      ]
+    },
+    "main_60": {
+      "region_id": 80,
+      "region_label": "80",
+      "region_name": "custom_irregular_6",
+      "region_group": "custom_irregular_6",
+      "region_type": "irregular_home_adjacent",
+      "centroid_normalized": [
+        0.306535,
+        0.391754
+      ],
+      "polygon_board_normalized": [
+        [
+          0.280367,
+          0.358852
+        ],
+        [
+          0.305962,
+          0.335594
+        ],
+        [
+          0.332111,
+          0.362666
+        ],
+        [
+          0.319154,
+          0.373185
+        ],
+        [
+          0.319511,
+          0.460419
+        ],
+        [
+          0.282103,
+          0.459806
+        ]
+      ],
+      "location_id": "main_60",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 60,
+      "target_normalized": [
+        0.3888888888888889,
+        0.4444444444444444
+      ]
+    },
+    "main_61": {
+      "region_id": 22,
+      "region_label": "22",
+      "region_name": "custom_irregular_1",
+      "region_group": "custom_irregular_1",
+      "region_type": "irregular_home_adjacent",
+      "centroid_normalized": [
+        0.36708,
+        0.334759
+      ],
+      "polygon_board_normalized": [
+        [
+          0.331703,
+          0.309368
+        ],
+        [
+          0.440592,
+          0.309466
+        ],
+        [
+          0.439836,
+          0.346598
+        ],
+        [
+          0.353312,
+          0.346092
+        ],
+        [
+          0.332289,
+          0.363368
+        ],
+        [
+          0.30475,
+          0.333663
+        ]
+      ],
+      "location_id": "main_61",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 61,
+      "target_normalized": [
+        0.3888888888888889,
+        0.3888888888888889
+      ]
+    },
+    "main_62": {
+      "region_id": 19,
+      "region_label": "19",
+      "region_name": "custom_rectangle",
+      "region_group": "custom",
+      "region_type": "custom_rectangle",
+      "centroid_normalized": [
+        0.386905,
+        0.291773
+      ],
+      "polygon_board_normalized": [
+        [
+          0.332238,
+          0.275404
+        ],
+        [
+          0.441573,
+          0.275404
+        ],
+        [
+          0.441573,
+          0.308141
+        ],
+        [
+          0.332238,
+          0.308141
+        ]
+      ],
+      "location_id": "main_62",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 62,
+      "target_normalized": [
+        0.4444444444444444,
+        0.3333333333333333
+      ]
+    },
+    "main_63": {
+      "region_id": 16,
+      "region_label": "16",
+      "region_name": "A0_top_arm_cell_r6_c1",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.388041,
+        0.259613
+      ],
+      "polygon_board_normalized": [
+        [
+          0.331002,
+          0.243196
+        ],
+        [
+          0.44508,
+          0.243196
+        ],
+        [
+          0.44508,
+          0.276031
+        ],
+        [
+          0.331002,
+          0.276031
+        ]
+      ],
+      "location_id": "main_63",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 63,
+      "target_normalized": [
+        0.4444444444444444,
+        0.2777777777777778
+      ]
+    },
+    "main_64": {
+      "region_id": 13,
+      "region_label": "13",
+      "region_name": "A0_top_arm_cell_r5_c1",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.388895,
+        0.227844
+      ],
+      "polygon_board_normalized": [
+        [
+          0.332556,
+          0.211506
+        ],
+        [
+          0.445233,
+          0.211506
+        ],
+        [
+          0.445233,
+          0.244181
+        ],
+        [
+          0.332556,
+          0.244181
+        ]
+      ],
+      "location_id": "main_64",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 64,
+      "target_normalized": [
+        0.4444444444444444,
+        0.2222222222222222
+      ]
+    },
+    "main_65": {
+      "region_id": 10,
+      "region_label": "10",
+      "region_name": "A0_top_arm_cell_r4_c1",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.3879,
+        0.194123
+      ],
+      "polygon_board_normalized": [
+        [
+          0.331319,
+          0.177497
+        ],
+        [
+          0.444481,
+          0.177497
+        ],
+        [
+          0.444481,
+          0.210748
+        ],
+        [
+          0.331319,
+          0.210748
+        ]
+      ],
+      "location_id": "main_65",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 65,
+      "target_normalized": [
+        0.4444444444444444,
+        0.16666666666666666
+      ]
+    },
+    "main_66": {
+      "region_id": 7,
+      "region_label": "7",
+      "region_name": "A0_top_arm_cell_r3_c1",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.387735,
+        0.160799
+      ],
+      "polygon_board_normalized": [
+        [
+          0.330215,
+          0.142958
+        ],
+        [
+          0.445255,
+          0.142958
+        ],
+        [
+          0.445255,
+          0.17864
+        ],
+        [
+          0.330215,
+          0.17864
+        ]
+      ],
+      "location_id": "main_66",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 66,
+      "target_normalized": [
+        0.4444444444444444,
+        0.1111111111111111
+      ]
+    },
+    "main_67": {
+      "region_id": 4,
+      "region_label": "4",
+      "region_name": "A0_top_arm_cell_r2_c1",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.387759,
+        0.127902
+      ],
+      "polygon_board_normalized": [
+        [
+          0.331211,
+          0.113073
+        ],
+        [
+          0.444307,
+          0.113073
+        ],
+        [
+          0.444307,
+          0.142731
+        ],
+        [
+          0.331211,
+          0.142731
+        ]
+      ],
+      "location_id": "main_67",
+      "kind": "main",
+      "logical_player": 0,
+      "logical_pos": 67,
+      "target_normalized": [
+        0.4444444444444444,
+        0.05555555555555555
+      ]
+    },
+    "home_1_0": {
+      "region_id": 5,
+      "region_label": "5",
+      "region_name": "A0_top_arm_cell_r2_c2",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.500821,
+        0.129023
+      ],
+      "polygon_board_normalized": [
+        [
+          0.443988,
+          0.114772
+        ],
+        [
+          0.557654,
+          0.114772
+        ],
+        [
+          0.557654,
+          0.143274
+        ],
+        [
+          0.443988,
+          0.143274
+        ]
+      ],
+      "location_id": "home_1_0",
+      "kind": "home",
+      "logical_player": 1,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.5,
+        0.05555555555555555
+      ]
+    },
+    "home_1_1": {
+      "region_id": 8,
+      "region_label": "8",
+      "region_name": "A0_top_arm_cell_r3_c2",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.500772,
+        0.161513
+      ],
+      "polygon_board_normalized": [
+        [
+          0.444064,
+          0.143836
+        ],
+        [
+          0.557479,
+          0.143836
+        ],
+        [
+          0.557479,
+          0.179191
+        ],
+        [
+          0.444064,
+          0.179191
+        ]
+      ],
+      "location_id": "home_1_1",
+      "kind": "home",
+      "logical_player": 1,
+      "logical_pos": 1,
+      "target_normalized": [
+        0.5,
+        0.1111111111111111
+      ]
+    },
+    "home_1_2": {
+      "region_id": 11,
+      "region_label": "11",
+      "region_name": "A0_top_arm_cell_r4_c2",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.501322,
+        0.194831
+      ],
+      "polygon_board_normalized": [
+        [
+          0.444713,
+          0.178516
+        ],
+        [
+          0.557931,
+          0.178516
+        ],
+        [
+          0.557931,
+          0.211145
+        ],
+        [
+          0.444713,
+          0.211145
+        ]
+      ],
+      "location_id": "home_1_2",
+      "kind": "home",
+      "logical_player": 1,
+      "logical_pos": 2,
+      "target_normalized": [
+        0.5,
+        0.16666666666666666
+      ]
+    },
+    "home_1_3": {
+      "region_id": 14,
+      "region_label": "14",
+      "region_name": "A0_top_arm_cell_r5_c2",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.500136,
+        0.228611
+      ],
+      "polygon_board_normalized": [
+        [
+          0.44396,
+          0.212642
+        ],
+        [
+          0.556312,
+          0.212642
+        ],
+        [
+          0.556312,
+          0.24458
+        ],
+        [
+          0.44396,
+          0.24458
+        ]
+      ],
+      "location_id": "home_1_3",
+      "kind": "home",
+      "logical_player": 1,
+      "logical_pos": 3,
+      "target_normalized": [
+        0.5,
+        0.2222222222222222
+      ]
+    },
+    "home_1_4": {
+      "region_id": 17,
+      "region_label": "17",
+      "region_name": "A0_top_arm_cell_r6_c2",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.500946,
+        0.261297
+      ],
+      "polygon_board_normalized": [
+        [
+          0.444813,
+          0.244657
+        ],
+        [
+          0.557078,
+          0.244657
+        ],
+        [
+          0.557078,
+          0.277937
+        ],
+        [
+          0.444813,
+          0.277937
+        ]
+      ],
+      "location_id": "home_1_4",
+      "kind": "home",
+      "logical_player": 1,
+      "logical_pos": 4,
+      "target_normalized": [
+        0.5,
+        0.2777777777777778
+      ]
+    },
+    "home_1_5": {
+      "region_id": 20,
+      "region_label": "20",
+      "region_name": "custom_rectangle",
+      "region_group": "custom",
+      "region_type": "custom_rectangle",
+      "centroid_normalized": [
+        0.499913,
+        0.294138
+      ],
+      "polygon_board_normalized": [
+        [
+          0.442608,
+          0.277634
+        ],
+        [
+          0.557218,
+          0.277634
+        ],
+        [
+          0.557218,
+          0.310641
+        ],
+        [
+          0.442608,
+          0.310641
+        ]
+      ],
+      "location_id": "home_1_5",
+      "kind": "home",
+      "logical_player": 1,
+      "logical_pos": 5,
+      "target_normalized": [
+        0.5,
+        0.3333333333333333
+      ]
+    },
+    "home_1_6": {
+      "region_id": 23,
+      "region_label": "23",
+      "region_name": "A0_top_arm_cell_r5_c3",
+      "region_group": "A0_top_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.499152,
+        0.327783
+      ],
+      "polygon_board_normalized": [
+        [
+          0.441562,
+          0.310082
+        ],
+        [
+          0.556742,
+          0.310082
+        ],
+        [
+          0.556742,
+          0.345484
+        ],
+        [
+          0.441562,
+          0.345484
+        ]
+      ],
+      "location_id": "home_1_6",
+      "kind": "home",
+      "logical_player": 1,
+      "logical_pos": 6,
+      "target_normalized": [
+        0.5,
+        0.3888888888888889
+      ]
+    },
+    "home_2_0": {
+      "region_id": 39,
+      "region_label": "39",
+      "region_name": "A1_right_arm_cell_r2_c5",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.907068,
+        0.515021
+      ],
+      "polygon_board_normalized": [
+        [
+          0.889802,
+          0.46681
+        ],
+        [
+          0.924334,
+          0.46681
+        ],
+        [
+          0.924334,
+          0.563232
+        ],
+        [
+          0.889802,
+          0.563232
+        ]
+      ],
+      "location_id": "home_2_0",
+      "kind": "home",
+      "logical_player": 2,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.9444444444444444,
+        0.5
+      ]
+    },
+    "home_2_1": {
+      "region_id": 38,
+      "region_label": "38",
+      "region_name": "H1_right_home_r1_c5",
+      "region_group": "H1_right",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.874357,
+        0.514261
+      ],
+      "polygon_board_normalized": [
+        [
+          0.857434,
+          0.46642
+        ],
+        [
+          0.89128,
+          0.46642
+        ],
+        [
+          0.89128,
+          0.562102
+        ],
+        [
+          0.857434,
+          0.562102
+        ]
+      ],
+      "location_id": "home_2_1",
+      "kind": "home",
+      "logical_player": 2,
+      "logical_pos": 1,
+      "target_normalized": [
+        0.8888888888888888,
+        0.5
+      ]
+    },
+    "home_2_2": {
+      "region_id": 37,
+      "region_label": "37",
+      "region_name": "A1_right_arm_cell_r2_c3",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.838948,
+        0.514091
+      ],
+      "polygon_board_normalized": [
+        [
+          0.820887,
+          0.464593
+        ],
+        [
+          0.85701,
+          0.464593
+        ],
+        [
+          0.85701,
+          0.563589
+        ],
+        [
+          0.820887,
+          0.563589
+        ]
+      ],
+      "location_id": "home_2_2",
+      "kind": "home",
+      "logical_player": 2,
+      "logical_pos": 2,
+      "target_normalized": [
+        0.8333333333333334,
+        0.5
+      ]
+    },
+    "home_2_3": {
+      "region_id": 36,
+      "region_label": "36",
+      "region_name": "A1_right_arm_cell_r2_c2",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.804774,
+        0.514694
+      ],
+      "polygon_board_normalized": [
+        [
+          0.788002,
+          0.46653
+        ],
+        [
+          0.821546,
+          0.46653
+        ],
+        [
+          0.821546,
+          0.562859
+        ],
+        [
+          0.788002,
+          0.562859
+        ]
+      ],
+      "location_id": "home_2_3",
+      "kind": "home",
+      "logical_player": 2,
+      "logical_pos": 3,
+      "target_normalized": [
+        0.7777777777777778,
+        0.5
+      ]
+    },
+    "home_2_4": {
+      "region_id": 35,
+      "region_label": "35",
+      "region_name": "A1_right_arm_cell_r2_c1",
+      "region_group": "A1_right_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.770816,
+        0.513811
+      ],
+      "polygon_board_normalized": [
+        [
+          0.75365,
+          0.465785
+        ],
+        [
+          0.787981,
+          0.465785
+        ],
+        [
+          0.787981,
+          0.561836
+        ],
+        [
+          0.75365,
+          0.561836
+        ]
+      ],
+      "location_id": "home_2_4",
+      "kind": "home",
+      "logical_player": 2,
+      "logical_pos": 4,
+      "target_normalized": [
+        0.7222222222222222,
+        0.5
+      ]
+    },
+    "home_2_5": {
+      "region_id": 26,
+      "region_label": "26",
+      "region_name": "H1_right_home_r1_c2",
+      "region_group": "H1_right",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.736743,
+        0.413984
+      ],
+      "polygon_board_normalized": [
+        [
+          0.721241,
+          0.363025
+        ],
+        [
+          0.752245,
+          0.363025
+        ],
+        [
+          0.752245,
+          0.464943
+        ],
+        [
+          0.721241,
+          0.464943
+        ]
+      ],
+      "location_id": "home_2_5",
+      "kind": "home",
+      "logical_player": 2,
+      "logical_pos": 5,
+      "target_normalized": [
+        0.6666666666666666,
+        0.5
+      ]
+    },
+    "home_2_6": {
+      "region_id": 33,
+      "region_label": "33",
+      "region_name": "H1_right_home_r1_c1",
+      "region_group": "H1_right",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.70154,
+        0.512662
+      ],
+      "polygon_board_normalized": [
+        [
+          0.683318,
+          0.463673
+        ],
+        [
+          0.719762,
+          0.463673
+        ],
+        [
+          0.719762,
+          0.561651
+        ],
+        [
+          0.683318,
+          0.561651
+        ]
+      ],
+      "location_id": "home_2_6",
+      "kind": "home",
+      "logical_player": 2,
+      "logical_pos": 6,
+      "target_normalized": [
+        0.6111111111111112,
+        0.5
+      ]
+    },
+    "home_3_0": {
+      "region_id": 70,
+      "region_label": "70",
+      "region_name": "H2_bottom_home_r4_c1",
+      "region_group": "H2_bottom",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.388534,
+        0.924724
+      ],
+      "polygon_board_normalized": [
+        [
+          0.334005,
+          0.908611
+        ],
+        [
+          0.443064,
+          0.908611
+        ],
+        [
+          0.443064,
+          0.940837
+        ],
+        [
+          0.334005,
+          0.940837
+        ]
+      ],
+      "location_id": "home_3_0",
+      "kind": "home",
+      "logical_player": 3,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.5,
+        0.9444444444444444
+      ]
+    },
+    "home_3_1": {
+      "region_id": 71,
+      "region_label": "71",
+      "region_name": "H2_bottom_home_r5_c1",
+      "region_group": "H2_bottom",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.495878,
+        0.924196
+      ],
+      "polygon_board_normalized": [
+        [
+          0.441238,
+          0.907887
+        ],
+        [
+          0.550517,
+          0.907887
+        ],
+        [
+          0.550517,
+          0.940504
+        ],
+        [
+          0.441238,
+          0.940504
+        ]
+      ],
+      "location_id": "home_3_1",
+      "kind": "home",
+      "logical_player": 3,
+      "logical_pos": 1,
+      "target_normalized": [
+        0.5,
+        0.8888888888888888
+      ]
+    },
+    "home_3_2": {
+      "region_id": 62,
+      "region_label": "62",
+      "region_name": "A2_bottom_arm_cell_r3_c2",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.496923,
+        0.825795
+      ],
+      "polygon_board_normalized": [
+        [
+          0.441268,
+          0.808647
+        ],
+        [
+          0.552578,
+          0.808647
+        ],
+        [
+          0.552578,
+          0.842943
+        ],
+        [
+          0.441268,
+          0.842943
+        ]
+      ],
+      "location_id": "home_3_2",
+      "kind": "home",
+      "logical_player": 3,
+      "logical_pos": 2,
+      "target_normalized": [
+        0.5,
+        0.8333333333333334
+      ]
+    },
+    "home_3_3": {
+      "region_id": 59,
+      "region_label": "59",
+      "region_name": "A2_bottom_arm_cell_r2_c2",
+      "region_group": "A2_bottom_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.496302,
+        0.792436
+      ],
+      "polygon_board_normalized": [
+        [
+          0.440202,
+          0.776772
+        ],
+        [
+          0.552402,
+          0.776772
+        ],
+        [
+          0.552402,
+          0.808099
+        ],
+        [
+          0.440202,
+          0.808099
+        ]
+      ],
+      "location_id": "home_3_3",
+      "kind": "home",
+      "logical_player": 3,
+      "logical_pos": 3,
+      "target_normalized": [
+        0.5,
+        0.7777777777777778
+      ]
+    },
+    "home_3_4": {
+      "region_id": 53,
+      "region_label": "53",
+      "region_name": "H2_bottom_home_r1_c1",
+      "region_group": "H2_bottom",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.496656,
+        0.728117
+      ],
+      "polygon_board_normalized": [
+        [
+          0.441865,
+          0.711233
+        ],
+        [
+          0.551447,
+          0.711233
+        ],
+        [
+          0.551447,
+          0.745002
+        ],
+        [
+          0.441865,
+          0.745002
+        ]
+      ],
+      "location_id": "home_3_4",
+      "kind": "home",
+      "logical_player": 3,
+      "logical_pos": 4,
+      "target_normalized": [
+        0.5,
+        0.7222222222222222
+      ]
+    },
+    "home_3_5": {
+      "region_id": 54,
+      "region_label": "54",
+      "region_name": "H2_bottom_home_r6_c1",
+      "region_group": "H2_bottom",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.607484,
+        0.727098
+      ],
+      "polygon_board_normalized": [
+        [
+          0.551588,
+          0.709712
+        ],
+        [
+          0.663379,
+          0.709712
+        ],
+        [
+          0.663379,
+          0.744485
+        ],
+        [
+          0.551588,
+          0.744485
+        ]
+      ],
+      "location_id": "home_3_5",
+      "kind": "home",
+      "logical_player": 3,
+      "logical_pos": 5,
+      "target_normalized": [
+        0.5,
+        0.6666666666666666
+      ]
+    },
+    "home_3_6": {
+      "region_id": 50,
+      "region_label": "50",
+      "region_name": "H2_bottom_home_r2_c1",
+      "region_group": "H2_bottom",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.49653,
+        0.694971
+      ],
+      "polygon_board_normalized": [
+        [
+          0.441152,
+          0.680433
+        ],
+        [
+          0.551907,
+          0.680433
+        ],
+        [
+          0.551907,
+          0.709508
+        ],
+        [
+          0.441152,
+          0.709508
+        ]
+      ],
+      "location_id": "home_3_6",
+      "kind": "home",
+      "logical_player": 3,
+      "logical_pos": 6,
+      "target_normalized": [
+        0.5,
+        0.6111111111111112
+      ]
+    },
+    "home_4_0": {
+      "region_id": 73,
+      "region_label": "73",
+      "region_name": "H3_left_home_r1_c1",
+      "region_group": "H3_left",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.057723,
+        0.41084
+      ],
+      "polygon_board_normalized": [
+        [
+          0.040932,
+          0.359507
+        ],
+        [
+          0.074514,
+          0.359507
+        ],
+        [
+          0.074514,
+          0.462173
+        ],
+        [
+          0.040932,
+          0.462173
+        ]
+      ],
+      "location_id": "home_4_0",
+      "kind": "home",
+      "logical_player": 4,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.05555555555555555,
+        0.5
+      ]
+    },
+    "home_4_1": {
+      "region_id": 89,
+      "region_label": "89",
+      "region_name": "H3_left_home_r1_c4",
+      "region_group": "H3_left",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.058124,
+        0.611121
+      ],
+      "polygon_board_normalized": [
+        [
+          0.03952,
+          0.555913
+        ],
+        [
+          0.076729,
+          0.555913
+        ],
+        [
+          0.076729,
+          0.666328
+        ],
+        [
+          0.03952,
+          0.666328
+        ]
+      ],
+      "location_id": "home_4_1",
+      "kind": "home",
+      "logical_player": 4,
+      "logical_pos": 1,
+      "target_normalized": [
+        0.1111111111111111,
+        0.5
+      ]
+    },
+    "home_4_2": {
+      "region_id": 84,
+      "region_label": "84",
+      "region_name": "A3_left_arm_cell_r2_c3",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.16049,
+        0.509429
+      ],
+      "polygon_board_normalized": [
+        [
+          0.141496,
+          0.461884
+        ],
+        [
+          0.179483,
+          0.461884
+        ],
+        [
+          0.179483,
+          0.556974
+        ],
+        [
+          0.141496,
+          0.556974
+        ]
+      ],
+      "location_id": "home_4_2",
+      "kind": "home",
+      "logical_player": 4,
+      "logical_pos": 2,
+      "target_normalized": [
+        0.16666666666666666,
+        0.5
+      ]
+    },
+    "home_4_3": {
+      "region_id": 85,
+      "region_label": "85",
+      "region_name": "A3_left_arm_cell_r2_c4",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.196105,
+        0.509446
+      ],
+      "polygon_board_normalized": [
+        [
+          0.178586,
+          0.461769
+        ],
+        [
+          0.213624,
+          0.461769
+        ],
+        [
+          0.213624,
+          0.557123
+        ],
+        [
+          0.178586,
+          0.557123
+        ]
+      ],
+      "location_id": "home_4_3",
+      "kind": "home",
+      "logical_player": 4,
+      "logical_pos": 3,
+      "target_normalized": [
+        0.2222222222222222,
+        0.5
+      ]
+    },
+    "home_4_4": {
+      "region_id": 86,
+      "region_label": "86",
+      "region_name": "A3_left_arm_cell_r2_c5",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.229213,
+        0.509987
+      ],
+      "polygon_board_normalized": [
+        [
+          0.21231,
+          0.461705
+        ],
+        [
+          0.246115,
+          0.461705
+        ],
+        [
+          0.246115,
+          0.558269
+        ],
+        [
+          0.21231,
+          0.558269
+        ]
+      ],
+      "location_id": "home_4_4",
+      "kind": "home",
+      "logical_player": 4,
+      "logical_pos": 4,
+      "target_normalized": [
+        0.2777777777777778,
+        0.5
+      ]
+    },
+    "home_4_5": {
+      "region_id": 87,
+      "region_label": "87",
+      "region_name": "A3_left_arm_cell_r2_c6",
+      "region_group": "A3_left_arm",
+      "region_type": "path_cell",
+      "centroid_normalized": [
+        0.26335,
+        0.510038
+      ],
+      "polygon_board_normalized": [
+        [
+          0.245501,
+          0.461747
+        ],
+        [
+          0.281199,
+          0.461747
+        ],
+        [
+          0.281199,
+          0.55833
+        ],
+        [
+          0.245501,
+          0.55833
+        ]
+      ],
+      "location_id": "home_4_5",
+      "kind": "home",
+      "logical_player": 4,
+      "logical_pos": 5,
+      "target_normalized": [
+        0.3333333333333333,
+        0.5
+      ]
+    },
+    "home_4_6": {
+      "region_id": 88,
+      "region_label": "88",
+      "region_name": "H3_left_home_r1_c6",
+      "region_group": "H3_left",
+      "region_type": "home_lane_cell",
+      "centroid_normalized": [
+        0.298552,
+        0.510209
+      ],
+      "polygon_board_normalized": [
+        [
+          0.279264,
+          0.46107
+        ],
+        [
+          0.317839,
+          0.46107
+        ],
+        [
+          0.317839,
+          0.559347
+        ],
+        [
+          0.279264,
+          0.559347
+        ]
+      ],
+      "location_id": "home_4_6",
+      "kind": "home",
+      "logical_player": 4,
+      "logical_pos": 6,
+      "target_normalized": [
+        0.3888888888888889,
+        0.5
+      ]
+    },
+    "nest_1": {
+      "region_id": 98,
+      "region_label": "98",
+      "region_name": "S0_top_left",
+      "region_group": "S0_top_left",
+      "region_type": "start_circle",
+      "centroid_normalized": [
+        0.18735,
+        0.221905
+      ],
+      "polygon_board_normalized": [
+        [
+          0.325403,
+          0.224949
+        ],
+        [
+          0.32056,
+          0.257221
+        ],
+        [
+          0.303935,
+          0.289529
+        ],
+        [
+          0.283448,
+          0.318112
+        ],
+        [
+          0.255294,
+          0.33904
+        ],
+        [
+          0.221693,
+          0.352376
+        ],
+        [
+          0.187086,
+          0.358208
+        ],
+        [
+          0.151497,
+          0.35227
+        ],
+        [
+          0.11931,
+          0.338901
+        ],
+        [
+          0.09051,
+          0.318085
+        ],
+        [
+          0.069553,
+          0.28987
+        ],
+        [
+          0.056426,
+          0.256374
+        ],
+        [
+          0.052232,
+          0.221893
+        ],
+        [
+          0.055874,
+          0.186404
+        ],
+        [
+          0.06958,
+          0.154261
+        ],
+        [
+          0.091127,
+          0.125445
+        ],
+        [
+          0.118241,
+          0.104265
+        ],
+        [
+          0.152036,
+          0.090764
+        ],
+        [
+          0.186874,
+          0.085945
+        ],
+        [
+          0.221596,
+          0.090879
+        ],
+        [
+          0.255069,
+          0.104453
+        ],
+        [
+          0.282806,
+          0.12549
+        ],
+        [
+          0.303698,
+          0.152866
+        ],
+        [
+          0.322546,
+          0.188119
+        ]
+      ],
+      "location_id": "nest_1",
+      "kind": "nest",
+      "logical_player": 1,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.2222222222222222,
+        0.2222222222222222
+      ]
+    },
+    "nest_2": {
+      "region_id": 99,
+      "region_label": "99",
+      "region_name": "S1_top_right",
+      "region_group": "S1_top_right",
+      "region_type": "start_circle",
+      "centroid_normalized": [
+        0.807553,
+        0.226939
+      ],
+      "polygon_board_normalized": [
+        [
+          0.940273,
+          0.227291
+        ],
+        [
+          0.934773,
+          0.260494
+        ],
+        [
+          0.922605,
+          0.293527
+        ],
+        [
+          0.901724,
+          0.321008
+        ],
+        [
+          0.874393,
+          0.341932
+        ],
+        [
+          0.841781,
+          0.354205
+        ],
+        [
+          0.808255,
+          0.36005
+        ],
+        [
+          0.773943,
+          0.354137
+        ],
+        [
+          0.742009,
+          0.34185
+        ],
+        [
+          0.713608,
+          0.321056
+        ],
+        [
+          0.693155,
+          0.292873
+        ],
+        [
+          0.680578,
+          0.260486
+        ],
+        [
+          0.674621,
+          0.227386
+        ],
+        [
+          0.674664,
+          0.191937
+        ],
+        [
+          0.693097,
+          0.160609
+        ],
+        [
+          0.713927,
+          0.13289
+        ],
+        [
+          0.741333,
+          0.111737
+        ],
+        [
+          0.774131,
+          0.099316
+        ],
+        [
+          0.807827,
+          0.095567
+        ],
+        [
+          0.841308,
+          0.099392
+        ],
+        [
+          0.873405,
+          0.111846
+        ],
+        [
+          0.901862,
+          0.132875
+        ],
+        [
+          0.923349,
+          0.161313
+        ],
+        [
+          0.934659,
+          0.192764
+        ]
+      ],
+      "location_id": "nest_2",
+      "kind": "nest",
+      "logical_player": 2,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.7777777777777778,
+        0.2222222222222222
+      ]
+    },
+    "nest_3": {
+      "region_id": 100,
+      "region_label": "100",
+      "region_name": "S2_bottom_right",
+      "region_group": "S2_bottom_right",
+      "region_type": "start_circle",
+      "centroid_normalized": [
+        0.80099,
+        0.801941
+      ],
+      "polygon_board_normalized": [
+        [
+          0.934684,
+          0.80383
+        ],
+        [
+          0.930303,
+          0.838133
+        ],
+        [
+          0.916164,
+          0.869102
+        ],
+        [
+          0.895605,
+          0.895771
+        ],
+        [
+          0.863612,
+          0.912781
+        ],
+        [
+          0.830064,
+          0.92475
+        ],
+        [
+          0.797982,
+          0.928619
+        ],
+        [
+          0.761611,
+          0.926199
+        ],
+        [
+          0.731082,
+          0.913146
+        ],
+        [
+          0.700294,
+          0.892538
+        ],
+        [
+          0.684616,
+          0.868265
+        ],
+        [
+          0.669193,
+          0.836647
+        ],
+        [
+          0.665141,
+          0.796323
+        ],
+        [
+          0.672937,
+          0.763287
+        ],
+        [
+          0.69022,
+          0.7371
+        ],
+        [
+          0.70927,
+          0.708508
+        ],
+        [
+          0.738789,
+          0.690891
+        ],
+        [
+          0.770014,
+          0.677751
+        ],
+        [
+          0.804298,
+          0.674104
+        ],
+        [
+          0.837271,
+          0.677785
+        ],
+        [
+          0.86885,
+          0.690886
+        ],
+        [
+          0.899279,
+          0.712341
+        ],
+        [
+          0.922209,
+          0.738501
+        ],
+        [
+          0.930281,
+          0.769325
+        ]
+      ],
+      "location_id": "nest_3",
+      "kind": "nest",
+      "logical_player": 3,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.7777777777777778,
+        0.7777777777777778
+      ]
+    },
+    "nest_4": {
+      "region_id": 101,
+      "region_label": "101",
+      "region_name": "S3_bottom_left",
+      "region_group": "S3_bottom_left",
+      "region_type": "start_circle",
+      "centroid_normalized": [
+        0.187265,
+        0.799155
+      ],
+      "polygon_board_normalized": [
+        [
+          0.326449,
+          0.796171
+        ],
+        [
+          0.317941,
+          0.837064
+        ],
+        [
+          0.305436,
+          0.866362
+        ],
+        [
+          0.280388,
+          0.890829
+        ],
+        [
+          0.253744,
+          0.912206
+        ],
+        [
+          0.221764,
+          0.92415
+        ],
+        [
+          0.18768,
+          0.929836
+        ],
+        [
+          0.153727,
+          0.924124
+        ],
+        [
+          0.122018,
+          0.912221
+        ],
+        [
+          0.094765,
+          0.891034
+        ],
+        [
+          0.073029,
+          0.863668
+        ],
+        [
+          0.057721,
+          0.841737
+        ],
+        [
+          0.048674,
+          0.805627
+        ],
+        [
+          0.052318,
+          0.769462
+        ],
+        [
+          0.067743,
+          0.733389
+        ],
+        [
+          0.09428,
+          0.705231
+        ],
+        [
+          0.120992,
+          0.683619
+        ],
+        [
+          0.153157,
+          0.671531
+        ],
+        [
+          0.187463,
+          0.666829
+        ],
+        [
+          0.221655,
+          0.671583
+        ],
+        [
+          0.253528,
+          0.683651
+        ],
+        [
+          0.280828,
+          0.705077
+        ],
+        [
+          0.301388,
+          0.732655
+        ],
+        [
+          0.317664,
+          0.76167
+        ]
+      ],
+      "location_id": "nest_4",
+      "kind": "nest",
+      "logical_player": 4,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.2222222222222222,
+        0.7777777777777778
+      ]
+    },
+    "home_center": {
+      "region_id": 97,
+      "region_label": "97",
+      "region_name": "C_center_home",
+      "region_group": "C_center_home",
+      "region_type": "center_home",
+      "centroid_normalized": [
+        0.501369,
+        0.514058
+      ],
+      "polygon_board_normalized": [
+        [
+          0.352452,
+          0.347914
+        ],
+        [
+          0.651547,
+          0.348146
+        ],
+        [
+          0.689063,
+          0.379845
+        ],
+        [
+          0.680742,
+          0.651929
+        ],
+        [
+          0.64762,
+          0.67906
+        ],
+        [
+          0.351337,
+          0.677552
+        ],
+        [
+          0.320614,
+          0.654811
+        ],
+        [
+          0.317578,
+          0.373202
+        ]
+      ],
+      "location_id": "home_center",
+      "kind": "center",
+      "logical_player": 0,
+      "logical_pos": 0,
+      "target_normalized": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  "region_to_location": {
+    "1": "main_0",
+    "2": "main_1",
+    "3": "main_2",
+    "6": "main_3",
+    "9": "main_4",
+    "12": "main_5",
+    "15": "main_6",
+    "18": "main_7",
+    "21": "main_8",
+    "24": "main_9",
+    "25": "main_10",
+    "34": "main_11",
+    "27": "main_12",
+    "28": "main_13",
+    "29": "main_14",
+    "30": "main_15",
+    "31": "main_16",
+    "32": "main_17",
+    "40": "main_18",
+    "48": "main_19",
+    "47": "main_20",
+    "46": "main_21",
+    "45": "main_22",
+    "44": "main_23",
+    "43": "main_24",
+    "42": "main_25",
+    "41": "main_26",
+    "51": "main_27",
+    "57": "main_28",
+    "56": "main_29",
+    "60": "main_30",
+    "63": "main_31",
+    "66": "main_32",
+    "69": "main_33",
+    "72": "main_34",
+    "68": "main_35",
+    "67": "main_36",
+    "64": "main_37",
+    "65": "main_38",
+    "61": "main_39",
+    "58": "main_40",
+    "55": "main_41",
+    "52": "main_42",
+    "49": "main_43",
+    "96": "main_44",
+    "95": "main_45",
+    "94": "main_46",
+    "93": "main_47",
+    "92": "main_48",
+    "91": "main_49",
+    "90": "main_50",
+    "82": "main_51",
+    "81": "main_52",
+    "74": "main_53",
+    "75": "main_54",
+    "83": "main_55",
+    "76": "main_56",
+    "77": "main_57",
+    "78": "main_58",
+    "79": "main_59",
+    "80": "main_60",
+    "22": "main_61",
+    "19": "main_62",
+    "16": "main_63",
+    "13": "main_64",
+    "10": "main_65",
+    "7": "main_66",
+    "4": "main_67",
+    "5": "home_1_0",
+    "8": "home_1_1",
+    "11": "home_1_2",
+    "14": "home_1_3",
+    "17": "home_1_4",
+    "20": "home_1_5",
+    "23": "home_1_6",
+    "39": "home_2_0",
+    "38": "home_2_1",
+    "37": "home_2_2",
+    "36": "home_2_3",
+    "35": "home_2_4",
+    "26": "home_2_5",
+    "33": "home_2_6",
+    "70": "home_3_0",
+    "71": "home_3_1",
+    "62": "home_3_2",
+    "59": "home_3_3",
+    "53": "home_3_4",
+    "54": "home_3_5",
+    "50": "home_3_6",
+    "73": "home_4_0",
+    "89": "home_4_1",
+    "84": "home_4_2",
+    "85": "home_4_3",
+    "86": "home_4_4",
+    "87": "home_4_5",
+    "88": "home_4_6",
+    "98": "nest_1",
+    "99": "nest_2",
+    "100": "nest_3",
+    "101": "nest_4",
+    "97": "home_center"
+  }
+}

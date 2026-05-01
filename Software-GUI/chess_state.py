@@ -4,7 +4,7 @@ Rules now supported for legality/enforcement:
 - check / checkmate / stalemate legality
 - castling
 - en passant
-- promotion (auto-queen for now when UI/Pi only gives from/to)
+- promotion
 """
 
 from __future__ import annotations
@@ -157,7 +157,7 @@ class ChessState:
     def is_stalemate(self) -> bool:
         return self._engine_board.is_stalemate()
 
-    def apply_move_trusted(self, start_id: str, end_id: str) -> None:
+    def apply_move_trusted(self, start_id: str, end_id: str, promotion_type: int | None = None) -> None:
         """Apply move from Pi using full legal validation (P1/white expected)."""
         try:
             start = parse_square(start_id)
@@ -171,7 +171,7 @@ class ChessState:
             print(f"p1_move ignored (empty square): {start_id} -> {end_id}", file=sys.stderr)
             return
 
-        move = self._choose_legal_move(start, end)
+        move = self._choose_legal_move(start, end, promotion_type=promotion_type)
         if move is None:
             print(f"p1_move ignored (illegal in current position): {start_id} -> {end_id}", file=sys.stderr)
             return
@@ -182,7 +182,12 @@ class ChessState:
             self.captured_by_p1.append(captured)
         self._sync_from_engine()
 
-    def try_apply_p2_move(self, start_id: str, end_id: str) -> Optional[str]:
+    def try_apply_p2_move(
+        self,
+        start_id: str,
+        end_id: str,
+        promotion_type: int | None = None,
+    ) -> Optional[str]:
         """Validate and apply legal P2/black move."""
         try:
             start = parse_square(start_id)
@@ -197,7 +202,7 @@ class ChessState:
         if self._engine_board.turn != chess.BLACK:
             return "not player 2 turn"
 
-        move = self._choose_legal_move(start, end)
+        move = self._choose_legal_move(start, end, promotion_type=promotion_type)
         if move is None:
             return "illegal move for current position"
 
@@ -208,15 +213,35 @@ class ChessState:
         self._sync_from_engine()
         return None
 
-    def _choose_legal_move(self, start: Square, end: Square) -> chess.Move | None:
+    def promotion_candidates(self, start: Square, end: Square) -> list[int]:
+        from_sq = chess.square(start.file_index, start.rank_index)
+        to_sq = chess.square(end.file_index, end.rank_index)
+        candidates = [mv for mv in self._engine_board.legal_moves if mv.from_square == from_sq and mv.to_square == to_sq]
+        promotions: list[int] = []
+        for mv in candidates:
+            if mv.promotion is None:
+                continue
+            promotions.append(int(mv.promotion))
+        return promotions
+
+    def _choose_legal_move(
+        self,
+        start: Square,
+        end: Square,
+        promotion_type: int | None = None,
+    ) -> chess.Move | None:
         from_sq = chess.square(start.file_index, start.rank_index)
         to_sq = chess.square(end.file_index, end.rank_index)
         candidates = [mv for mv in self._engine_board.legal_moves if mv.from_square == from_sq and mv.to_square == to_sq]
         if not candidates:
             return None
 
-        # Promotion disambiguation: UI/Pi currently sends only from/to.
-        # Default to queen promotion when multiple legal promotions are available.
+        if promotion_type is not None:
+            for mv in candidates:
+                if mv.promotion == promotion_type:
+                    return mv
+
+        # Default to queen promotion if no explicit choice was supplied.
         for mv in candidates:
             if mv.promotion == chess.QUEEN:
                 return mv

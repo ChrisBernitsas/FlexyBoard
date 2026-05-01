@@ -25,6 +25,8 @@ SERIAL_PORT = os.environ.get("FLEXY_SERIAL_PORT", DEFAULT_SERIAL_PORT)
 SERIAL_BAUDRATE = 115200
 SERIAL_TIMEOUT_SEC = 8.0
 RETURN_START_DELAY_SEC = 0.0
+SERIAL_OPEN_FAST_PING_TIMEOUT_SEC = 0.15
+SERIAL_OPEN_RESET_RECOVERY_SEC = 0.8
 DEFAULT_MOTOR_BOARD_ORIENTATION = "game_a8_at_motor_00"
 
 try:
@@ -144,6 +146,64 @@ def _send_command(ser: Any, cmd: str) -> str:
     if reply.startswith("ERR"):
         raise RuntimeError(f"STM32 returned error for '{cmd}': {reply}")
     return reply
+
+
+def _send_command_with_timeout(ser: Any, cmd: str, timeout_sec: float) -> str | None:
+    ser.write((cmd + "\n").encode("utf-8"))
+    ser.flush()
+
+    reply = _read_line(ser, timeout_sec)
+    if reply is None:
+        return None
+    if reply.startswith("ERR"):
+        raise RuntimeError(f"STM32 returned error for '{cmd}': {reply}")
+    return reply
+
+
+def _open_serial_connection() -> Any:
+    # Some NUCLEO VCP setups reset the MCU when the host toggles modem-control
+    # lines on open. Open the port with DTR/RTS forced low first so we only pay
+    # the boot delay when a reset still actually happens.
+    ser = serial.Serial(  # type: ignore[union-attr]
+        port=None,
+        baudrate=SERIAL_BAUDRATE,
+        timeout=SERIAL_TIMEOUT_SEC,
+        dsrdtr=False,
+        rtscts=False,
+    )
+    for attr in ("dtr", "rts"):
+        try:
+            setattr(ser, attr, False)
+        except Exception:
+            pass
+    ser.port = SERIAL_PORT
+    ser.open()
+    return ser
+
+
+def _initialize_serial_connection(ser: Any, result: dict[str, Any]) -> None:
+    ready_started_at = time.perf_counter()
+    ping_reply = _send_command_with_timeout(ser, "PING", SERIAL_OPEN_FAST_PING_TIMEOUT_SEC)
+    if ping_reply is not None:
+        result["serial_open_mode"] = "fast_ping"
+        result["serial_open_ready_wait_sec"] = round(time.perf_counter() - ready_started_at, 3)
+        result["ping"] = ping_reply
+        return
+
+    # Fast path failed. Fall back to the conservative boot-recovery behavior used
+    # previously when the USB VCP resets the MCU on open.
+    time.sleep(SERIAL_OPEN_RESET_RECOVERY_SEC)
+
+    for _ in range(3):
+        msg = _read_line(ser, 0.15)
+        if msg is None:
+            break
+        result["boot_messages"].append(msg)
+
+    ser.reset_input_buffer()
+    result["serial_open_mode"] = "reset_recovery"
+    result["serial_open_ready_wait_sec"] = round(time.perf_counter() - ready_started_at, 3)
+    result["ping"] = _send_command(ser, "PING")
 
 
 def _parse_status_xy(status_line: str) -> tuple[int, int]:
@@ -459,6 +519,12 @@ def _run_chained_group(
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Send planned move sequence to STM32.")
     parser.add_argument(
+        "--move-file",
+        type=Path,
+        default=MOVE_FILE,
+        help=f"Move sequence file to execute (default: {MOVE_FILE}).",
+    )
+    parser.add_argument(
         "--skip-return-start",
         action="store_true",
         help="Execute planned moves but leave the gantry at the last destination.",
@@ -467,6 +533,11 @@ def _parse_args() -> argparse.Namespace:
         "--return-start-only",
         action="store_true",
         help="Only issue RETURN_START and report the resulting position.",
+    )
+    parser.add_argument(
+        "--continue-from-current",
+        action="store_true",
+        help="Do not ZERO before executing the planned move file; continue from the current STM32 position.",
     )
     return parser.parse_args()
 
@@ -485,7 +556,7 @@ def main() -> int:
     planned_moves: list[dict[str, Any]] = []
     if not args.return_start_only:
         try:
-            planned_moves = _load_moves(MOVE_FILE)
+            planned_moves = _load_moves(args.move_file)
         except Exception as exc:  # noqa: BLE001
             print(json.dumps({"status": "error", "error": str(exc)}, indent=2))
             return 1
@@ -514,7 +585,7 @@ def main() -> int:
         "status": "ok",
         "port": SERIAL_PORT,
         "baudrate": SERIAL_BAUDRATE,
-        "move_file": str(MOVE_FILE),
+        "move_file": str(args.move_file),
         "planned_moves": planned_moves,
         "executed": [],
         "home_sent": True,
@@ -530,42 +601,43 @@ def main() -> int:
         "position_report": [],
         "skip_return_start": bool(args.skip_return_start),
         "return_start_only": bool(args.return_start_only),
+        "continue_from_current": bool(args.continue_from_current),
     }
 
     ser = None
     try:
-        ser = serial.Serial(port=SERIAL_PORT, baudrate=SERIAL_BAUDRATE, timeout=SERIAL_TIMEOUT_SEC)
+        ser = _open_serial_connection()
+        _initialize_serial_connection(ser, result)
 
-        # NUCLEO VCP often resets MCU on open; give firmware a moment.
-        time.sleep(0.8)
+        if args.return_start_only or args.continue_from_current:
+            # In rolling mode this is a follow-up call after a completed move sequence.
+            # Do not ZERO here; that would erase the live position we are trying to return from.
+            initial_status = _send_command(ser, "STATUS")
+            result["status_checkpoints"].append(
+                {
+                    "stage": "before_return_start" if args.return_start_only else "before_continue_from_current",
+                    "status": initial_status,
+                }
+            )
+            initial_x, initial_y = _parse_status_xy(initial_status)
+        else:
+            # No endstops for now; ZERO only resets internal step tracker.
+            zero_reply = _send_command(ser, "ZERO")
+            result["home"] = zero_reply
+            initial_status = _send_command(ser, "STATUS")
+            result["status_checkpoints"].append(
+                {
+                    "stage": "after_zero",
+                    "status": initial_status,
+                }
+            )
+            initial_x, initial_y = _parse_status_xy(initial_status)
 
-        for _ in range(3):
-            msg = _read_line(ser, 0.15)
-            if msg is None:
-                break
-            result["boot_messages"].append(msg)
-
-        ser.reset_input_buffer()
-
-        ping_reply = _send_command(ser, "PING")
-        result["ping"] = ping_reply
-
-        # No endstops for now; ZERO only resets internal step tracker.
-        zero_reply = _send_command(ser, "ZERO")
-        result["home"] = zero_reply
-        zero_status = _send_command(ser, "STATUS")
-        result["status_checkpoints"].append(
-            {
-                "stage": "after_zero",
-                "status": zero_status,
-            }
-        )
-        zero_x, zero_y = _parse_status_xy(zero_status)
         result["position_report"].append(
             {
                 "stage": "initial",
-                "x": zero_x,
-                "y": zero_y,
+                "x": initial_x,
+                "y": initial_y,
             }
         )
 

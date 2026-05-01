@@ -1,0 +1,7795 @@
+{
+  "outer_corners_original_px": [
+    [
+      679,
+      152
+    ],
+    [
+      1569,
+      136
+    ],
+    [
+      1599,
+      1080
+    ],
+    [
+      685,
+      1095
+    ]
+  ],
+  "board_frame_definition": {
+    "warp_size_px": [
+      900,
+      900
+    ],
+    "green_corners_board_px": {
+      "S0_top_left": [
+        0.0,
+        0.0
+      ],
+      "S1_top_right": [
+        900.0,
+        0.0
+      ],
+      "S2_bottom_right": [
+        900.0,
+        900.0
+      ],
+      "S3_bottom_left": [
+        0.0,
+        900.0
+      ]
+    },
+    "description": "All region coordinates are in board-space, where the detected green corners define a 900x900 warped frame."
+  },
+  "notes": "73-region set: the corrected 68 playable regions plus center home and the 4 start circles.",
+  "derived_from": "/mnt/data/parcheesi_full_101_corner_distances_corrected.json",
+  "regions": [
+    {
+      "name": "A0_top_arm_cell_r1_c1",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 1,
+      "original_label": "1",
+      "polygon_board_px": [
+        [
+          298.442902,
+          68.951805
+        ],
+        [
+          400.526886,
+          68.951805
+        ],
+        [
+          400.526886,
+          100.584808
+        ],
+        [
+          298.442902,
+          100.584808
+        ]
+      ],
+      "id": 1,
+      "label": "1",
+      "polygon_board_normalized": [
+        [
+          0.331603,
+          0.076613
+        ],
+        [
+          0.44503,
+          0.076613
+        ],
+        [
+          0.44503,
+          0.111761
+        ],
+        [
+          0.331603,
+          0.111761
+        ]
+      ],
+      "centroid_board_px": [
+        349.484894,
+        84.768307
+      ],
+      "centroid_normalized": [
+        0.388317,
+        0.094187
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 359.618349,
+        "S1_top_right": 557.003185,
+        "S2_bottom_right": 983.701985,
+        "S3_bottom_left": 886.985008
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 306.304615,
+          "S1_top_right": 605.495908,
+          "S2_bottom_right": 1025.920097,
+          "S3_bottom_left": 883.011477
+        },
+        {
+          "S0_top_left": 406.418673,
+          "S1_top_right": 504.210019,
+          "S2_bottom_right": 969.595015,
+          "S3_bottom_left": 922.530698
+        },
+        {
+          "S0_top_left": 412.963788,
+          "S1_top_right": 509.500437,
+          "S2_bottom_right": 942.622958,
+          "S3_bottom_left": 894.140053
+        },
+        {
+          "S0_top_left": 314.937246,
+          "S1_top_right": 609.908392,
+          "S2_bottom_right": 1000.467686,
+          "S3_bottom_left": 853.306987
+        }
+      ],
+      "original_full_id": 1,
+      "source_region_id": 1
+    },
+    {
+      "name": "A0_top_arm_cell_r1_c2",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 2,
+      "original_label": "2",
+      "polygon_board_px": [
+        [
+          400.233795,
+          69.264824
+        ],
+        [
+          502.747223,
+          69.264824
+        ],
+        [
+          502.747223,
+          101.061684
+        ],
+        [
+          400.233795,
+          101.061684
+        ]
+      ],
+      "id": 2,
+      "label": "2",
+      "polygon_board_normalized": [
+        [
+          0.444704,
+          0.076961
+        ],
+        [
+          0.558608,
+          0.076961
+        ],
+        [
+          0.558608,
+          0.112291
+        ],
+        [
+          0.444704,
+          0.112291
+        ]
+      ],
+      "centroid_board_px": [
+        451.490509,
+        85.163254
+      ],
+      "centroid_normalized": [
+        0.501656,
+        0.094626
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 459.452347,
+        "S1_top_right": 456.523322,
+        "S2_bottom_right": 930.118104,
+        "S3_bottom_left": 931.559232
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 406.183095,
+          "S1_top_right": 504.543234,
+          "S2_bottom_right": 969.477794,
+          "S3_bottom_left": 922.12148
+        },
+        {
+          "S0_top_left": 507.496193,
+          "S1_top_right": 403.24606,
+          "S2_bottom_right": 920.831527,
+          "S3_bottom_left": 971.01787
+        },
+        {
+          "S0_top_left": 512.804284,
+          "S1_top_right": 409.906371,
+          "S2_bottom_right": 892.251199,
+          "S3_bottom_left": 943.958264
+        },
+        {
+          "S0_top_left": 412.796021,
+          "S1_top_right": 509.882068,
+          "S2_bottom_right": 942.373967,
+          "S3_bottom_left": 893.58241
+        }
+      ],
+      "original_full_id": 2,
+      "source_region_id": 2
+    },
+    {
+      "name": "A0_top_arm_cell_r1_c3",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 3,
+      "original_label": "3",
+      "polygon_board_px": [
+        [
+          502.258392,
+          69.446869
+        ],
+        [
+          604.638123,
+          69.446869
+        ],
+        [
+          604.638123,
+          100.392387
+        ],
+        [
+          502.258392,
+          100.392387
+        ]
+      ],
+      "id": 3,
+      "label": "3",
+      "polygon_board_normalized": [
+        [
+          0.558065,
+          0.077163
+        ],
+        [
+          0.67182,
+          0.077163
+        ],
+        [
+          0.67182,
+          0.111547
+        ],
+        [
+          0.558065,
+          0.111547
+        ]
+      ],
+      "centroid_board_px": [
+        553.448257,
+        84.919628
+      ],
+      "centroid_normalized": [
+        0.614943,
+        0.094355
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 559.925278,
+        "S1_top_right": 356.804503,
+        "S2_bottom_right": 885.694147,
+        "S3_bottom_left": 985.221288
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 507.036843,
+          "S1_top_right": 403.758906,
+          "S2_bottom_right": 920.878325,
+          "S3_bottom_left": 970.609085
+        },
+        {
+          "S0_top_left": 608.613282,
+          "S1_top_right": 303.416391,
+          "S2_bottom_right": 881.508447,
+          "S3_bottom_left": 1027.329432
+        },
+        {
+          "S0_top_left": 612.915892,
+          "S1_top_right": 311.957161,
+          "S2_bottom_right": 852.414789,
+          "S3_bottom_left": 1002.47673
+        },
+        {
+          "S0_top_left": 512.193444,
+          "S1_top_right": 410.215819,
+          "S2_bottom_right": 893.06815,
+          "S3_bottom_left": 944.264702
+        }
+      ],
+      "original_full_id": 3,
+      "source_region_id": 3
+    },
+    {
+      "name": "A0_top_arm_cell_r2_c1",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 4,
+      "original_label": "4",
+      "polygon_board_px": [
+        [
+          298.089691,
+          101.765923
+        ],
+        [
+          399.876495,
+          101.765923
+        ],
+        [
+          399.876495,
+          128.458206
+        ],
+        [
+          298.089691,
+          128.458206
+        ]
+      ],
+      "id": 4,
+      "label": "4",
+      "polygon_board_normalized": [
+        [
+          0.331211,
+          0.113073
+        ],
+        [
+          0.444307,
+          0.113073
+        ],
+        [
+          0.444307,
+          0.142731
+        ],
+        [
+          0.331211,
+          0.142731
+        ]
+      ],
+      "centroid_board_px": [
+        348.983093,
+        115.112064
+      ],
+      "centroid_normalized": [
+        0.387759,
+        0.127902
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 367.477872,
+        "S1_top_right": 562.912443,
+        "S2_bottom_right": 958.993589,
+        "S3_bottom_left": 858.975128
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 314.982169,
+          "S1_top_right": 610.452556,
+          "S2_bottom_right": 999.736797,
+          "S3_bottom_left": 852.076937
+        },
+        {
+          "S0_top_left": 412.622727,
+          "S1_top_right": 510.37224,
+          "S2_bottom_right": 941.966646,
+          "S3_bottom_left": 892.792727
+        },
+        {
+          "S0_top_left": 420.003241,
+          "S1_top_right": 516.357464,
+          "S2_bottom_right": 919.456502,
+          "S3_bottom_left": 869.009753
+        },
+        {
+          "S0_top_left": 324.590472,
+          "S1_top_right": 615.465296,
+          "S2_bottom_right": 978.556467,
+          "S3_bottom_left": 827.124056
+        }
+      ],
+      "original_full_id": 4,
+      "source_region_id": 4
+    },
+    {
+      "name": "A0_top_arm_cell_r2_c3",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 6,
+      "original_label": "6",
+      "polygon_board_px": [
+        [
+          501.579437,
+          103.485939
+        ],
+        [
+          603.577576,
+          103.485939
+        ],
+        [
+          603.577576,
+          130.337128
+        ],
+        [
+          501.579437,
+          130.337128
+        ]
+      ],
+      "id": 5,
+      "label": "5",
+      "polygon_board_normalized": [
+        [
+          0.55731,
+          0.114984
+        ],
+        [
+          0.670642,
+          0.114984
+        ],
+        [
+          0.670642,
+          0.144819
+        ],
+        [
+          0.55731,
+          0.144819
+        ]
+      ],
+      "centroid_board_px": [
+        552.578506,
+        116.911533
+      ],
+      "centroid_normalized": [
+        0.613976,
+        0.129902
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 564.810864,
+        "S1_top_right": 366.565139,
+        "S2_bottom_right": 856.696703,
+        "S3_bottom_left": 958.420864
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 512.1438,
+          "S1_top_right": 411.640965,
+          "S2_bottom_right": 890.602939,
+          "S3_bottom_left": 941.284538
+        },
+        {
+          "S0_top_left": 612.38487,
+          "S1_top_right": 313.967503,
+          "S2_bottom_right": 849.882876,
+          "S3_bottom_left": 999.370071
+        },
+        {
+          "S0_top_left": 617.489803,
+          "S1_top_right": 323.811705,
+          "S2_bottom_right": 824.770993,
+          "S3_bottom_left": 978.103689
+        },
+        {
+          "S0_top_left": 518.237107,
+          "S1_top_right": 419.1977,
+          "S2_bottom_right": 866.671727,
+          "S3_bottom_left": 918.674517
+        }
+      ],
+      "original_full_id": 6,
+      "source_region_id": 6
+    },
+    {
+      "name": "A0_top_arm_cell_r3_c1",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 7,
+      "original_label": "7",
+      "polygon_board_px": [
+        [
+          297.193542,
+          128.66246
+        ],
+        [
+          400.729431,
+          128.66246
+        ],
+        [
+          400.729431,
+          160.77597
+        ],
+        [
+          297.193542,
+          160.77597
+        ]
+      ],
+      "id": 6,
+      "label": "6",
+      "polygon_board_normalized": [
+        [
+          0.330215,
+          0.142958
+        ],
+        [
+          0.445255,
+          0.142958
+        ],
+        [
+          0.445255,
+          0.17864
+        ],
+        [
+          0.330215,
+          0.17864
+        ]
+      ],
+      "centroid_board_px": [
+        348.961487,
+        144.719215
+      ],
+      "centroid_normalized": [
+        0.387735,
+        0.160799
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 377.780056,
+        "S1_top_right": 569.725455,
+        "S2_bottom_right": 934.929145,
+        "S3_bottom_left": 831.999509
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 323.848777,
+          "S1_top_right": 616.384339,
+          "S2_bottom_right": 978.946998,
+          "S3_bottom_left": 826.610913
+        },
+        {
+          "S0_top_left": 420.87778,
+          "S1_top_right": 515.582321,
+          "S2_bottom_right": 918.821365,
+          "S3_bottom_left": 869.221305
+        },
+        {
+          "S0_top_left": 431.778867,
+          "S1_top_right": 524.51884,
+          "S2_bottom_right": 892.033221,
+          "S3_bottom_left": 840.854472
+        },
+        {
+          "S0_top_left": 337.894827,
+          "S1_top_right": 623.878624,
+          "S2_bottom_right": 953.848935,
+          "S3_bottom_left": 796.728415
+        }
+      ],
+      "original_full_id": 7,
+      "source_region_id": 7
+    },
+    {
+      "name": "A0_top_arm_cell_r3_c3",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 9,
+      "original_label": "9",
+      "polygon_board_px": [
+        [
+          502.089264,
+          130.980194
+        ],
+        [
+          603.62207,
+          130.980194
+        ],
+        [
+          603.62207,
+          161.532791
+        ],
+        [
+          502.089264,
+          161.532791
+        ]
+      ],
+      "id": 7,
+      "label": "7",
+      "polygon_board_normalized": [
+        [
+          0.557877,
+          0.145534
+        ],
+        [
+          0.670691,
+          0.145534
+        ],
+        [
+          0.670691,
+          0.179481
+        ],
+        [
+          0.557877,
+          0.179481
+        ]
+      ],
+      "centroid_board_px": [
+        552.855667,
+        146.256493
+      ],
+      "centroid_normalized": [
+        0.614284,
+        0.162507
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 571.874418,
+        "S1_top_right": 376.696362,
+        "S2_bottom_right": 829.842433,
+        "S3_bottom_left": 934.761287
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 518.892513,
+          "S1_top_right": 418.913792,
+          "S2_bottom_right": 865.866281,
+          "S3_bottom_left": 918.414444
+        },
+        {
+          "S0_top_left": 617.669341,
+          "S1_top_right": 324.030382,
+          "S2_bottom_right": 824.154924,
+          "S3_bottom_left": 977.625217
+        },
+        {
+          "S0_top_left": 624.861942,
+          "S1_top_right": 337.539212,
+          "S2_bottom_right": 795.722122,
+          "S3_bottom_left": 953.778498
+        },
+        {
+          "S0_top_left": 527.433855,
+          "S1_top_right": 429.448247,
+          "S2_bottom_right": 838.84848,
+          "S3_bottom_left": 892.987932
+        }
+      ],
+      "original_full_id": 9,
+      "source_region_id": 9
+    },
+    {
+      "name": "A0_top_arm_cell_r4_c1",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 10,
+      "original_label": "10",
+      "polygon_board_px": [
+        [
+          298.187408,
+          159.747345
+        ],
+        [
+          400.032745,
+          159.747345
+        ],
+        [
+          400.032745,
+          189.673355
+        ],
+        [
+          298.187408,
+          189.673355
+        ]
+      ],
+      "id": 8,
+      "label": "8",
+      "polygon_board_normalized": [
+        [
+          0.331319,
+          0.177497
+        ],
+        [
+          0.444481,
+          0.177497
+        ],
+        [
+          0.444481,
+          0.210748
+        ],
+        [
+          0.331319,
+          0.210748
+        ]
+      ],
+      "centroid_board_px": [
+        349.110077,
+        174.71035
+      ],
+      "centroid_normalized": [
+        0.3879,
+        0.194123
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 390.386414,
+        "S1_top_right": 577.930285,
+        "S2_bottom_right": 910.782512,
+        "S3_bottom_left": 804.936595
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 338.282345,
+          "S1_top_right": 622.653684,
+          "S2_bottom_right": 954.019071,
+          "S3_bottom_left": 798.05371
+        },
+        {
+          "S0_top_left": 430.749825,
+          "S1_top_right": 524.86805,
+          "S2_bottom_right": 893.275573,
+          "S3_bottom_left": 841.427472
+        },
+        {
+          "S0_top_left": 442.721333,
+          "S1_top_right": 534.736606,
+          "S2_bottom_right": 868.637553,
+          "S3_bottom_left": 815.223981
+        },
+        {
+          "S0_top_left": 353.400215,
+          "S1_top_right": 630.994752,
+          "S2_bottom_right": 930.989977,
+          "S3_bottom_left": 770.376319
+        }
+      ],
+      "original_full_id": 10,
+      "source_region_id": 10
+    },
+    {
+      "name": "A0_top_arm_cell_r4_c3",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 12,
+      "original_label": "12",
+      "polygon_board_px": [
+        [
+          502.055847,
+          161.929276
+        ],
+        [
+          603.556824,
+          161.929276
+        ],
+        [
+          603.556824,
+          190.127747
+        ],
+        [
+          502.055847,
+          190.127747
+        ]
+      ],
+      "id": 9,
+      "label": "9",
+      "polygon_board_normalized": [
+        [
+          0.55784,
+          0.179921
+        ],
+        [
+          0.670619,
+          0.179921
+        ],
+        [
+          0.670619,
+          0.211253
+        ],
+        [
+          0.55784,
+          0.211253
+        ]
+      ],
+      "centroid_board_px": [
+        552.806335,
+        176.028511
+      ],
+      "centroid_normalized": [
+        0.614229,
+        0.195587
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 580.155911,
+        "S1_top_right": 389.267874,
+        "S2_bottom_right": 802.918525,
+        "S3_bottom_left": 910.894923
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 527.523615,
+          "S1_top_right": 429.62849,
+          "S2_bottom_right": 838.515321,
+          "S3_bottom_left": 892.641287
+        },
+        {
+          "S0_top_left": 624.901536,
+          "S1_top_right": 337.786393,
+          "S2_bottom_right": 795.378495,
+          "S3_bottom_left": 953.430246
+        },
+        {
+          "S0_top_left": 632.794911,
+          "S1_top_right": 352.174838,
+          "S2_bottom_right": 769.283545,
+          "S3_bottom_left": 931.772212
+        },
+        {
+          "S0_top_left": 536.850662,
+          "S1_top_right": 441.030735,
+          "S2_bottom_right": 813.804746,
+          "S3_bottom_left": 869.47035
+        }
+      ],
+      "original_full_id": 12,
+      "source_region_id": 12
+    },
+    {
+      "name": "A0_top_arm_cell_r5_c1",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 13,
+      "original_label": "13",
+      "polygon_board_px": [
+        [
+          299.300812,
+          190.355438
+        ],
+        [
+          400.710022,
+          190.355438
+        ],
+        [
+          400.710022,
+          219.763107
+        ],
+        [
+          299.300812,
+          219.763107
+        ]
+      ],
+      "id": 10,
+      "label": "10",
+      "polygon_board_normalized": [
+        [
+          0.332556,
+          0.211506
+        ],
+        [
+          0.445233,
+          0.211506
+        ],
+        [
+          0.445233,
+          0.244181
+        ],
+        [
+          0.332556,
+          0.244181
+        ]
+      ],
+      "centroid_board_px": [
+        350.005417,
+        205.059273
+      ],
+      "centroid_normalized": [
+        0.388895,
+        0.227844
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 405.651448,
+        "S1_top_right": 586.978149,
+        "S2_bottom_right": 886.248642,
+        "S3_bottom_left": 778.104367
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 354.70575,
+          "S1_top_right": 630.138642,
+          "S2_bottom_right": 929.749923,
+          "S3_bottom_left": 770.179447
+        },
+        {
+          "S0_top_left": 443.625647,
+          "S1_top_right": 534.346026,
+          "S2_bottom_right": 867.689971,
+          "S3_bottom_left": 814.96253
+        },
+        {
+          "S0_top_left": 457.016789,
+          "S1_top_right": 545.514716,
+          "S2_bottom_right": 843.808457,
+          "S3_bottom_left": 789.487652
+        },
+        {
+          "S0_top_left": 371.317653,
+          "S1_top_right": 639.63688,
+          "S2_bottom_right": 907.503028,
+          "S3_bottom_left": 743.171048
+        }
+      ],
+      "original_full_id": 13,
+      "source_region_id": 13
+    },
+    {
+      "name": "A0_top_arm_cell_r6_c3",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 15,
+      "original_label": "15",
+      "polygon_board_px": [
+        [
+          501.428406,
+          191.288803
+        ],
+        [
+          604.539001,
+          191.288803
+        ],
+        [
+          604.539001,
+          221.786911
+        ],
+        [
+          501.428406,
+          221.786911
+        ]
+      ],
+      "id": 11,
+      "label": "11",
+      "polygon_board_normalized": [
+        [
+          0.557143,
+          0.212543
+        ],
+        [
+          0.67171,
+          0.212543
+        ],
+        [
+          0.67171,
+          0.24643
+        ],
+        [
+          0.557143,
+          0.24643
+        ]
+      ],
+      "centroid_board_px": [
+        552.983704,
+        206.537857
+      ],
+      "centroid_normalized": [
+        0.614426,
+        0.229487
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 590.295572,
+        "S1_top_right": 403.829415,
+        "S2_bottom_right": 775.441844,
+        "S3_bottom_left": 886.950235
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 536.676674,
+          "S1_top_right": 442.098091,
+          "S2_bottom_right": 813.099549,
+          "S3_bottom_left": 868.160127
+        },
+        {
+          "S0_top_left": 634.081076,
+          "S1_top_right": 351.978135,
+          "S2_bottom_right": 767.833812,
+          "S3_bottom_left": 931.525075
+        },
+        {
+          "S0_top_left": 643.938536,
+          "S1_top_right": 369.440977,
+          "S2_bottom_right": 739.777126,
+          "S3_bottom_left": 908.537505
+        },
+        {
+          "S0_top_left": 548.288136,
+          "S1_top_right": 456.123612,
+          "S2_bottom_right": 786.658954,
+          "S3_bottom_left": 843.447355
+        }
+      ],
+      "original_full_id": 15,
+      "source_region_id": 15
+    },
+    {
+      "name": "A0_top_arm_cell_r6_c1",
+      "type": "path_cell",
+      "group": "A0_top_arm",
+      "original_id": 16,
+      "original_label": "16",
+      "polygon_board_px": [
+        [
+          297.902039,
+          218.876053
+        ],
+        [
+          400.571594,
+          218.876053
+        ],
+        [
+          400.571594,
+          248.427551
+        ],
+        [
+          297.902039,
+          248.427551
+        ]
+      ],
+      "id": 12,
+      "label": "12",
+      "polygon_board_normalized": [
+        [
+          0.331002,
+          0.243196
+        ],
+        [
+          0.44508,
+          0.243196
+        ],
+        [
+          0.44508,
+          0.276031
+        ],
+        [
+          0.331002,
+          0.276031
+        ]
+      ],
+      "centroid_board_px": [
+        349.236816,
+        233.651802
+      ],
+      "centroid_normalized": [
+        0.388041,
+        0.259613
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 420.18986,
+        "S1_top_right": 598.275228,
+        "S2_bottom_right": 864.499858,
+        "S3_bottom_left": 752.320593
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 369.665188,
+          "S1_top_right": 640.64708,
+          "S2_bottom_right": 909.093937,
+          "S3_bottom_left": 743.421452
+        },
+        {
+          "S0_top_left": 456.469417,
+          "S1_top_right": 545.28475,
+          "S2_bottom_right": 844.605567,
+          "S3_bottom_left": 790.181899
+        },
+        {
+          "S0_top_left": 471.353212,
+          "S1_top_right": 557.803712,
+          "S2_bottom_right": 820.960041,
+          "S3_bottom_left": 764.855711
+        },
+        {
+          "S0_top_left": 387.894152,
+          "S1_top_right": 651.335707,
+          "S2_bottom_right": 887.168874,
+          "S3_bottom_left": 716.444192
+        }
+      ],
+      "original_full_id": 16,
+      "source_region_id": 16
+    },
+    {
+      "name": "custom_rectangle",
+      "type": "custom_rectangle",
+      "group": "custom",
+      "original_id": 18,
+      "original_label": "18",
+      "polygon_board_px": [
+        [
+          501.947754,
+          221.357803
+        ],
+        [
+          603.41095,
+          221.357803
+        ],
+        [
+          603.41095,
+          250.281281
+        ],
+        [
+          501.947754,
+          250.281281
+        ]
+      ],
+      "id": 13,
+      "label": "13",
+      "polygon_board_normalized": [
+        [
+          0.55772,
+          0.245953
+        ],
+        [
+          0.670457,
+          0.245953
+        ],
+        [
+          0.670457,
+          0.27809
+        ],
+        [
+          0.55772,
+          0.27809
+        ]
+      ],
+      "centroid_board_px": [
+        552.679352,
+        235.819542
+      ],
+      "centroid_normalized": [
+        0.614088,
+        0.262022
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 600.887113,
+        "S1_top_right": 419.812445,
+        "S2_bottom_right": 749.511383,
+        "S3_bottom_left": 864.054481
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 548.589851,
+          "S1_top_right": 455.461159,
+          "S2_bottom_right": 786.766053,
+          "S3_bottom_left": 844.101166
+        },
+        {
+          "S0_top_left": 642.73171,
+          "S1_top_right": 370.086938,
+          "S2_bottom_right": 740.62156,
+          "S3_bottom_left": 908.107926
+        },
+        {
+          "S0_top_left": 653.257601,
+          "S1_top_right": 388.079611,
+          "S2_bottom_right": 714.212489,
+          "S3_bottom_left": 886.701296
+        },
+        {
+          "S0_top_left": 560.885253,
+          "S1_top_right": 470.19816,
+          "S2_bottom_right": 761.958007,
+          "S3_bottom_left": 821.027382
+        }
+      ],
+      "original_full_id": 18,
+      "source_region_id": 18
+    },
+    {
+      "name": "custom_rectangle",
+      "type": "custom_rectangle",
+      "group": "custom",
+      "original_id": 19,
+      "original_label": "19",
+      "polygon_board_px": [
+        [
+          299.014374,
+          247.863953
+        ],
+        [
+          397.415375,
+          247.863953
+        ],
+        [
+          397.415375,
+          277.326843
+        ],
+        [
+          299.014374,
+          277.326843
+        ]
+      ],
+      "id": 14,
+      "label": "14",
+      "polygon_board_normalized": [
+        [
+          0.332238,
+          0.275404
+        ],
+        [
+          0.441573,
+          0.275404
+        ],
+        [
+          0.441573,
+          0.308141
+        ],
+        [
+          0.332238,
+          0.308141
+        ]
+      ],
+      "centroid_board_px": [
+        348.214874,
+        262.595398
+      ],
+      "centroid_normalized": [
+        0.386905,
+        0.291773
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 436.130647,
+        "S1_top_right": 611.083601,
+        "S2_bottom_right": 843.060764,
+        "S3_bottom_left": 726.318267
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 388.389154,
+          "S1_top_right": 650.092503,
+          "S2_bottom_right": 886.828702,
+          "S3_bottom_left": 717.419696
+        },
+        {
+          "S0_top_left": 468.375404,
+          "S1_top_right": 560.381874,
+          "S2_bottom_right": 823.330268,
+          "S3_bottom_left": 763.688683
+        },
+        {
+          "S0_top_left": 484.612379,
+          "S1_top_right": 574.022198,
+          "S2_bottom_right": 800.195705,
+          "S3_bottom_left": 738.688595
+        },
+        {
+          "S0_top_left": 407.823214,
+          "S1_top_right": 661.886622,
+          "S2_bottom_right": 865.393311,
+          "S3_bottom_left": 690.747027
+        }
+      ],
+      "original_full_id": 19,
+      "source_region_id": 19
+    },
+    {
+      "name": "custom_rectangle",
+      "type": "custom_rectangle",
+      "group": "custom",
+      "original_id": 21,
+      "original_label": "21",
+      "polygon_board_px": [
+        [
+          501.222382,
+          250.964249
+        ],
+        [
+          602.624084,
+          250.964249
+        ],
+        [
+          602.624084,
+          281.235321
+        ],
+        [
+          501.222382,
+          281.235321
+        ]
+      ],
+      "id": 15,
+      "label": "15",
+      "polygon_board_normalized": [
+        [
+          0.556914,
+          0.278849
+        ],
+        [
+          0.669582,
+          0.278849
+        ],
+        [
+          0.669582,
+          0.312484
+        ],
+        [
+          0.556914,
+          0.312484
+        ]
+      ],
+      "centroid_board_px": [
+        551.923233,
+        266.099785
+      ],
+      "centroid_normalized": [
+        0.613248,
+        0.295666
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 612.722083,
+        "S1_top_right": 438.139853,
+        "S2_bottom_right": 723.178345,
+        "S3_bottom_left": 840.505049
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 560.54164,
+          "S1_top_right": 471.175809,
+          "S2_bottom_right": 761.755207,
+          "S3_bottom_left": 820.043464
+        },
+        {
+          "S0_top_left": 652.793108,
+          "S1_top_right": 389.121433,
+          "S2_bottom_right": 713.918652,
+          "S3_bottom_left": 885.665396
+        },
+        {
+          "S0_top_left": 665.018115,
+          "S1_top_right": 409.299085,
+          "S2_bottom_right": 686.514503,
+          "S3_bottom_left": 863.727686
+        },
+        {
+          "S0_top_left": 574.73227,
+          "S1_top_right": 487.972227,
+          "S2_bottom_right": 736.134035,
+          "S3_bottom_left": 796.299946
+        }
+      ],
+      "original_full_id": 21,
+      "source_region_id": 21
+    },
+    {
+      "name": "custom_irregular_1",
+      "type": "irregular_home_adjacent",
+      "group": "custom_irregular_1",
+      "original_id": 22,
+      "original_label": "22",
+      "polygon_board_px": [
+        [
+          298.532837,
+          278.431152
+        ],
+        [
+          396.533112,
+          278.519531
+        ],
+        [
+          395.852325,
+          311.938171
+        ],
+        [
+          317.980621,
+          311.482422
+        ],
+        [
+          299.060364,
+          327.030762
+        ],
+        [
+          274.274689,
+          300.296875
+        ]
+      ],
+      "id": 16,
+      "label": "16",
+      "polygon_board_normalized": [
+        [
+          0.331703,
+          0.309368
+        ],
+        [
+          0.440592,
+          0.309466
+        ],
+        [
+          0.439836,
+          0.346598
+        ],
+        [
+          0.353312,
+          0.346092
+        ],
+        [
+          0.332289,
+          0.363368
+        ],
+        [
+          0.30475,
+          0.333663
+        ]
+      ],
+      "centroid_board_px": [
+        330.372325,
+        301.283152
+      ],
+      "centroid_normalized": [
+        0.36708,
+        0.334759
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 447.121248,
+        "S1_top_right": 644.396793,
+        "S2_bottom_right": 826.400358,
+        "S3_bottom_left": 683.818497
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 408.222686,
+          "S1_top_right": 662.787036,
+          "S2_bottom_right": 864.933859,
+          "S3_bottom_left": 689.5431
+        },
+        {
+          "S0_top_left": 484.573666,
+          "S1_top_right": 575.371217,
+          "S2_bottom_right": 799.823031,
+          "S3_bottom_left": 737.208574
+        },
+        {
+          "S0_top_left": 503.988578,
+          "S1_top_right": 592.849307,
+          "S2_bottom_right": 774.584787,
+          "S3_bottom_left": 708.883473
+        },
+        {
+          "S0_top_left": 445.121303,
+          "S1_top_right": 660.127152,
+          "S2_bottom_right": 827.707374,
+          "S3_bottom_left": 668.92796
+        },
+        {
+          "S0_top_left": 443.154849,
+          "S1_top_right": 684.161944,
+          "S2_bottom_right": 830.314515,
+          "S3_bottom_left": 646.321011
+        },
+        {
+          "S0_top_left": 406.699911,
+          "S1_top_right": 694.053585,
+          "S2_bottom_right": 866.704104,
+          "S3_bottom_left": 659.447074
+        }
+      ],
+      "original_full_id": 22,
+      "source_region_id": 22
+    },
+    {
+      "name": "custom_irregular_2",
+      "type": "irregular_home_adjacent",
+      "group": "custom_irregular_2",
+      "original_id": 24,
+      "original_label": "24",
+      "polygon_board_px": [
+        [
+          502.298523,
+          312.04538
+        ],
+        [
+          502.142639,
+          279.166351
+        ],
+        [
+          602.622192,
+          280.662933
+        ],
+        [
+          625.869751,
+          304.194611
+        ],
+        [
+          600.694397,
+          325.794128
+        ],
+        [
+          584.247314,
+          312.11969
+        ]
+      ],
+      "id": 17,
+      "label": "17",
+      "polygon_board_normalized": [
+        [
+          0.558109,
+          0.346717
+        ],
+        [
+          0.557936,
+          0.310185
+        ],
+        [
+          0.66958,
+          0.311848
+        ],
+        [
+          0.695411,
+          0.337994
+        ],
+        [
+          0.667438,
+          0.361993
+        ],
+        [
+          0.649164,
+          0.3468
+        ]
+      ],
+      "centroid_board_px": [
+        569.645803,
+        302.330516
+      ],
+      "centroid_normalized": [
+        0.63294,
+        0.335923
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 644.903157,
+        "S1_top_right": 447.814288,
+        "S2_bottom_right": 682.892897,
+        "S3_bottom_left": 825.654379
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 591.334191,
+          "S1_top_right": 505.508441,
+          "S2_bottom_right": 709.828923,
+          "S3_bottom_left": 773.301003
+        },
+        {
+          "S0_top_left": 574.526833,
+          "S1_top_right": 486.029147,
+          "S2_bottom_right": 737.37704,
+          "S3_bottom_left": 798.4871
+        },
+        {
+          "S0_top_left": 664.77454,
+          "S1_top_right": 408.907377,
+          "S2_bottom_right": 687.031268,
+          "S3_bottom_left": 864.136511
+        },
+        {
+          "S0_top_left": 695.878801,
+          "S1_top_right": 409.489627,
+          "S2_bottom_right": 655.844079,
+          "S3_bottom_left": 864.116316
+        },
+        {
+          "S0_top_left": 683.35611,
+          "S1_top_right": 442.408926,
+          "S2_bottom_right": 647.53087,
+          "S3_bottom_left": 830.99106
+        },
+        {
+          "S0_top_left": 662.39235,
+          "S1_top_right": 443.980246,
+          "S2_bottom_right": 667.310286,
+          "S3_bottom_left": 828.823373
+        }
+      ],
+      "original_full_id": 24,
+      "source_region_id": 24
+    },
+    {
+      "name": "custom_irregular_3",
+      "type": "irregular_home_adjacent",
+      "group": "custom_irregular_3",
+      "original_id": 25,
+      "original_label": "25",
+      "polygon_board_px": [
+        [
+          600.357117,
+          326.782776
+        ],
+        [
+          624.885803,
+          303.974884
+        ],
+        [
+          649.999573,
+          327.921478
+        ],
+        [
+          648.647705,
+          416.72287
+        ],
+        [
+          619.074341,
+          417.053894
+        ],
+        [
+          619.312073,
+          344.598389
+        ]
+      ],
+      "id": 18,
+      "label": "18",
+      "polygon_board_normalized": [
+        [
+          0.667063,
+          0.363092
+        ],
+        [
+          0.694318,
+          0.33775
+        ],
+        [
+          0.722222,
+          0.364357
+        ],
+        [
+          0.72072,
+          0.463025
+        ],
+        [
+          0.68786,
+          0.463393
+        ],
+        [
+          0.688125,
+          0.382887
+        ]
+      ],
+      "centroid_board_px": [
+        627.046102,
+        356.175715
+      ],
+      "centroid_normalized": [
+        0.696718,
+        0.395751
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 721.143504,
+        "S1_top_right": 448.737084,
+        "S2_bottom_right": 608.480635,
+        "S3_bottom_left": 830.019076
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 683.531748,
+          "S1_top_right": 443.365357,
+          "S2_bottom_right": 646.810516,
+          "S3_bottom_left": 830.064247
+        },
+        {
+          "S0_top_left": 694.897832,
+          "S1_top_right": 409.986038,
+          "S2_bottom_right": 656.455452,
+          "S3_bottom_left": 863.55556
+        },
+        {
+          "S0_top_left": 728.032925,
+          "S1_top_right": 412.350227,
+          "S2_bottom_right": 624.318868,
+          "S3_bottom_left": 865.894497
+        },
+        {
+          "S0_top_left": 770.974575,
+          "S1_top_right": 486.657915,
+          "S2_bottom_right": 544.73366,
+          "S3_bottom_left": 808.888515
+        },
+        {
+          "S0_top_left": 746.44959,
+          "S1_top_right": 502.845082,
+          "S2_bottom_right": 558.709376,
+          "S3_bottom_left": 785.168759
+        },
+        {
+          "S0_top_left": 708.728081,
+          "S1_top_right": 444.447704,
+          "S2_bottom_right": 622.299496,
+          "S3_bottom_left": 831.876429
+        }
+      ],
+      "original_full_id": 25,
+      "source_region_id": 25
+    },
+    {
+      "name": "H1_right_home_r1_c2",
+      "type": "home_lane_cell",
+      "group": "H1_right",
+      "original_id": 26,
+      "original_label": "26",
+      "polygon_board_px": [
+        [
+          649.116943,
+          326.722656
+        ],
+        [
+          677.020508,
+          326.722656
+        ],
+        [
+          677.020508,
+          418.448669
+        ],
+        [
+          649.116943,
+          418.448669
+        ]
+      ],
+      "id": 19,
+      "label": "19",
+      "polygon_board_normalized": [
+        [
+          0.721241,
+          0.363025
+        ],
+        [
+          0.752245,
+          0.363025
+        ],
+        [
+          0.752245,
+          0.464943
+        ],
+        [
+          0.721241,
+          0.464943
+        ]
+      ],
+      "centroid_board_px": [
+        663.068726,
+        372.585663
+      ],
+      "centroid_normalized": [
+        0.736743,
+        0.413984
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 760.578866,
+        "S1_top_right": 441.538792,
+        "S2_bottom_right": 578.18882,
+        "S3_bottom_left": 847.246138
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 726.705236,
+          "S1_top_right": 411.934463,
+          "S2_bottom_right": 625.770901,
+          "S3_bottom_left": 866.025242
+        },
+        {
+          "S0_top_left": 751.734303,
+          "S1_top_right": 395.559791,
+          "S2_bottom_right": 615.115247,
+          "S3_bottom_left": 887.132279
+        },
+        {
+          "S0_top_left": 795.899527,
+          "S1_top_right": 474.150971,
+          "S2_bottom_right": 530.670838,
+          "S3_bottom_left": 830.811923
+        },
+        {
+          "S0_top_left": 772.303111,
+          "S1_top_right": 487.895068,
+          "S2_bottom_right": 542.98618,
+          "S3_bottom_left": 808.235418
+        }
+      ],
+      "original_full_id": 26,
+      "source_region_id": 26
+    },
+    {
+      "name": "A1_right_arm_cell_r1_c1",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 27,
+      "original_label": "27",
+      "polygon_board_px": [
+        [
+          676.865112,
+          327.243561
+        ],
+        [
+          709.225037,
+          327.243561
+        ],
+        [
+          709.225037,
+          419.146301
+        ],
+        [
+          676.865112,
+          419.146301
+        ]
+      ],
+      "id": 20,
+      "label": "20",
+      "polygon_board_normalized": [
+        [
+          0.752072,
+          0.363604
+        ],
+        [
+          0.788028,
+          0.363604
+        ],
+        [
+          0.788028,
+          0.465718
+        ],
+        [
+          0.752072,
+          0.465718
+        ]
+      ],
+      "centroid_board_px": [
+        693.045074,
+        373.194931
+      ],
+      "centroid_normalized": [
+        0.77005,
+        0.414661
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 787.13781,
+        "S1_top_right": 426.737387,
+        "S2_bottom_right": 565.998164,
+        "S3_bottom_left": 870.537223
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 751.820942,
+          "S1_top_right": 396.077677,
+          "S2_bottom_right": 614.686194,
+          "S3_bottom_left": 886.677122
+        },
+        {
+          "S0_top_left": 781.081622,
+          "S1_top_right": 378.792073,
+          "S2_bottom_right": 603.692824,
+          "S3_bottom_left": 911.619488
+        },
+        {
+          "S0_top_left": 823.82266,
+          "S1_top_right": 460.520041,
+          "S2_bottom_right": 517.315538,
+          "S3_bottom_left": 856.866636
+        },
+        {
+          "S0_top_left": 796.134412,
+          "S1_top_right": 474.839762,
+          "S2_bottom_right": 530.103252,
+          "S3_bottom_left": 830.281073
+        }
+      ],
+      "original_full_id": 27,
+      "source_region_id": 27
+    },
+    {
+      "name": "A1_right_arm_cell_r1_c2",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 28,
+      "original_label": "28",
+      "polygon_board_px": [
+        [
+          708.507568,
+          328.185089
+        ],
+        [
+          740.254211,
+          328.185089
+        ],
+        [
+          740.254211,
+          419.395874
+        ],
+        [
+          708.507568,
+          419.395874
+        ]
+      ],
+      "id": 21,
+      "label": "21",
+      "polygon_board_normalized": [
+        [
+          0.787231,
+          0.36465
+        ],
+        [
+          0.822505,
+          0.36465
+        ],
+        [
+          0.822505,
+          0.465995
+        ],
+        [
+          0.787231,
+          0.465995
+        ]
+      ],
+      "centroid_board_px": [
+        724.38089,
+        373.790482
+      ],
+      "centroid_normalized": [
+        0.804868,
+        0.415323
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 815.136184,
+        "S1_top_right": 412.990794,
+        "S2_bottom_right": 554.741858,
+        "S3_bottom_left": 895.334647
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 780.825478,
+          "S1_top_right": 379.966846,
+          "S2_bottom_right": 603.027067,
+          "S3_bottom_left": 910.469806
+        },
+        {
+          "S0_top_left": 809.74178,
+          "S1_top_right": 364.998863,
+          "S2_bottom_right": 593.709533,
+          "S3_bottom_left": 935.386866
+        },
+        {
+          "S0_top_left": 850.805029,
+          "S1_top_right": 448.789055,
+          "S2_bottom_right": 506.457346,
+          "S3_bottom_left": 882.585193
+        },
+        {
+          "S0_top_left": 823.332177,
+          "S1_top_right": 461.044738,
+          "S2_bottom_right": 517.3487,
+          "S3_bottom_left": 856.132759
+        }
+      ],
+      "original_full_id": 28,
+      "source_region_id": 28
+    },
+    {
+      "name": "A1_right_arm_cell_r1_c3",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 29,
+      "original_label": "29",
+      "polygon_board_px": [
+        [
+          738.314575,
+          328.031128
+        ],
+        [
+          773.374084,
+          328.031128
+        ],
+        [
+          773.374084,
+          419.910736
+        ],
+        [
+          738.314575,
+          419.910736
+        ]
+      ],
+      "id": 22,
+      "label": "22",
+      "polygon_board_normalized": [
+        [
+          0.82035,
+          0.364479
+        ],
+        [
+          0.859305,
+          0.364479
+        ],
+        [
+          0.859305,
+          0.466567
+        ],
+        [
+          0.82035,
+          0.466567
+        ]
+      ],
+      "centroid_board_px": [
+        755.84433,
+        373.970932
+      ],
+      "centroid_normalized": [
+        0.839827,
+        0.415523
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 843.300011,
+        "S1_top_right": 400.793108,
+        "S2_bottom_right": 545.42409,
+        "S3_bottom_left": 920.873081
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 807.906451,
+          "S1_top_right": 365.713819,
+          "S2_bottom_right": 594.382509,
+          "S3_bottom_left": 933.946895
+        },
+        {
+          "S0_top_left": 840.066602,
+          "S1_top_right": 351.622729,
+          "S2_bottom_right": 585.817816,
+          "S3_bottom_left": 961.902212
+        },
+        {
+          "S0_top_left": 880.018466,
+          "S1_top_right": 438.587675,
+          "S2_bottom_right": 496.507627,
+          "S3_bottom_left": 910.270935
+        },
+        {
+          "S0_top_left": 849.372379,
+          "S1_top_right": 449.963557,
+          "S2_bottom_right": 506.584522,
+          "S3_bottom_left": 880.678212
+        }
+      ],
+      "original_full_id": 29,
+      "source_region_id": 29
+    },
+    {
+      "name": "A1_right_arm_cell_r1_c4",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 30,
+      "original_label": "30",
+      "polygon_board_px": [
+        [
+          770.412659,
+          326.760406
+        ],
+        [
+          801.233215,
+          326.760406
+        ],
+        [
+          801.233215,
+          418.869934
+        ],
+        [
+          770.412659,
+          418.869934
+        ]
+      ],
+      "id": 23,
+      "label": "23",
+      "polygon_board_normalized": [
+        [
+          0.856014,
+          0.363067
+        ],
+        [
+          0.890259,
+          0.363067
+        ],
+        [
+          0.890259,
+          0.465411
+        ],
+        [
+          0.856014,
+          0.465411
+        ]
+      ],
+      "centroid_board_px": [
+        785.822937,
+        372.81517
+      ],
+      "centroid_normalized": [
+        0.873137,
+        0.414239
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 869.775166,
+        "S1_top_right": 389.907108,
+        "S2_bottom_right": 539.40731,
+        "S3_bottom_left": 946.277725
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 836.844088,
+          "S1_top_right": 351.518481,
+          "S2_bottom_right": 587.704442,
+          "S3_bottom_left": 960.280842
+        },
+        {
+          "S0_top_left": 865.301698,
+          "S1_top_right": 341.360866,
+          "S2_bottom_right": 581.68592,
+          "S3_bottom_left": 985.179322
+        },
+        {
+          "S0_top_left": 904.116523,
+          "S1_top_right": 430.356712,
+          "S2_bottom_right": 491.162924,
+          "S3_bottom_left": 934.591251
+        },
+        {
+          "S0_top_left": 876.91943,
+          "S1_top_right": 438.45741,
+          "S2_bottom_right": 498.276047,
+          "S3_bottom_left": 908.307109
+        }
+      ],
+      "original_full_id": 30,
+      "source_region_id": 30
+    },
+    {
+      "name": "A1_right_arm_cell_r1_c5",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 31,
+      "original_label": "31",
+      "polygon_board_px": [
+        [
+          801.807556,
+          326.577026
+        ],
+        [
+          833.146057,
+          326.577026
+        ],
+        [
+          833.146057,
+          419.284515
+        ],
+        [
+          801.807556,
+          419.284515
+        ]
+      ],
+      "id": 24,
+      "label": "24",
+      "polygon_board_normalized": [
+        [
+          0.890897,
+          0.362863
+        ],
+        [
+          0.925718,
+          0.362863
+        ],
+        [
+          0.925718,
+          0.465872
+        ],
+        [
+          0.890897,
+          0.465872
+        ]
+      ],
+      "centroid_board_px": [
+        817.476807,
+        372.930771
+      ],
+      "centroid_normalized": [
+        0.908308,
+        0.414368
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 898.524173,
+        "S1_top_right": 381.95214,
+        "S2_bottom_right": 533.49044,
+        "S3_bottom_left": 972.661453
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 865.764351,
+          "S1_top_right": 341.019516,
+          "S2_bottom_right": 581.769424,
+          "S3_bottom_left": 985.753145
+        },
+        {
+          "S0_top_left": 894.86586,
+          "S1_top_right": 333.349672,
+          "S2_bottom_right": 577.306986,
+          "S3_bottom_left": 1011.408058
+        },
+        {
+          "S0_top_left": 932.701376,
+          "S1_top_right": 424.580916,
+          "S2_bottom_right": 485.341969,
+          "S3_bottom_left": 961.883428
+        },
+        {
+          "S0_top_left": 904.817585,
+          "S1_top_right": 430.628913,
+          "S2_bottom_right": 490.641553,
+          "S3_bottom_left": 934.870437
+        }
+      ],
+      "original_full_id": 31,
+      "source_region_id": 31
+    },
+    {
+      "name": "A1_right_arm_cell_r1_c6",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 32,
+      "original_label": "32",
+      "polygon_board_px": [
+        [
+          833.4599,
+          326.678741
+        ],
+        [
+          865.109497,
+          326.678741
+        ],
+        [
+          865.109497,
+          420.433197
+        ],
+        [
+          833.4599,
+          420.433197
+        ]
+      ],
+      "id": 25,
+      "label": "25",
+      "polygon_board_normalized": [
+        [
+          0.926067,
+          0.362976
+        ],
+        [
+          0.961233,
+          0.362976
+        ],
+        [
+          0.961233,
+          0.467148
+        ],
+        [
+          0.926067,
+          0.467148
+        ]
+      ],
+      "centroid_board_px": [
+        849.284698,
+        373.555969
+      ],
+      "centroid_normalized": [
+        0.94365,
+        0.415062
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 927.808472,
+        "S1_top_right": 376.982896,
+        "S2_bottom_right": 528.881234,
+        "S3_bottom_left": 999.213599
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 895.195177,
+          "S1_top_right": 333.38654,
+          "S2_bottom_right": 577.169689,
+          "S3_bottom_left": 1011.608951
+        },
+        {
+          "S0_top_left": 924.734255,
+          "S1_top_right": 328.536676,
+          "S2_bottom_right": 574.38194,
+          "S3_bottom_left": 1037.839924
+        },
+        {
+          "S0_top_left": 961.862004,
+          "S1_top_right": 421.878443,
+          "S2_bottom_right": 480.834343,
+          "S3_bottom_left": 989.140415
+        },
+        {
+          "S0_top_left": 933.498515,
+          "S1_top_right": 425.666135,
+          "S2_bottom_right": 484.16103,
+          "S3_bottom_left": 961.581886
+        }
+      ],
+      "original_full_id": 32,
+      "source_region_id": 32
+    },
+    {
+      "name": "A1_right_arm_cell_r2_c6",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 40,
+      "original_label": "40",
+      "polygon_board_px": [
+        [
+          832.275574,
+          420.220581
+        ],
+        [
+          864.400024,
+          420.220581
+        ],
+        [
+          864.400024,
+          506.4953
+        ],
+        [
+          832.275574,
+          506.4953
+        ]
+      ],
+      "id": 26,
+      "label": "26",
+      "polygon_board_normalized": [
+        [
+          0.924751,
+          0.466912
+        ],
+        [
+          0.960444,
+          0.466912
+        ],
+        [
+          0.960444,
+          0.562773
+        ],
+        [
+          0.924751,
+          0.562773
+        ]
+      ],
+      "centroid_board_px": [
+        848.337799,
+        463.357941
+      ],
+      "centroid_normalized": [
+        0.942598,
+        0.514842
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 966.632093,
+        "S1_top_right": 466.22909,
+        "S2_bottom_right": 439.687697,
+        "S3_bottom_left": 954.113887
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 932.345412,
+          "S1_top_right": 425.642966,
+          "S2_bottom_right": 484.535746,
+          "S3_bottom_left": 960.66171
+        },
+        {
+          "S0_top_left": 961.130969,
+          "S1_top_right": 421.725853,
+          "S2_bottom_right": 481.098378,
+          "S3_bottom_left": 988.62313
+        },
+        {
+          "S0_top_left": 1001.860715,
+          "S1_top_right": 507.744865,
+          "S2_bottom_right": 395.111765,
+          "S3_bottom_left": 949.754363
+        },
+        {
+          "S0_top_left": 974.279282,
+          "S1_top_right": 511.003021,
+          "S2_bottom_right": 399.290053,
+          "S3_bottom_left": 920.613154
+        }
+      ],
+      "original_full_id": 40,
+      "source_region_id": 40
+    },
+    {
+      "name": "custom_irregular_4",
+      "type": "irregular_home_adjacent",
+      "group": "custom_irregular_4",
+      "original_id": 41,
+      "original_label": "41",
+      "polygon_board_px": [
+        [
+          616.546875,
+          504.54837
+        ],
+        [
+          648.398071,
+          504.914185
+        ],
+        [
+          647.25177,
+          602.686768
+        ],
+        [
+          621.994751,
+          621.015564
+        ],
+        [
+          600.616394,
+          598.413757
+        ],
+        [
+          613.122009,
+          584.074341
+        ]
+      ],
+      "id": 27,
+      "label": "27",
+      "polygon_board_normalized": [
+        [
+          0.685052,
+          0.560609
+        ],
+        [
+          0.720442,
+          0.561016
+        ],
+        [
+          0.719169,
+          0.669652
+        ],
+        [
+          0.691105,
+          0.690017
+        ],
+        [
+          0.667352,
+          0.664904
+        ],
+        [
+          0.681247,
+          0.648971
+        ]
+      ],
+      "centroid_board_px": [
+        624.654978,
+        569.275497
+      ],
+      "centroid_normalized": [
+        0.694061,
+        0.632528
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 845.144032,
+        "S1_top_right": 632.368147,
+        "S2_bottom_right": 430.341234,
+        "S3_bottom_left": 706.804456
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 796.680053,
+          "S1_top_right": 578.71818,
+          "S2_bottom_right": 486.546673,
+          "S3_bottom_left": 732.469822
+        },
+        {
+          "S0_top_left": 821.801918,
+          "S1_top_right": 564.129298,
+          "S2_bottom_right": 468.397622,
+          "S3_bottom_left": 759.28444
+        },
+        {
+          "S0_top_left": 884.401602,
+          "S1_top_right": 653.538834,
+          "S2_bottom_right": 390.226634,
+          "S3_bottom_left": 712.271024
+        },
+        {
+          "S0_top_left": 878.941295,
+          "S1_top_right": 680.40227,
+          "S2_bottom_right": 393.851792,
+          "S3_bottom_left": 681.696256
+        },
+        {
+          "S0_top_left": 847.843781,
+          "S1_top_right": 669.125974,
+          "S2_bottom_right": 424.952709,
+          "S3_bottom_left": 672.082074
+        },
+        {
+          "S0_top_left": 846.7948,
+          "S1_top_right": 650.724071,
+          "S2_bottom_right": 426.741144,
+          "S3_bottom_left": 689.730107
+        }
+      ],
+      "original_full_id": 41,
+      "source_region_id": 41
+    },
+    {
+      "name": "custom_rectangle",
+      "type": "custom_rectangle",
+      "group": "custom",
+      "original_id": 42,
+      "original_label": "42",
+      "polygon_board_px": [
+        [
+          647.9151,
+          504.929535
+        ],
+        [
+          676.096191,
+          504.929535
+        ],
+        [
+          676.096191,
+          600.369263
+        ],
+        [
+          647.9151,
+          600.369263
+        ]
+      ],
+      "id": 28,
+      "label": "28",
+      "polygon_board_normalized": [
+        [
+          0.719906,
+          0.561033
+        ],
+        [
+          0.751218,
+          0.561033
+        ],
+        [
+          0.751218,
+          0.667077
+        ],
+        [
+          0.719906,
+          0.667077
+        ]
+      ],
+      "centroid_board_px": [
+        662.005646,
+        552.649399
+      ],
+      "centroid_normalized": [
+        0.735562,
+        0.614055
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 862.364675,
+        "S1_top_right": 601.716437,
+        "S2_bottom_right": 421.062647,
+        "S3_bottom_left": 747.598766
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 821.430345,
+          "S1_top_right": 564.358602,
+          "S2_bottom_right": 468.644288,
+          "S3_bottom_left": 758.864052
+        },
+        {
+          "S0_top_left": 843.836415,
+          "S1_top_right": 552.346586,
+          "S2_bottom_right": 454.107463,
+          "S3_bottom_left": 783.062406
+        },
+        {
+          "S0_top_left": 904.184335,
+          "S1_top_right": 640.762177,
+          "S2_bottom_right": 374.047449,
+          "S3_bottom_left": 739.51649
+        },
+        {
+          "S0_top_left": 883.310381,
+          "S1_top_right": 651.145182,
+          "S2_bottom_right": 391.567843,
+          "S3_bottom_left": 713.843509
+        }
+      ],
+      "original_full_id": 42,
+      "source_region_id": 42
+    },
+    {
+      "name": "A1_right_arm_cell_r3_c2",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 43,
+      "original_label": "43",
+      "polygon_board_px": [
+        [
+          673.364746,
+          506.923706
+        ],
+        [
+          710.010925,
+          506.923706
+        ],
+        [
+          710.010925,
+          599.921204
+        ],
+        [
+          673.364746,
+          599.921204
+        ]
+      ],
+      "id": 29,
+      "label": "29",
+      "polygon_board_normalized": [
+        [
+          0.748183,
+          0.563249
+        ],
+        [
+          0.788901,
+          0.563249
+        ],
+        [
+          0.788901,
+          0.666579
+        ],
+        [
+          0.748183,
+          0.666579
+        ]
+      ],
+      "centroid_board_px": [
+        691.687836,
+        553.422455
+      ],
+      "centroid_normalized": [
+        0.768542,
+        0.614914
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 885.837725,
+        "S1_top_right": 591.329326,
+        "S2_bottom_right": 404.363639,
+        "S3_bottom_left": 773.658876
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 842.847391,
+          "S1_top_right": 555.279373,
+          "S2_bottom_right": 453.731761,
+          "S3_bottom_left": 779.698053
+        },
+        {
+          "S0_top_left": 872.403094,
+          "S1_top_right": 541.357084,
+          "S2_bottom_right": 436.583121,
+          "S3_bottom_left": 811.556829
+        },
+        {
+          "S0_top_left": 929.52728,
+          "S1_top_right": 629.286341,
+          "S2_bottom_right": 355.166345,
+          "S3_bottom_left": 770.819563
+        },
+        {
+          "S0_top_left": 901.845625,
+          "S1_top_right": 641.302572,
+          "S2_bottom_right": 376.046303,
+          "S3_bottom_left": 737.202391
+        }
+      ],
+      "original_full_id": 43,
+      "source_region_id": 43
+    },
+    {
+      "name": "A1_right_arm_cell_r3_c1",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 44,
+      "original_label": "44",
+      "polygon_board_px": [
+        [
+          708.351318,
+          506.69397
+        ],
+        [
+          739.45874,
+          506.69397
+        ],
+        [
+          739.45874,
+          599.367126
+        ],
+        [
+          708.351318,
+          599.367126
+        ]
+      ],
+      "id": 30,
+      "label": "30",
+      "polygon_board_normalized": [
+        [
+          0.787057,
+          0.562993
+        ],
+        [
+          0.821621,
+          0.562993
+        ],
+        [
+          0.821621,
+          0.665963
+        ],
+        [
+          0.787057,
+          0.665963
+        ]
+      ],
+      "centroid_board_px": [
+        723.905029,
+        553.030548
+      ],
+      "centroid_normalized": [
+        0.804339,
+        0.614478
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 910.978199,
+        "S1_top_right": 580.389719,
+        "S2_bottom_right": 389.097982,
+        "S3_bottom_left": 802.761666
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 870.919267,
+          "S1_top_right": 541.726865,
+          "S2_bottom_right": 437.5144,
+          "S3_bottom_left": 810.216776
+        },
+        {
+          "S0_top_left": 896.402815,
+          "S1_top_right": 531.518838,
+          "S2_bottom_right": 424.809521,
+          "S3_bottom_left": 837.549319
+        },
+        {
+          "S0_top_left": 951.861429,
+          "S1_top_right": 620.495325,
+          "S2_bottom_right": 340.813176,
+          "S3_bottom_left": 798.235149
+        },
+        {
+          "S0_top_left": 927.902227,
+          "S1_top_right": 629.261607,
+          "S2_bottom_right": 356.523971,
+          "S3_bottom_left": 769.50745
+        }
+      ],
+      "original_full_id": 44,
+      "source_region_id": 44
+    },
+    {
+      "name": "A1_right_arm_cell_r3_c3",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 45,
+      "original_label": "45",
+      "polygon_board_px": [
+        [
+          738.069885,
+          505.926514
+        ],
+        [
+          770.50885,
+          505.926514
+        ],
+        [
+          770.50885,
+          599.655212
+        ],
+        [
+          738.069885,
+          599.655212
+        ]
+      ],
+      "id": 31,
+      "label": "31",
+      "polygon_board_normalized": [
+        [
+          0.820078,
+          0.562141
+        ],
+        [
+          0.856121,
+          0.562141
+        ],
+        [
+          0.856121,
+          0.666284
+        ],
+        [
+          0.820078,
+          0.666284
+        ]
+      ],
+      "centroid_board_px": [
+        754.289368,
+        552.790863
+      ],
+      "centroid_normalized": [
+        0.838099,
+        0.614212
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 935.163188,
+        "S1_top_right": 571.672394,
+        "S2_bottom_right": 376.544517,
+        "S3_bottom_left": 830.365362
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 894.82333,
+          "S1_top_right": 531.208998,
+          "S2_bottom_right": 426.046095,
+          "S3_bottom_left": 836.684569
+        },
+        {
+          "S0_top_left": 921.762185,
+          "S1_top_right": 522.235191,
+          "S2_bottom_right": 414.803412,
+          "S3_bottom_left": 865.435036
+        },
+        {
+          "S0_top_left": 976.355602,
+          "S1_top_right": 613.477246,
+          "S2_bottom_right": 327.070251,
+          "S3_bottom_left": 826.976952
+        },
+        {
+          "S0_top_left": 950.964526,
+          "S1_top_right": 621.134233,
+          "S2_bottom_right": 341.215992,
+          "S3_bottom_left": 796.840101
+        }
+      ],
+      "original_full_id": 45,
+      "source_region_id": 45
+    },
+    {
+      "name": "A1_right_arm_cell_r3_c4",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 46,
+      "original_label": "46",
+      "polygon_board_px": [
+        [
+          770.058228,
+          507.788055
+        ],
+        [
+          800.399902,
+          507.788055
+        ],
+        [
+          800.399902,
+          600.757751
+        ],
+        [
+          770.058228,
+          600.757751
+        ]
+      ],
+      "id": 32,
+      "label": "32",
+      "polygon_board_normalized": [
+        [
+          0.85562,
+          0.564209
+        ],
+        [
+          0.889333,
+          0.564209
+        ],
+        [
+          0.889333,
+          0.667509
+        ],
+        [
+          0.85562,
+          0.667509
+        ]
+      ],
+      "centroid_board_px": [
+        785.229065,
+        554.272903
+      ],
+      "centroid_normalized": [
+        0.872477,
+        0.615859
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 961.146782,
+        "S1_top_right": 566.030758,
+        "S2_bottom_right": 364.279553,
+        "S3_bottom_left": 857.969644
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 922.409011,
+          "S1_top_right": 524.150335,
+          "S2_bottom_right": 413.176807,
+          "S3_bottom_left": 864.187412
+        },
+        {
+          "S0_top_left": 947.886445,
+          "S1_top_right": 517.463901,
+          "S2_bottom_right": 404.660832,
+          "S3_bottom_left": 891.330586
+        },
+        {
+          "S0_top_left": 1000.77464,
+          "S1_top_right": 608.958172,
+          "S2_bottom_right": 315.382471,
+          "S3_bottom_left": 854.509173
+        },
+        {
+          "S0_top_left": 976.677813,
+          "S1_top_right": 614.650096,
+          "S2_bottom_right": 326.237318,
+          "S3_bottom_left": 826.157126
+        }
+      ],
+      "original_full_id": 46,
+      "source_region_id": 46
+    },
+    {
+      "name": "A1_right_arm_cell_r3_c5",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 47,
+      "original_label": "47",
+      "polygon_board_px": [
+        [
+          798.719604,
+          508.029816
+        ],
+        [
+          835.736206,
+          508.029816
+        ],
+        [
+          835.736206,
+          600.257568
+        ],
+        [
+          798.719604,
+          600.257568
+        ]
+      ],
+      "id": 33,
+      "label": "33",
+      "polygon_board_normalized": [
+        [
+          0.887466,
+          0.564478
+        ],
+        [
+          0.928596,
+          0.564478
+        ],
+        [
+          0.928596,
+          0.666953
+        ],
+        [
+          0.887466,
+          0.666953
+        ]
+      ],
+      "centroid_board_px": [
+        817.227905,
+        554.143692
+      ],
+      "centroid_normalized": [
+        0.908031,
+        0.615715
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 987.388819,
+        "S1_top_right": 560.291398,
+        "S2_bottom_right": 355.623123,
+        "S3_bottom_left": 887.399591
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 946.59775,
+          "S1_top_right": 518.027038,
+          "S2_bottom_right": 404.843604,
+          "S3_bottom_left": 889.715478
+        },
+        {
+          "S0_top_left": 978.033384,
+          "S1_top_right": 512.078245,
+          "S2_bottom_right": 397.203299,
+          "S3_bottom_left": 923.090262
+        },
+        {
+          "S0_top_left": 1028.962659,
+          "S1_top_right": 603.68782,
+          "S2_bottom_right": 306.554009,
+          "S3_bottom_left": 887.862901
+        },
+        {
+          "S0_top_left": 999.1307,
+          "S1_top_right": 608.742036,
+          "S2_bottom_right": 316.390967,
+          "S3_bottom_left": 853.11109
+        }
+      ],
+      "original_full_id": 47,
+      "source_region_id": 47
+    },
+    {
+      "name": "A1_right_arm_cell_r3_c6",
+      "type": "path_cell",
+      "group": "A1_right_arm",
+      "original_id": 48,
+      "original_label": "48",
+      "polygon_board_px": [
+        [
+          830.295776,
+          506.652435
+        ],
+        [
+          864.370605,
+          506.652435
+        ],
+        [
+          864.370605,
+          601.390076
+        ],
+        [
+          830.295776,
+          601.390076
+        ]
+      ],
+      "id": 34,
+      "label": "34",
+      "polygon_board_normalized": [
+        [
+          0.922551,
+          0.562947
+        ],
+        [
+          0.960412,
+          0.562947
+        ],
+        [
+          0.960412,
+          0.668211
+        ],
+        [
+          0.922551,
+          0.668211
+        ]
+      ],
+      "centroid_board_px": [
+        847.333191,
+        554.021255
+      ],
+      "centroid_normalized": [
+        0.941481,
+        0.615579
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 1012.379913,
+        "S1_top_right": 556.518952,
+        "S2_bottom_right": 349.964405,
+        "S3_bottom_left": 915.245775
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 972.670431,
+          "S1_top_right": 511.424842,
+          "S2_bottom_right": 399.475888,
+          "S3_bottom_left": 918.756433
+        },
+        {
+          "S0_top_left": 1001.914784,
+          "S1_top_right": 507.903676,
+          "S2_bottom_right": 394.957922,
+          "S3_bottom_left": 949.662493
+        },
+        {
+          "S0_top_left": 1052.998845,
+          "S1_top_right": 602.444584,
+          "S2_bottom_right": 300.728018,
+          "S3_bottom_left": 914.496818
+        },
+        {
+          "S0_top_left": 1025.212709,
+          "S1_top_right": 605.416139,
+          "S2_bottom_right": 306.637515,
+          "S3_bottom_left": 882.359883
+        }
+      ],
+      "original_full_id": 48,
+      "source_region_id": 48
+    },
+    {
+      "name": "custom_irregular_8",
+      "type": "irregular_home_adjacent",
+      "group": "custom_irregular_8",
+      "original_id": 49,
+      "original_label": "49",
+      "polygon_board_px": [
+        [
+          302.100311,
+          639.543823
+        ],
+        [
+          398.04007,
+          638.879089
+        ],
+        [
+          398.437469,
+          611.390747
+        ],
+        [
+          320.752533,
+          610.762146
+        ],
+        [
+          304.170319,
+          598.661438
+        ],
+        [
+          279.608978,
+          623.11499
+        ]
+      ],
+      "id": 35,
+      "label": "35",
+      "polygon_board_normalized": [
+        [
+          0.335667,
+          0.710604
+        ],
+        [
+          0.442267,
+          0.709866
+        ],
+        [
+          0.442708,
+          0.679323
+        ],
+        [
+          0.356392,
+          0.678625
+        ],
+        [
+          0.337967,
+          0.665179
+        ],
+        [
+          0.310677,
+          0.69235
+        ]
+      ],
+      "centroid_board_px": [
+        333.851613,
+        620.392039
+      ],
+      "centroid_normalized": [
+        0.370946,
+        0.689324
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 704.516275,
+        "S1_top_right": 839.887062,
+        "S2_bottom_right": 631.430604,
+        "S3_bottom_left": 435.473893
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 707.30538,
+          "S1_top_right": 875.500051,
+          "S2_bottom_right": 652.166741,
+          "S3_bottom_left": 398.875943
+        },
+        {
+          "S0_top_left": 752.729957,
+          "S1_top_right": 812.484008,
+          "S2_bottom_right": 565.816138,
+          "S3_bottom_left": 476.046245
+        },
+        {
+          "S0_top_left": 729.760963,
+          "S1_top_right": 790.799354,
+          "S2_bottom_right": 578.671127,
+          "S3_bottom_left": 491.983453
+        },
+        {
+          "S0_top_left": 689.86418,
+          "S1_top_right": 841.758889,
+          "S2_bottom_right": 647.445877,
+          "S3_bottom_left": 431.903605
+        },
+        {
+          "S0_top_left": 671.502122,
+          "S1_top_right": 844.635144,
+          "S2_bottom_right": 667.695992,
+          "S3_bottom_left": 428.164118
+        },
+        {
+          "S0_top_left": 682.973991,
+          "S1_top_right": 879.293643,
+          "S2_bottom_right": 679.374954,
+          "S3_bottom_left": 393.505387
+        }
+      ],
+      "original_full_id": 49,
+      "source_region_id": 49
+    },
+    {
+      "name": "custom_irregular_5",
+      "type": "irregular_home_adjacent",
+      "group": "custom_irregular_5",
+      "original_id": 51,
+      "original_label": "51",
+      "polygon_board_px": [
+        [
+          583.572754,
+          612.37616
+        ],
+        [
+          599.3703,
+          598.908264
+        ],
+        [
+          622.496216,
+          620.637146
+        ],
+        [
+          599.023315,
+          638.714539
+        ],
+        [
+          499.454681,
+          637.972229
+        ],
+        [
+          499.303284,
+          612.747559
+        ]
+      ],
+      "id": 36,
+      "label": "36",
+      "polygon_board_normalized": [
+        [
+          0.648414,
+          0.680418
+        ],
+        [
+          0.665967,
+          0.665454
+        ],
+        [
+          0.691662,
+          0.689597
+        ],
+        [
+          0.665581,
+          0.709683
+        ],
+        [
+          0.55495,
+          0.708858
+        ],
+        [
+          0.554781,
+          0.680831
+        ]
+      ],
+      "centroid_board_px": [
+        567.203425,
+        620.225983
+      ],
+      "centroid_normalized": [
+        0.630226,
+        0.68914
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 840.476053,
+        "S1_top_right": 703.870606,
+        "S2_bottom_right": 434.772424,
+        "S3_bottom_left": 632.450177
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 845.908813,
+          "S1_top_right": 689.297297,
+          "S2_bottom_right": 427.613933,
+          "S3_bottom_left": 650.603284
+        },
+        {
+          "S0_top_left": 847.310962,
+          "S1_top_right": 670.12635,
+          "S2_bottom_right": 425.481433,
+          "S3_bottom_left": 670.746592
+        },
+        {
+          "S0_top_left": 879.029013,
+          "S1_top_right": 679.852055,
+          "S2_bottom_right": 393.76637,
+          "S3_bottom_left": 682.308686
+        },
+        {
+          "S0_top_left": 875.662717,
+          "S1_top_right": 706.075935,
+          "S2_bottom_right": 398.568761,
+          "S3_bottom_left": 653.528136
+        },
+        {
+          "S0_top_left": 810.224379,
+          "S1_top_right": 753.289531,
+          "S2_bottom_right": 478.638804,
+          "S3_bottom_left": 564.015542
+        },
+        {
+          "S0_top_left": 790.419724,
+          "S1_top_right": 732.132112,
+          "S2_bottom_right": 493.023147,
+          "S3_bottom_left": 576.036226
+        }
+      ],
+      "original_full_id": 51,
+      "source_region_id": 51
+    },
+    {
+      "name": "A2_bottom_arm_cell_r1_c1",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 52,
+      "original_label": "52",
+      "polygon_board_px": [
+        [
+          300.6586,
+          639.107178
+        ],
+        [
+          397.989807,
+          639.107178
+        ],
+        [
+          397.989807,
+          671.211853
+        ],
+        [
+          300.6586,
+          671.211853
+        ]
+      ],
+      "id": 37,
+      "label": "37",
+      "polygon_board_normalized": [
+        [
+          0.334065,
+          0.710119
+        ],
+        [
+          0.442211,
+          0.710119
+        ],
+        [
+          0.442211,
+          0.745791
+        ],
+        [
+          0.334065,
+          0.745791
+        ]
+      ],
+      "centroid_board_px": [
+        349.324203,
+        655.159515
+      ],
+      "centroid_normalized": [
+        0.388138,
+        0.727955
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 742.46979,
+        "S1_top_right": 855.849183,
+        "S2_bottom_right": 602.653048,
+        "S3_bottom_left": 426.584414
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 706.295673,
+          "S1_top_right": 876.166707,
+          "S2_bottom_right": 653.662894,
+          "S3_bottom_left": 398.071173
+        },
+        {
+          "S0_top_left": 752.896986,
+          "S1_top_right": 812.694419,
+          "S2_bottom_right": 565.755511,
+          "S3_bottom_left": 475.879135
+        },
+        {
+          "S0_top_left": 780.334056,
+          "S1_top_right": 838.176345,
+          "S2_bottom_right": 551.686732,
+          "S3_bottom_left": 459.06416
+        },
+        {
+          "S0_top_left": 735.47328,
+          "S1_top_right": 899.853024,
+          "S2_bottom_right": 641.524848,
+          "S3_bottom_left": 377.808959
+        }
+      ],
+      "original_full_id": 52,
+      "source_region_id": 52
+    },
+    {
+      "name": "H2_bottom_home_r6_c1",
+      "type": "home_lane_cell",
+      "group": "H2_bottom",
+      "original_id": 54,
+      "original_label": "54",
+      "polygon_board_px": [
+        [
+          496.429504,
+          638.740601
+        ],
+        [
+          597.041382,
+          638.740601
+        ],
+        [
+          597.041382,
+          670.036316
+        ],
+        [
+          496.429504,
+          670.036316
+        ]
+      ],
+      "id": 38,
+      "label": "38",
+      "polygon_board_normalized": [
+        [
+          0.551588,
+          0.709712
+        ],
+        [
+          0.663379,
+          0.709712
+        ],
+        [
+          0.663379,
+          0.744485
+        ],
+        [
+          0.551588,
+          0.744485
+        ]
+      ],
+      "centroid_board_px": [
+        546.735443,
+        654.388458
+      ],
+      "centroid_normalized": [
+        0.607484,
+        0.727098
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 852.72733,
+        "S1_top_right": 743.653213,
+        "S2_bottom_right": 430.256757,
+        "S3_bottom_left": 599.370231
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 808.969596,
+          "S1_top_right": 755.551917,
+          "S2_bottom_right": 480.755259,
+          "S3_bottom_left": 560.980148
+        },
+        {
+          "S0_top_left": 874.327151,
+          "S1_top_right": 706.946589,
+          "S2_bottom_right": 400.050494,
+          "S3_bottom_left": 651.701531
+        },
+        {
+          "S0_top_left": 897.444748,
+          "S1_top_right": 735.345218,
+          "S2_bottom_right": 380.351443,
+          "S3_bottom_left": 639.798177
+        },
+        {
+          "S0_top_left": 833.901024,
+          "S1_top_right": 782.187835,
+          "S2_bottom_right": 464.491594,
+          "S3_bottom_left": 547.106524
+        }
+      ],
+      "original_full_id": 54,
+      "source_region_id": 54
+    },
+    {
+      "name": "A2_bottom_arm_cell_r2_c1",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 55,
+      "original_label": "55",
+      "polygon_board_px": [
+        [
+          300.964783,
+          671.28656
+        ],
+        [
+          397.188629,
+          671.28656
+        ],
+        [
+          397.188629,
+          698.853882
+        ],
+        [
+          300.964783,
+          698.853882
+        ]
+      ],
+      "id": 39,
+      "label": "39",
+      "polygon_board_normalized": [
+        [
+          0.334405,
+          0.745874
+        ],
+        [
+          0.441321,
+          0.745874
+        ],
+        [
+          0.441321,
+          0.776504
+        ],
+        [
+          0.334405,
+          0.776504
+        ]
+      ],
+      "centroid_board_px": [
+        349.076706,
+        685.070221
+      ],
+      "centroid_normalized": [
+        0.387863,
+        0.761189
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 768.879545,
+        "S1_top_right": 879.111872,
+        "S2_bottom_right": 591.36392,
+        "S3_bottom_left": 409.938235
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 735.666668,
+          "S1_top_right": 899.704861,
+          "S2_bottom_right": 641.212156,
+          "S3_bottom_left": 378.007458
+        },
+        {
+          "S0_top_left": 779.990034,
+          "S1_top_right": 838.716234,
+          "S2_bottom_right": 552.384931,
+          "S3_bottom_left": 458.332461
+        },
+        {
+          "S0_top_left": 803.838016,
+          "S1_top_right": 860.939035,
+          "S2_bottom_right": 541.552431,
+          "S3_bottom_left": 445.217439
+        },
+        {
+          "S0_top_left": 760.905085,
+          "S1_top_right": 920.456376,
+          "S2_bottom_right": 631.904227,
+          "S3_bottom_left": 361.993869
+        }
+      ],
+      "original_full_id": 55,
+      "source_region_id": 55
+    },
+    {
+      "name": "A2_bottom_arm_cell_r1_c3",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 57,
+      "original_label": "57",
+      "polygon_board_px": [
+        [
+          497.23056,
+          668.384033
+        ],
+        [
+          596.659302,
+          668.384033
+        ],
+        [
+          596.659302,
+          698.514343
+        ],
+        [
+          497.23056,
+          698.514343
+        ]
+      ],
+      "id": 40,
+      "label": "40",
+      "polygon_board_normalized": [
+        [
+          0.552478,
+          0.742649
+        ],
+        [
+          0.662955,
+          0.742649
+        ],
+        [
+          0.662955,
+          0.776127
+        ],
+        [
+          0.552478,
+          0.776127
+        ]
+      ],
+      "centroid_board_px": [
+        546.944931,
+        683.449188
+      ],
+      "centroid_normalized": [
+        0.607717,
+        0.759388
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 875.357956,
+        "S1_top_right": 769.253323,
+        "S2_bottom_right": 414.176455,
+        "S3_bottom_left": 588.254207
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 833.051887,
+          "S1_top_right": 780.359172,
+          "S2_bottom_right": 464.617238,
+          "S3_bottom_left": 548.529112
+        },
+        {
+          "S0_top_left": 895.957331,
+          "S1_top_right": 733.997817,
+          "S2_bottom_right": 381.656305,
+          "S3_bottom_left": 640.037716
+        },
+        {
+          "S0_top_left": 918.653694,
+          "S1_top_right": 761.536517,
+          "S2_bottom_right": 364.159373,
+          "S3_bottom_left": 629.760901
+        },
+        {
+          "S0_top_left": 857.415021,
+          "S1_top_right": 806.316011,
+          "S2_bottom_right": 450.355073,
+          "S3_bottom_left": 536.502283
+        }
+      ],
+      "original_full_id": 57,
+      "source_region_id": 57
+    },
+    {
+      "name": "A2_bottom_arm_cell_r3_c1",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 58,
+      "original_label": "58",
+      "polygon_board_px": [
+        [
+          301.031708,
+          698.384033
+        ],
+        [
+          397.460876,
+          698.384033
+        ],
+        [
+          397.460876,
+          728.877136
+        ],
+        [
+          301.031708,
+          728.877136
+        ]
+      ],
+      "id": 41,
+      "label": "41",
+      "polygon_board_normalized": [
+        [
+          0.33448,
+          0.775982
+        ],
+        [
+          0.441623,
+          0.775982
+        ],
+        [
+          0.441623,
+          0.809863
+        ],
+        [
+          0.33448,
+          0.809863
+        ]
+      ],
+      "centroid_board_px": [
+        349.246292,
+        713.630585
+      ],
+      "centroid_normalized": [
+        0.388051,
+        0.792923
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 794.507133,
+        "S1_top_right": 901.442321,
+        "S2_bottom_right": 581.43203,
+        "S3_bottom_left": 395.861758
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 760.500064,
+          "S1_top_right": 920.056125,
+          "S2_bottom_right": 631.990517,
+          "S3_bottom_left": 362.31076
+        },
+        {
+          "S0_top_left": 803.564189,
+          "S1_top_right": 860.398645,
+          "S2_bottom_right": 541.47444,
+          "S3_bottom_left": 445.67269
+        },
+        {
+          "S0_top_left": 830.203004,
+          "S1_top_right": 885.329007,
+          "S2_bottom_right": 530.87532,
+          "S3_bottom_left": 432.733385
+        },
+        {
+          "S0_top_left": 788.594933,
+          "S1_top_right": 943.411307,
+          "S2_bottom_right": 622.933423,
+          "S3_bottom_left": 346.270304
+        }
+      ],
+      "original_full_id": 58,
+      "source_region_id": 58
+    },
+    {
+      "name": "A2_bottom_arm_cell_r2_c3",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 60,
+      "original_label": "60",
+      "polygon_board_px": [
+        [
+          496.568604,
+          698.352783
+        ],
+        [
+          596.552612,
+          698.352783
+        ],
+        [
+          596.552612,
+          728.078613
+        ],
+        [
+          496.568604,
+          728.078613
+        ]
+      ],
+      "id": 42,
+      "label": "42",
+      "polygon_board_normalized": [
+        [
+          0.551743,
+          0.775948
+        ],
+        [
+          0.662836,
+          0.775948
+        ],
+        [
+          0.662836,
+          0.808976
+        ],
+        [
+          0.551743,
+          0.808976
+        ]
+      ],
+      "centroid_board_px": [
+        546.560608,
+        713.215698
+      ],
+      "centroid_normalized": [
+        0.60729,
+        0.792462
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 898.557249,
+        "S1_top_right": 795.98746,
+        "S2_bottom_right": 399.759652,
+        "S3_bottom_left": 577.59577
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 856.899637,
+          "S1_top_right": 806.506975,
+          "S2_bottom_right": 451.019392,
+          "S3_bottom_left": 535.949604
+        },
+        {
+          "S0_top_left": 918.461556,
+          "S1_top_right": 761.430842,
+          "S2_bottom_right": 364.337642,
+          "S3_bottom_left": 629.711537
+        },
+        {
+          "S0_top_left": 941.261646,
+          "S1_top_right": 788.783103,
+          "S2_bottom_right": 348.765366,
+          "S3_bottom_left": 620.831686
+        },
+        {
+          "S0_top_left": 881.293847,
+          "S1_top_right": 832.379336,
+          "S2_bottom_right": 438.536036,
+          "S3_bottom_left": 525.487717
+        }
+      ],
+      "original_full_id": 60,
+      "source_region_id": 60
+    },
+    {
+      "name": "A2_bottom_arm_cell_r4_c1",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 61,
+      "original_label": "61",
+      "polygon_board_px": [
+        [
+          301.508698,
+          727.264038
+        ],
+        [
+          397.212799,
+          727.264038
+        ],
+        [
+          397.212799,
+          757.342407
+        ],
+        [
+          301.508698,
+          757.342407
+        ]
+      ],
+      "id": 43,
+      "label": "43",
+      "polygon_board_normalized": [
+        [
+          0.33501,
+          0.808071
+        ],
+        [
+          0.441348,
+          0.808071
+        ],
+        [
+          0.441348,
+          0.841492
+        ],
+        [
+          0.33501,
+          0.841492
+        ]
+      ],
+      "centroid_board_px": [
+        349.360748,
+        742.303223
+      ],
+      "centroid_normalized": [
+        0.388179,
+        0.824781
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 820.406611,
+        "S1_top_right": 924.238963,
+        "S2_bottom_right": 572.775575,
+        "S3_bottom_left": 383.303021
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 787.286781,
+          "S1_top_right": 941.862421,
+          "S2_bottom_right": 622.920181,
+          "S3_bottom_left": 347.484111
+        },
+        {
+          "S0_top_left": 828.668202,
+          "S1_top_right": 884.142494,
+          "S2_bottom_right": 531.632093,
+          "S3_bottom_left": 433.146304
+        },
+        {
+          "S0_top_left": 855.187424,
+          "S1_top_right": 909.044824,
+          "S2_bottom_right": 522.633866,
+          "S3_bottom_left": 422.053547
+        },
+        {
+          "S0_top_left": 815.15337,
+          "S1_top_right": 965.276831,
+          "S2_bottom_right": 615.258505,
+          "S3_bottom_left": 333.554618
+        }
+      ],
+      "original_full_id": 61,
+      "source_region_id": 61
+    },
+    {
+      "name": "A2_bottom_arm_cell_r3_c3",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 63,
+      "original_label": "63",
+      "polygon_board_px": [
+        [
+          497.509186,
+          727.005188
+        ],
+        [
+          596.078979,
+          727.005188
+        ],
+        [
+          596.078979,
+          757.924744
+        ],
+        [
+          497.509186,
+          757.924744
+        ]
+      ],
+      "id": 44,
+      "label": "44",
+      "polygon_board_normalized": [
+        [
+          0.552788,
+          0.807784
+        ],
+        [
+          0.66231,
+          0.807784
+        ],
+        [
+          0.66231,
+          0.842139
+        ],
+        [
+          0.552788,
+          0.842139
+        ]
+      ],
+      "centroid_board_px": [
+        546.794083,
+        742.464966
+      ],
+      "centroid_normalized": [
+        0.607549,
+        0.824961
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 922.083507,
+        "S1_top_right": 822.197449,
+        "S2_bottom_right": 386.745016,
+        "S3_bottom_left": 569.035197
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 880.938098,
+          "S1_top_right": 830.984596,
+          "S2_bottom_right": 438.093666,
+          "S3_bottom_left": 526.728198
+        },
+        {
+          "S0_top_left": 940.131211,
+          "S1_top_right": 787.974955,
+          "S2_bottom_right": 349.707294,
+          "S3_bottom_left": 620.674919
+        },
+        {
+          "S0_top_left": 964.240669,
+          "S1_top_right": 816.589189,
+          "S2_bottom_right": 335.489739,
+          "S3_bottom_left": 612.776899
+        },
+        {
+          "S0_top_left": 906.623024,
+          "S1_top_right": 858.165935,
+          "S2_bottom_right": 426.830451,
+          "S3_bottom_left": 517.398075
+        }
+      ],
+      "original_full_id": 63,
+      "source_region_id": 63
+    },
+    {
+      "name": "A2_bottom_arm_cell_r5_c1",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 64,
+      "original_label": "64",
+      "polygon_board_px": [
+        [
+          300.986359,
+          758.197876
+        ],
+        [
+          399.248322,
+          758.197876
+        ],
+        [
+          399.248322,
+          788.067261
+        ],
+        [
+          300.986359,
+          788.067261
+        ]
+      ],
+      "id": 45,
+      "label": "45",
+      "polygon_board_normalized": [
+        [
+          0.334429,
+          0.842442
+        ],
+        [
+          0.443609,
+          0.842442
+        ],
+        [
+          0.443609,
+          0.87563
+        ],
+        [
+          0.334429,
+          0.87563
+        ]
+      ],
+      "centroid_board_px": [
+        350.11734,
+        773.132568
+      ],
+      "centroid_normalized": [
+        0.389019,
+        0.859036
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 848.714393,
+        "S1_top_right": 948.738588,
+        "S2_bottom_right": 564.328171,
+        "S3_bottom_left": 372.394276
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 815.75536,
+          "S1_top_right": 966.271888,
+          "S2_bottom_right": 615.568993,
+          "S3_bottom_left": 332.717043
+        },
+        {
+          "S0_top_left": 856.891616,
+          "S1_top_right": 908.634284,
+          "S2_bottom_right": 520.442202,
+          "S3_bottom_left": 423.682741
+        },
+        {
+          "S0_top_left": 883.430376,
+          "S1_top_right": 933.703513,
+          "S2_bottom_right": 513.109327,
+          "S3_bottom_left": 414.642208
+        },
+        {
+          "S0_top_left": 843.589234,
+          "S1_top_right": 989.882493,
+          "S2_bottom_right": 609.381884,
+          "S3_bottom_left": 321.125717
+        }
+      ],
+      "original_full_id": 64,
+      "source_region_id": 64
+    },
+    {
+      "name": "A2_bottom_arm_cell_r4_c3",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 66,
+      "original_label": "66",
+      "polygon_board_px": [
+        [
+          496.117615,
+          757.938354
+        ],
+        [
+          596.434692,
+          757.938354
+        ],
+        [
+          596.434692,
+          787.469116
+        ],
+        [
+          496.117615,
+          787.469116
+        ]
+      ],
+      "id": 46,
+      "label": "46",
+      "polygon_board_normalized": [
+        [
+          0.551242,
+          0.842154
+        ],
+        [
+          0.662705,
+          0.842154
+        ],
+        [
+          0.662705,
+          0.874966
+        ],
+        [
+          0.551242,
+          0.874966
+        ]
+      ],
+      "centroid_board_px": [
+        546.276154,
+        772.703735
+      ],
+      "centroid_normalized": [
+        0.606974,
+        0.85856
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 946.302646,
+        "S1_top_right": 849.818582,
+        "S2_bottom_right": 375.93204,
+        "S3_bottom_left": 560.911735
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 905.871534,
+          "S1_top_right": 858.831491,
+          "S2_bottom_right": 428.138403,
+          "S3_bottom_left": 516.056391
+        },
+        {
+          "S0_top_left": 964.471302,
+          "S1_top_right": 816.4695,
+          "S2_bottom_right": 335.161763,
+          "S3_bottom_left": 613.119771
+        },
+        {
+          "S0_top_left": 987.84713,
+          "S1_top_right": 843.954682,
+          "S2_bottom_right": 323.751596,
+          "S3_bottom_left": 606.957611
+        },
+        {
+          "S0_top_left": 930.720311,
+          "S1_top_right": 885.002028,
+          "S2_bottom_right": 419.266241,
+          "S3_bottom_left": 508.719852
+        }
+      ],
+      "original_full_id": 66,
+      "source_region_id": 66
+    },
+    {
+      "name": "A2_bottom_arm_cell_r6_c1",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 67,
+      "original_label": "67",
+      "polygon_board_px": [
+        [
+          300.658081,
+          787.163391
+        ],
+        [
+          398.478882,
+          787.163391
+        ],
+        [
+          398.478882,
+          817.886841
+        ],
+        [
+          300.658081,
+          817.886841
+        ]
+      ],
+      "id": 47,
+      "label": "47",
+      "polygon_board_normalized": [
+        [
+          0.334065,
+          0.874626
+        ],
+        [
+          0.442754,
+          0.874626
+        ],
+        [
+          0.442754,
+          0.908763
+        ],
+        [
+          0.334065,
+          0.908763
+        ]
+      ],
+      "centroid_board_px": [
+        349.568481,
+        802.525116
+      ],
+      "centroid_normalized": [
+        0.388409,
+        0.891695
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 875.354034,
+        "S1_top_right": 973.150255,
+        "S2_bottom_right": 558.995715,
+        "S3_bottom_left": 362.904225
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 842.627727,
+          "S1_top_right": 989.361885,
+          "S2_bottom_right": 609.871164,
+          "S3_bottom_left": 321.134523
+        },
+        {
+          "S0_top_left": 882.276387,
+          "S1_top_right": 933.353972,
+          "S2_bottom_right": 514.057908,
+          "S3_bottom_left": 414.146737
+        },
+        {
+          "S0_top_left": 909.79355,
+          "S1_top_right": 959.407273,
+          "S2_bottom_right": 508.198783,
+          "S3_bottom_left": 406.851312
+        },
+        {
+          "S0_top_left": 871.397823,
+          "S1_top_right": 1013.97713,
+          "S2_bottom_right": 604.940746,
+          "S3_bottom_left": 311.669461
+        }
+      ],
+      "original_full_id": 67,
+      "source_region_id": 67
+    },
+    {
+      "name": "A2_bottom_arm_cell_r5_c3",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 69,
+      "original_label": "69",
+      "polygon_board_px": [
+        [
+          496.136353,
+          786.154114
+        ],
+        [
+          595.94635,
+          786.154114
+        ],
+        [
+          595.94635,
+          816.402161
+        ],
+        [
+          496.136353,
+          816.402161
+        ]
+      ],
+      "id": 48,
+      "label": "48",
+      "polygon_board_normalized": [
+        [
+          0.551263,
+          0.873505
+        ],
+        [
+          0.662163,
+          0.873505
+        ],
+        [
+          0.662163,
+          0.907114
+        ],
+        [
+          0.551263,
+          0.907114
+        ]
+      ],
+      "centroid_board_px": [
+        546.041351,
+        801.278137
+      ],
+      "centroid_normalized": [
+        0.606713,
+        0.890309
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 969.643136,
+        "S1_top_right": 875.975672,
+        "S2_bottom_right": 367.468,
+        "S3_bottom_left": 554.893831
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 929.61797,
+          "S1_top_right": 883.823589,
+          "S2_bottom_right": 419.603064,
+          "S3_bottom_left": 509.030614
+        },
+        {
+          "S0_top_left": 986.504102,
+          "S1_top_right": 842.903857,
+          "S2_bottom_right": 324.668304,
+          "S3_bottom_left": 606.723115
+        },
+        {
+          "S0_top_left": 1010.774228,
+          "S1_top_right": 871.183741,
+          "S2_bottom_right": 315.336678,
+          "S3_bottom_left": 601.781232
+        },
+        {
+          "S0_top_left": 955.334375,
+          "S1_top_right": 910.833867,
+          "S2_bottom_right": 412.425077,
+          "S3_bottom_left": 503.130082
+        }
+      ],
+      "original_full_id": 69,
+      "source_region_id": 69
+    },
+    {
+      "name": "H2_bottom_home_r4_c1",
+      "type": "home_lane_cell",
+      "group": "H2_bottom",
+      "original_id": 70,
+      "original_label": "70",
+      "polygon_board_px": [
+        [
+          300.604797,
+          817.750305
+        ],
+        [
+          398.757202,
+          817.750305
+        ],
+        [
+          398.757202,
+          846.753723
+        ],
+        [
+          300.604797,
+          846.753723
+        ]
+      ],
+      "id": 49,
+      "label": "49",
+      "polygon_board_normalized": [
+        [
+          0.334005,
+          0.908611
+        ],
+        [
+          0.443064,
+          0.908611
+        ],
+        [
+          0.443064,
+          0.940837
+        ],
+        [
+          0.334005,
+          0.940837
+        ]
+      ],
+      "centroid_board_px": [
+        349.681,
+        832.252014
+      ],
+      "centroid_normalized": [
+        0.388534,
+        0.924724
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 902.729315,
+        "S1_top_right": 997.744665,
+        "S2_bottom_right": 554.473436,
+        "S3_bottom_left": 356.183367
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 871.251287,
+          "S1_top_right": 1013.898501,
+          "S2_bottom_right": 605.012084,
+          "S3_bottom_left": 311.654065
+        },
+        {
+          "S0_top_left": 909.792761,
+          "S1_top_right": 959.145403,
+          "S2_bottom_right": 507.946212,
+          "S3_bottom_left": 407.151469
+        },
+        {
+          "S0_top_left": 935.948275,
+          "S1_top_right": 983.989944,
+          "S2_bottom_right": 504.063,
+          "S3_bottom_left": 402.296498
+        },
+        {
+          "S0_top_left": 898.529416,
+          "S1_top_right": 1037.432637,
+          "S2_bottom_right": 601.755577,
+          "S3_bottom_left": 305.284147
+        }
+      ],
+      "original_full_id": 70,
+      "source_region_id": 70
+    },
+    {
+      "name": "H2_bottom_home_r5_c1",
+      "type": "home_lane_cell",
+      "group": "H2_bottom",
+      "original_id": 71,
+      "original_label": "71",
+      "polygon_board_px": [
+        [
+          397.114594,
+          817.098694
+        ],
+        [
+          495.46524,
+          817.098694
+        ],
+        [
+          495.46524,
+          846.453247
+        ],
+        [
+          397.114594,
+          846.453247
+        ]
+      ],
+      "id": 50,
+      "label": "50",
+      "polygon_board_normalized": [
+        [
+          0.441238,
+          0.907887
+        ],
+        [
+          0.550517,
+          0.907887
+        ],
+        [
+          0.550517,
+          0.940504
+        ],
+        [
+          0.441238,
+          0.940504
+        ]
+      ],
+      "centroid_board_px": [
+        446.289917,
+        831.77597
+      ],
+      "centroid_normalized": [
+        0.495878,
+        0.924196
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 943.941712,
+        "S1_top_right": 947.472482,
+        "S2_bottom_right": 458.810808,
+        "S3_bottom_left": 451.474482
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 908.487906,
+          "S1_top_right": 959.449846,
+          "S2_bottom_right": 509.672796,
+          "S3_bottom_left": 405.675519
+        },
+        {
+          "S0_top_left": 955.58154,
+          "S1_top_right": 911.755805,
+          "S2_bottom_right": 412.941882,
+          "S3_bottom_left": 502.352895
+        },
+        {
+          "S0_top_left": 980.800135,
+          "S1_top_right": 938.153224,
+          "S2_bottom_right": 408.063263,
+          "S3_bottom_left": 498.350338
+        },
+        {
+          "S0_top_left": 934.977593,
+          "S1_top_right": 984.569363,
+          "S2_bottom_right": 505.728175,
+          "S3_bottom_left": 400.708442
+        }
+      ],
+      "original_full_id": 71,
+      "source_region_id": 71
+    },
+    {
+      "name": "A2_bottom_arm_cell_r6_c3",
+      "type": "path_cell",
+      "group": "A2_bottom_arm",
+      "original_id": 72,
+      "original_label": "72",
+      "polygon_board_px": [
+        [
+          495.173737,
+          816.913391
+        ],
+        [
+          597.095337,
+          816.913391
+        ],
+        [
+          597.095337,
+          848.930908
+        ],
+        [
+          495.173737,
+          848.930908
+        ]
+      ],
+      "id": 51,
+      "label": "51",
+      "polygon_board_normalized": [
+        [
+          0.550193,
+          0.907682
+        ],
+        [
+          0.663439,
+          0.907682
+        ],
+        [
+          0.663439,
+          0.943257
+        ],
+        [
+          0.550193,
+          0.943257
+        ]
+      ],
+      "centroid_board_px": [
+        546.134537,
+        832.92215
+      ],
+      "centroid_normalized": [
+        0.606816,
+        0.925469
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 996.003132,
+        "S1_top_right": 904.975178,
+        "S2_bottom_right": 360.166911,
+        "S3_bottom_left": 550.238467
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 955.27196,
+          "S1_top_right": 911.719141,
+          "S2_bottom_right": 413.264671,
+          "S3_bottom_left": 502.096021
+        },
+        {
+          "S0_top_left": 1011.864778,
+          "S1_top_right": 871.262718,
+          "S2_bottom_right": 314.093329,
+          "S3_bottom_left": 602.848427
+        },
+        {
+          "S0_top_left": 1037.885605,
+          "S1_top_right": 901.351719,
+          "S2_bottom_right": 307.179568,
+          "S3_bottom_left": 599.275307
+        },
+        {
+          "S0_top_left": 982.792306,
+          "S1_top_right": 940.514748,
+          "S2_bottom_right": 408.034748,
+          "S3_bottom_left": 497.800243
+        }
+      ],
+      "original_full_id": 72,
+      "source_region_id": 72
+    },
+    {
+      "name": "H3_left_home_r1_c1",
+      "type": "home_lane_cell",
+      "group": "H3_left",
+      "original_id": 73,
+      "original_label": "73",
+      "polygon_board_px": [
+        [
+          36.838924,
+          323.556427
+        ],
+        [
+          67.062447,
+          323.556427
+        ],
+        [
+          67.062447,
+          415.955902
+        ],
+        [
+          36.838924,
+          415.955902
+        ]
+      ],
+      "id": 52,
+      "label": "52",
+      "polygon_board_normalized": [
+        [
+          0.040932,
+          0.359507
+        ],
+        [
+          0.074514,
+          0.359507
+        ],
+        [
+          0.074514,
+          0.462173
+        ],
+        [
+          0.040932,
+          0.462173
+        ]
+      ],
+      "centroid_board_px": [
+        51.950686,
+        369.756165
+      ],
+      "centroid_normalized": [
+        0.057723,
+        0.41084
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 373.387861,
+        "S1_top_right": 925.152561,
+        "S2_bottom_right": 1000.173067,
+        "S3_bottom_left": 532.782694
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 325.646845,
+          "S1_top_right": 921.811154,
+          "S2_bottom_right": 1037.947125,
+          "S3_bottom_left": 577.619511
+        },
+        {
+          "S0_top_left": 330.433251,
+          "S1_top_right": 893.573572,
+          "S2_bottom_right": 1012.952201,
+          "S3_bottom_left": 580.331427
+        },
+        {
+          "S0_top_left": 421.327289,
+          "S1_top_right": 931.023244,
+          "S2_bottom_right": 963.370986,
+          "S3_bottom_left": 488.667638
+        },
+        {
+          "S0_top_left": 417.584026,
+          "S1_top_right": 958.157792,
+          "S2_bottom_right": 989.618983,
+          "S3_bottom_left": 485.443915
+        }
+      ],
+      "original_full_id": 73,
+      "source_region_id": 73
+    },
+    {
+      "name": "A3_left_arm_cell_r1_c1",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 74,
+      "original_label": "74",
+      "polygon_board_px": [
+        [
+          66.90345,
+          323.082336
+        ],
+        [
+          97.755798,
+          323.082336
+        ],
+        [
+          97.755798,
+          414.840179
+        ],
+        [
+          66.90345,
+          414.840179
+        ]
+      ],
+      "id": 53,
+      "label": "53",
+      "polygon_board_normalized": [
+        [
+          0.074337,
+          0.35898
+        ],
+        [
+          0.108618,
+          0.35898
+        ],
+        [
+          0.108618,
+          0.460934
+        ],
+        [
+          0.074337,
+          0.460934
+        ]
+      ],
+      "centroid_board_px": [
+        82.329624,
+        368.961258
+      ],
+      "centroid_normalized": [
+        0.091477,
+        0.409957
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 378.035153,
+        "S1_top_right": 897.06034,
+        "S2_bottom_right": 974.980507,
+        "S3_bottom_left": 537.382836
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 329.936763,
+          "S1_top_right": 893.550255,
+          "S2_bottom_right": 1013.352778,
+          "S3_bottom_left": 580.784006
+        },
+        {
+          "S0_top_left": 337.547615,
+          "S1_top_right": 864.857188,
+          "S2_bottom_right": 988.1446,
+          "S3_bottom_left": 585.141168
+        },
+        {
+          "S0_top_left": 426.2025,
+          "S1_top_right": 903.154546,
+          "S2_bottom_right": 937.537098,
+          "S3_bottom_left": 494.910343
+        },
+        {
+          "S0_top_left": 420.200483,
+          "S1_top_right": 930.667629,
+          "S2_bottom_right": 964.069454,
+          "S3_bottom_left": 489.751083
+        }
+      ],
+      "original_full_id": 74,
+      "source_region_id": 74
+    },
+    {
+      "name": "A3_left_arm_cell_r1_c2",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 75,
+      "original_label": "75",
+      "polygon_board_px": [
+        [
+          96.281929,
+          323.994537
+        ],
+        [
+          128.572037,
+          323.994537
+        ],
+        [
+          128.572037,
+          414.593689
+        ],
+        [
+          96.281929,
+          414.593689
+        ]
+      ],
+      "id": 54,
+      "label": "54",
+      "polygon_board_normalized": [
+        [
+          0.10698,
+          0.359994
+        ],
+        [
+          0.142858,
+          0.359994
+        ],
+        [
+          0.142858,
+          0.46066
+        ],
+        [
+          0.10698,
+          0.46066
+        ]
+      ],
+      "centroid_board_px": [
+        112.426983,
+        369.294113
+      ],
+      "centroid_normalized": [
+        0.124919,
+        0.410327
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 386.028456,
+        "S1_top_right": 869.855965,
+        "S2_bottom_right": 949.694685,
+        "S3_bottom_left": 542.4837
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 337.998033,
+          "S1_top_right": 866.565172,
+          "S2_bottom_right": 988.809906,
+          "S3_bottom_left": 583.997006
+        },
+        {
+          "S0_top_left": 348.573133,
+          "S1_top_right": 836.703988,
+          "S2_bottom_right": 962.747836,
+          "S3_bottom_left": 590.180533
+        },
+        {
+          "S0_top_left": 434.072224,
+          "S1_top_right": 875.779099,
+          "S2_bottom_right": 911.438637,
+          "S3_bottom_left": 502.145452
+        },
+        {
+          "S0_top_left": 425.626758,
+          "S1_top_right": 904.350963,
+          "S2_bottom_right": 938.925995,
+          "S3_bottom_left": 494.863109
+        }
+      ],
+      "original_full_id": 75,
+      "source_region_id": 75
+    },
+    {
+      "name": "A3_left_arm_cell_r1_c3",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 76,
+      "original_label": "76",
+      "polygon_board_px": [
+        [
+          127.160706,
+          323.311523
+        ],
+        [
+          160.542816,
+          323.311523
+        ],
+        [
+          160.542816,
+          415.970642
+        ],
+        [
+          127.160706,
+          415.970642
+        ]
+      ],
+      "id": 55,
+      "label": "55",
+      "polygon_board_normalized": [
+        [
+          0.14129,
+          0.359235
+        ],
+        [
+          0.178381,
+          0.359235
+        ],
+        [
+          0.178381,
+          0.46219
+        ],
+        [
+          0.14129,
+          0.46219
+        ]
+      ],
+      "centroid_board_px": [
+        143.851761,
+        369.641083
+      ],
+      "centroid_normalized": [
+        0.159835,
+        0.410712
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 396.64576,
+        "S1_top_right": 841.661862,
+        "S2_bottom_right": 923.602047,
+        "S3_bottom_left": 549.521528
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 347.419323,
+          "S1_top_right": 837.741557,
+          "S2_bottom_right": 964.287392,
+          "S3_bottom_left": 590.541653
+        },
+        {
+          "S0_top_left": 360.97692,
+          "S1_top_right": 807.048492,
+          "S2_bottom_right": 937.745448,
+          "S3_bottom_left": 598.618071
+        },
+        {
+          "S0_top_left": 445.876183,
+          "S1_top_right": 848.427075,
+          "S2_bottom_right": 883.788066,
+          "S3_bottom_left": 509.959229
+        },
+        {
+          "S0_top_left": 434.972896,
+          "S1_top_right": 877.674285,
+          "S2_bottom_right": 911.901856,
+          "S3_bottom_left": 500.454058
+        }
+      ],
+      "original_full_id": 76,
+      "source_region_id": 76
+    },
+    {
+      "name": "A3_left_arm_cell_r1_c4",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 77,
+      "original_label": "77",
+      "polygon_board_px": [
+        [
+          158.930542,
+          326.046814
+        ],
+        [
+          190.871445,
+          326.046814
+        ],
+        [
+          190.871445,
+          415.345947
+        ],
+        [
+          158.930542,
+          415.345947
+        ]
+      ],
+      "id": 56,
+      "label": "56",
+      "polygon_board_normalized": [
+        [
+          0.176589,
+          0.362274
+        ],
+        [
+          0.212079,
+          0.362274
+        ],
+        [
+          0.212079,
+          0.461495
+        ],
+        [
+          0.176589,
+          0.461495
+        ]
+      ],
+      "centroid_board_px": [
+        174.900993,
+        370.696381
+      ],
+      "centroid_normalized": [
+        0.194334,
+        0.411885
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 409.88555,
+        "S1_top_right": 814.36133,
+        "S2_bottom_right": 897.736538,
+        "S3_bottom_left": 557.451952
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 362.719509,
+          "S1_top_right": 809.623657,
+          "S2_bottom_right": 937.33996,
+          "S3_bottom_left": 595.551154
+        },
+        {
+          "S0_top_left": 377.807402,
+          "S1_top_right": 780.493327,
+          "S2_bottom_right": 912.296864,
+          "S3_bottom_left": 604.8588
+        },
+        {
+          "S0_top_left": 457.104107,
+          "S1_top_right": 821.812365,
+          "S2_bottom_right": 858.925409,
+          "S3_bottom_left": 520.885265
+        },
+        {
+          "S0_top_left": 444.71471,
+          "S1_top_right": 849.527043,
+          "S2_bottom_right": 885.479244,
+          "S3_bottom_left": 510.047515
+        }
+      ],
+      "original_full_id": 77,
+      "source_region_id": 77
+    },
+    {
+      "name": "A3_left_arm_cell_r1_c5",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 78,
+      "original_label": "78",
+      "polygon_board_px": [
+        [
+          190.617432,
+          324.108063
+        ],
+        [
+          220.71283,
+          324.108063
+        ],
+        [
+          220.71283,
+          415.263641
+        ],
+        [
+          190.617432,
+          415.263641
+        ]
+      ],
+      "id": 57,
+      "label": "57",
+      "polygon_board_normalized": [
+        [
+          0.211797,
+          0.36012
+        ],
+        [
+          0.245236,
+          0.36012
+        ],
+        [
+          0.245236,
+          0.461404
+        ],
+        [
+          0.211797,
+          0.461404
+        ]
+      ],
+      "centroid_board_px": [
+        205.665131,
+        369.685852
+      ],
+      "centroid_normalized": [
+        0.228517,
+        0.410762
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 423.043467,
+        "S1_top_right": 786.618421,
+        "S2_bottom_right": 873.68988,
+        "S3_bottom_left": 568.798067
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 376.006704,
+          "S1_top_right": 779.916447,
+          "S2_bottom_right": 913.715028,
+          "S3_bottom_left": 606.618932
+        },
+        {
+          "S0_top_left": 392.122671,
+          "S1_top_right": 752.646727,
+          "S2_bottom_right": 890.551842,
+          "S3_bottom_left": 616.737932
+        },
+        {
+          "S0_top_left": 470.274436,
+          "S1_top_right": 796.162641,
+          "S2_bottom_right": 834.50608,
+          "S3_bottom_left": 532.619461
+        },
+        {
+          "S0_top_left": 456.923295,
+          "S1_top_right": 821.989976,
+          "S2_bottom_right": 859.181567,
+          "S3_bottom_left": 520.868834
+        }
+      ],
+      "original_full_id": 78,
+      "source_region_id": 78
+    },
+    {
+      "name": "A3_left_arm_cell_r1_c6",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 79,
+      "original_label": "79",
+      "polygon_board_px": [
+        [
+          222.004593,
+          323.424133
+        ],
+        [
+          253.45874,
+          323.424133
+        ],
+        [
+          253.45874,
+          416.083252
+        ],
+        [
+          222.004593,
+          416.083252
+        ]
+      ],
+      "id": 58,
+      "label": "58",
+      "polygon_board_normalized": [
+        [
+          0.246672,
+          0.35936
+        ],
+        [
+          0.281621,
+          0.35936
+        ],
+        [
+          0.281621,
+          0.462315
+        ],
+        [
+          0.246672,
+          0.462315
+        ]
+      ],
+      "centroid_board_px": [
+        237.731667,
+        369.753693
+      ],
+      "centroid_normalized": [
+        0.264146,
+        0.410837
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 439.584052,
+        "S1_top_right": 758.496631,
+        "S2_bottom_right": 848.386994,
+        "S3_bottom_left": 581.100242
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 392.287152,
+          "S1_top_right": 751.186356,
+          "S2_bottom_right": 890.009833,
+          "S3_bottom_left": 617.839598
+        },
+        {
+          "S0_top_left": 410.906927,
+          "S1_top_right": 722.923765,
+          "S2_bottom_right": 866.288249,
+          "S3_bottom_left": 629.826217
+        },
+        {
+          "S0_top_left": 487.202838,
+          "S1_top_right": 768.856861,
+          "S2_bottom_right": 807.583444,
+          "S3_bottom_left": 546.275345
+        },
+        {
+          "S0_top_left": 471.605038,
+          "S1_top_right": 795.489186,
+          "S2_bottom_right": 832.978506,
+          "S3_bottom_left": 532.410986
+        }
+      ],
+      "original_full_id": 79,
+      "source_region_id": 79
+    },
+    {
+      "name": "custom_irregular_6",
+      "type": "irregular_home_adjacent",
+      "group": "custom_irregular_6",
+      "original_id": 80,
+      "original_label": "80",
+      "polygon_board_px": [
+        [
+          252.330475,
+          322.967102
+        ],
+        [
+          275.366211,
+          302.034393
+        ],
+        [
+          298.900269,
+          326.399658
+        ],
+        [
+          287.238861,
+          335.866913
+        ],
+        [
+          287.559998,
+          414.377472
+        ],
+        [
+          253.892456,
+          413.825531
+        ]
+      ],
+      "id": 59,
+      "label": "59",
+      "polygon_board_normalized": [
+        [
+          0.280367,
+          0.358852
+        ],
+        [
+          0.305962,
+          0.335594
+        ],
+        [
+          0.332111,
+          0.362666
+        ],
+        [
+          0.319154,
+          0.373185
+        ],
+        [
+          0.319511,
+          0.460419
+        ],
+        [
+          0.282103,
+          0.459806
+        ]
+      ],
+      "centroid_board_px": [
+        275.881378,
+        352.578512
+      ],
+      "centroid_normalized": [
+        0.306535,
+        0.391754
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 447.685315,
+        "S1_top_right": 716.823312,
+        "S2_bottom_right": 830.177294,
+        "S3_bottom_left": 613.009642
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 409.851702,
+          "S1_top_right": 723.728929,
+          "S2_bottom_right": 867.434596,
+          "S3_bottom_left": 629.791738
+        },
+        {
+          "S0_top_left": 408.719127,
+          "S1_top_right": 693.82429,
+          "S2_bottom_right": 864.713963,
+          "S3_bottom_left": 658.323186
+        },
+        {
+          "S0_top_left": 442.581187,
+          "S1_top_right": 684.001187,
+          "S2_bottom_right": 830.865957,
+          "S3_bottom_left": 646.806557
+        },
+        {
+          "S0_top_left": 441.942017,
+          "S1_top_right": 698.77235,
+          "S2_bottom_right": 832.899966,
+          "S3_bottom_left": 633.050001
+        },
+        {
+          "S0_top_left": 504.380255,
+          "S1_top_right": 739.453478,
+          "S2_bottom_right": 781.608595,
+          "S3_bottom_left": 564.375754
+        },
+        {
+          "S0_top_left": 485.50278,
+          "S1_top_right": 767.272135,
+          "S2_bottom_right": 808.591722,
+          "S3_bottom_left": 548.476976
+        }
+      ],
+      "original_full_id": 80,
+      "source_region_id": 80
+    },
+    {
+      "name": "Y5_safety_marker",
+      "type": "safety_marker",
+      "group": "Y5",
+      "original_id": 81,
+      "original_label": "81",
+      "polygon_board_px": [
+        [
+          34.92318,
+          414.688141
+        ],
+        [
+          67.234619,
+          414.688141
+        ],
+        [
+          67.234619,
+          500.345337
+        ],
+        [
+          34.92318,
+          500.345337
+        ]
+      ],
+      "id": 60,
+      "label": "60",
+      "polygon_board_normalized": [
+        [
+          0.038804,
+          0.460765
+        ],
+        [
+          0.074705,
+          0.460765
+        ],
+        [
+          0.074705,
+          0.555939
+        ],
+        [
+          0.038804,
+          0.555939
+        ]
+      ],
+      "centroid_board_px": [
+        51.078899,
+        457.516739
+      ],
+      "centroid_normalized": [
+        0.056754,
+        0.508352
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 460.35923,
+        "S1_top_right": 964.359166,
+        "S2_bottom_right": 957.318375,
+        "S3_bottom_left": 445.421699
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 416.15608,
+          "S1_top_right": 959.33527,
+          "S2_bottom_right": 991.910029,
+          "S3_bottom_left": 486.566778
+        },
+        {
+          "S0_top_left": 420.103259,
+          "S1_top_right": 930.30341,
+          "S2_bottom_right": 963.859834,
+          "S3_bottom_left": 489.947032
+        },
+        {
+          "S0_top_left": 504.8425,
+          "S1_top_right": 971.516153,
+          "S2_bottom_right": 923.700184,
+          "S3_bottom_left": 405.270704
+        },
+        {
+          "S0_top_left": 501.562643,
+          "S1_top_right": 999.35147,
+          "S2_bottom_right": 952.933237,
+          "S3_bottom_left": 401.177614
+        }
+      ],
+      "original_full_id": 81,
+      "source_region_id": 81
+    },
+    {
+      "name": "H3_left_home_r1_c4",
+      "type": "home_lane_cell",
+      "group": "H3_left",
+      "original_id": 89,
+      "original_label": "89",
+      "polygon_board_px": [
+        [
+          35.568039,
+          500.321747
+        ],
+        [
+          69.055756,
+          500.321747
+        ],
+        [
+          69.055756,
+          599.695496
+        ],
+        [
+          35.568039,
+          599.695496
+        ]
+      ],
+      "id": 61,
+      "label": "61",
+      "polygon_board_normalized": [
+        [
+          0.03952,
+          0.555913
+        ],
+        [
+          0.076729,
+          0.555913
+        ],
+        [
+          0.076729,
+          0.666328
+        ],
+        [
+          0.03952,
+          0.666328
+        ]
+      ],
+      "centroid_board_px": [
+        52.311897,
+        550.008621
+      ],
+      "centroid_normalized": [
+        0.058124,
+        0.611121
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 552.49074,
+        "S1_top_right": 1010.48731,
+        "S2_bottom_right": 917.098187,
+        "S3_bottom_left": 353.879216
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 501.584425,
+          "S1_top_right": 998.78149,
+          "S2_bottom_right": 952.35777,
+          "S3_bottom_left": 401.257762
+        },
+        {
+          "S0_top_left": 505.064895,
+          "S1_top_right": 969.943394,
+          "S2_bottom_right": 922.068893,
+          "S3_bottom_left": 405.600054
+        },
+        {
+          "S0_top_left": 603.658335,
+          "S1_top_right": 1024.745346,
+          "S2_bottom_right": 883.544641,
+          "S3_bottom_left": 308.142001
+        },
+        {
+          "S0_top_left": 600.749343,
+          "S1_top_right": 1052.082365,
+          "S2_bottom_right": 915.109507,
+          "S3_bottom_left": 302.403507
+        }
+      ],
+      "original_full_id": 89,
+      "source_region_id": 89
+    },
+    {
+      "name": "A3_left_arm_cell_r3_c1",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 90,
+      "original_label": "90",
+      "polygon_board_px": [
+        [
+          68.133926,
+          501.018433
+        ],
+        [
+          99.095695,
+          501.018433
+        ],
+        [
+          99.095695,
+          598.693054
+        ],
+        [
+          68.133926,
+          598.693054
+        ]
+      ],
+      "id": 62,
+      "label": "62",
+      "polygon_board_normalized": [
+        [
+          0.075704,
+          0.556687
+        ],
+        [
+          0.110106,
+          0.556687
+        ],
+        [
+          0.110106,
+          0.665215
+        ],
+        [
+          0.075704,
+          0.665215
+        ]
+      ],
+      "centroid_board_px": [
+        83.614811,
+        549.855743
+      ],
+      "centroid_normalized": [
+        0.092905,
+        0.610951
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 556.176928,
+        "S1_top_right": 984.28965,
+        "S2_bottom_right": 888.305002,
+        "S3_bottom_left": 359.989496
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 505.630005,
+          "S1_top_right": 971.092495,
+          "S2_bottom_right": 922.598209,
+          "S3_bottom_left": 404.757363
+        },
+        {
+          "S0_top_left": 510.724414,
+          "S1_top_right": 944.704808,
+          "S2_bottom_right": 894.781535,
+          "S3_bottom_left": 411.103695
+        },
+        {
+          "S0_top_left": 606.838801,
+          "S1_top_right": 999.940537,
+          "S2_bottom_right": 855.70648,
+          "S3_bottom_left": 317.184225
+        },
+        {
+          "S0_top_left": 602.557553,
+          "S1_top_right": 1024.907087,
+          "S2_bottom_right": 884.75253,
+          "S3_bottom_left": 308.914402
+        }
+      ],
+      "original_full_id": 90,
+      "source_region_id": 90
+    },
+    {
+      "name": "A3_left_arm_cell_r3_c2",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 91,
+      "original_label": "91",
+      "polygon_board_px": [
+        [
+          99.809097,
+          501.812805
+        ],
+        [
+          129.708893,
+          501.812805
+        ],
+        [
+          129.708893,
+          600.304077
+        ],
+        [
+          99.809097,
+          600.304077
+        ]
+      ],
+      "id": 63,
+      "label": "63",
+      "polygon_board_normalized": [
+        [
+          0.110899,
+          0.55757
+        ],
+        [
+          0.144121,
+          0.55757
+        ],
+        [
+          0.144121,
+          0.667005
+        ],
+        [
+          0.110899,
+          0.667005
+        ]
+      ],
+      "centroid_board_px": [
+        114.758995,
+        551.058441
+      ],
+      "centroid_normalized": [
+        0.12751,
+        0.612287
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 562.881011,
+        "S1_top_right": 959.306438,
+        "S2_bottom_right": 859.28089,
+        "S3_bottom_left": 367.327971
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 511.642402,
+          "S1_top_right": 944.521875,
+          "S2_bottom_right": 893.788858,
+          "S3_bottom_left": 410.505661
+        },
+        {
+          "S0_top_left": 518.305401,
+          "S1_top_right": 919.328277,
+          "S2_bottom_right": 867.122501,
+          "S3_bottom_left": 418.780896
+        },
+        {
+          "S0_top_left": 614.157457,
+          "S1_top_right": 976.582498,
+          "S2_bottom_right": 826.538587,
+          "S3_bottom_left": 326.560933
+        },
+        {
+          "S0_top_left": 608.544855,
+          "S1_top_right": 1000.335177,
+          "S2_bottom_right": 854.472426,
+          "S3_bottom_left": 315.878936
+        }
+      ],
+      "original_full_id": 91,
+      "source_region_id": 91
+    },
+    {
+      "name": "A3_left_arm_cell_r3_c3",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 92,
+      "original_label": "92",
+      "polygon_board_px": [
+        [
+          129.091125,
+          501.97876
+        ],
+        [
+          161.450531,
+          501.97876
+        ],
+        [
+          161.450531,
+          601.131165
+        ],
+        [
+          129.091125,
+          601.131165
+        ]
+      ],
+      "id": 64,
+      "label": "64",
+      "polygon_board_normalized": [
+        [
+          0.143435,
+          0.557754
+        ],
+        [
+          0.179389,
+          0.557754
+        ],
+        [
+          0.179389,
+          0.667924
+        ],
+        [
+          0.143435,
+          0.667924
+        ]
+      ],
+      "centroid_board_px": [
+        145.270828,
+        551.554962
+      ],
+      "centroid_normalized": [
+        0.161412,
+        0.612839
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 570.365225,
+        "S1_top_right": 934.788211,
+        "S2_bottom_right": 831.282183,
+        "S3_bottom_left": 377.514977
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 518.311869,
+          "S1_top_right": 919.936502,
+          "S2_bottom_right": 867.595182,
+          "S3_bottom_left": 418.432105
+        },
+        {
+          "S0_top_left": 527.30347,
+          "S1_top_right": 892.993837,
+          "S2_bottom_right": 838.973317,
+          "S3_bottom_left": 429.51971
+        },
+        {
+          "S0_top_left": 622.434696,
+          "S1_top_right": 952.267817,
+          "S2_bottom_right": 796.729502,
+          "S3_bottom_left": 339.68935
+        },
+        {
+          "S0_top_left": 614.83591,
+          "S1_top_right": 977.578217,
+          "S2_bottom_right": 826.815018,
+          "S3_bottom_left": 325.5566
+        }
+      ],
+      "original_full_id": 92,
+      "source_region_id": 92
+    },
+    {
+      "name": "A3_left_arm_cell_r3_c4",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 93,
+      "original_label": "93",
+      "polygon_board_px": [
+        [
+          162.03447,
+          502.734619
+        ],
+        [
+          192.915039,
+          502.734619
+        ],
+        [
+          192.915039,
+          598.669006
+        ],
+        [
+          162.03447,
+          598.669006
+        ]
+      ],
+      "id": 65,
+      "label": "65",
+      "polygon_board_normalized": [
+        [
+          0.180038,
+          0.558594
+        ],
+        [
+          0.21435,
+          0.558594
+        ],
+        [
+          0.21435,
+          0.665188
+        ],
+        [
+          0.180038,
+          0.665188
+        ]
+      ],
+      "centroid_board_px": [
+        177.474754,
+        550.701813
+      ],
+      "centroid_normalized": [
+        0.197194,
+        0.611891
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 578.592927,
+        "S1_top_right": 908.468611,
+        "S2_bottom_right": 802.528476,
+        "S3_bottom_left": 391.799071
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 528.201918,
+          "S1_top_right": 892.936292,
+          "S2_bottom_right": 838.100774,
+          "S3_bottom_left": 429.039569
+        },
+        {
+          "S0_top_left": 538.477771,
+          "S1_top_right": 867.589326,
+          "S2_bottom_right": 811.041876,
+          "S3_bottom_left": 441.628798
+        },
+        {
+          "S0_top_left": 628.983936,
+          "S1_top_right": 926.484604,
+          "S2_bottom_right": 768.61532,
+          "S3_bottom_left": 357.794047
+        },
+        {
+          "S0_top_left": 620.209439,
+          "S1_top_right": 950.261913,
+          "S2_bottom_right": 797.115733,
+          "S3_bottom_left": 342.1338
+        }
+      ],
+      "original_full_id": 93,
+      "source_region_id": 93
+    },
+    {
+      "name": "A3_left_arm_cell_r3_c5",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 94,
+      "original_label": "94",
+      "polygon_board_px": [
+        [
+          192.167633,
+          501.575867
+        ],
+        [
+          221.988998,
+          501.575867
+        ],
+        [
+          221.988998,
+          600.008423
+        ],
+        [
+          192.167633,
+          600.008423
+        ]
+      ],
+      "id": 66,
+      "label": "66",
+      "polygon_board_normalized": [
+        [
+          0.21352,
+          0.557307
+        ],
+        [
+          0.246654,
+          0.557307
+        ],
+        [
+          0.246654,
+          0.666676
+        ],
+        [
+          0.21352,
+          0.666676
+        ]
+      ],
+      "centroid_board_px": [
+        207.078316,
+        550.792145
+      ],
+      "centroid_normalized": [
+        0.230087,
+        0.611991
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 588.433017,
+        "S1_top_right": 885.162385,
+        "S2_bottom_right": 775.942386,
+        "S3_bottom_left": 405.9896
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 537.128243,
+          "S1_top_right": 867.528103,
+          "S2_bottom_right": 812.261319,
+          "S3_bottom_left": 442.346232
+        },
+        {
+          "S0_top_left": 548.504754,
+          "S1_top_right": 843.372556,
+          "S2_bottom_right": 786.410013,
+          "S3_bottom_left": 456.093089
+        },
+        {
+          "S0_top_left": 639.757159,
+          "S1_top_right": 905.377836,
+          "S2_bottom_right": 741.413424,
+          "S3_bottom_left": 373.194402
+        },
+        {
+          "S0_top_left": 630.03056,
+          "S1_top_right": 927.920669,
+          "S2_bottom_right": 768.779296,
+          "S3_bottom_left": 356.263029
+        }
+      ],
+      "original_full_id": 94,
+      "source_region_id": 94
+    },
+    {
+      "name": "A3_left_arm_cell_r3_c6",
+      "type": "path_cell",
+      "group": "A3_left_arm",
+      "original_id": 95,
+      "original_label": "95",
+      "polygon_board_px": [
+        [
+          221.973511,
+          502.548035
+        ],
+        [
+          253.224594,
+          502.548035
+        ],
+        [
+          253.224594,
+          600.606018
+        ],
+        [
+          221.973511,
+          600.606018
+        ]
+      ],
+      "id": 67,
+      "label": "67",
+      "polygon_board_normalized": [
+        [
+          0.246637,
+          0.558387
+        ],
+        [
+          0.281361,
+          0.558387
+        ],
+        [
+          0.281361,
+          0.66734
+        ],
+        [
+          0.246637,
+          0.66734
+        ]
+      ],
+      "centroid_board_px": [
+        237.599052,
+        551.577026
+      ],
+      "centroid_normalized": [
+        0.263999,
+        0.612863
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 600.575162,
+        "S1_top_right": 861.981573,
+        "S2_bottom_right": 748.447449,
+        "S3_bottom_left": 421.724885
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 549.387629,
+          "S1_top_right": 843.963534,
+          "S2_bottom_right": 785.931285,
+          "S3_bottom_left": 455.236537
+        },
+        {
+          "S0_top_left": 562.740813,
+          "S1_top_right": 819.068344,
+          "S2_bottom_right": 759.135357,
+          "S3_bottom_left": 471.265063
+        },
+        {
+          "S0_top_left": 651.805403,
+          "S1_top_right": 882.635834,
+          "S2_bottom_right": 712.709746,
+          "S3_bottom_left": 392.12173
+        },
+        {
+          "S0_top_left": 640.31229,
+          "S1_top_right": 905.785576,
+          "S2_bottom_right": 741.185993,
+          "S3_bottom_left": 372.704972
+        }
+      ],
+      "original_full_id": 95,
+      "source_region_id": 95
+    },
+    {
+      "name": "custom_irregular_7",
+      "type": "irregular_home_adjacent",
+      "group": "custom_irregular_7",
+      "original_id": 96,
+      "original_label": "96",
+      "polygon_board_px": [
+        [
+          252.938354,
+          504.734497
+        ],
+        [
+          286.282349,
+          504.404663
+        ],
+        [
+          287.289246,
+          587.417053
+        ],
+        [
+          301.80957,
+          599.342163
+        ],
+        [
+          278.89267,
+          621.352234
+        ],
+        [
+          252.834167,
+          599.952087
+        ]
+      ],
+      "id": 68,
+      "label": "68",
+      "polygon_board_normalized": [
+        [
+          0.281043,
+          0.560816
+        ],
+        [
+          0.318091,
+          0.56045
+        ],
+        [
+          0.31921,
+          0.652686
+        ],
+        [
+          0.335344,
+          0.665936
+        ],
+        [
+          0.309881,
+          0.690391
+        ],
+        [
+          0.280927,
+          0.666613
+        ]
+      ],
+      "centroid_board_px": [
+        276.674393,
+        569.533783
+      ],
+      "centroid_normalized": [
+        0.307416,
+        0.632815
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 633.180424,
+        "S1_top_right": 844.336155,
+        "S2_bottom_right": 705.508847,
+        "S3_bottom_left": 430.994942
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 564.56596,
+          "S1_top_right": 820.637365,
+          "S2_bottom_right": 758.23716,
+          "S3_bottom_left": 469.268184
+        },
+        {
+          "S0_top_left": 579.984178,
+          "S1_top_right": 794.401296,
+          "S2_bottom_right": 730.167807,
+          "S3_bottom_left": 488.316756
+        },
+        {
+          "S0_top_left": 653.906649,
+          "S1_top_right": 848.806964,
+          "S2_bottom_right": 687.839056,
+          "S3_bottom_left": 424.550597
+        },
+        {
+          "S0_top_left": 671.043996,
+          "S1_top_right": 846.783809,
+          "S2_bottom_right": 669.497517,
+          "S3_bottom_left": 426.009568
+        },
+        {
+          "S0_top_left": 681.072478,
+          "S1_top_right": 878.5516,
+          "S2_bottom_right": 680.748774,
+          "S3_bottom_left": 394.240661
+        },
+        {
+          "S0_top_left": 651.051168,
+          "S1_top_right": 882.477264,
+          "S2_bottom_right": 713.338885,
+          "S3_bottom_left": 392.369553
+        }
+      ],
+      "original_full_id": 96,
+      "source_region_id": 96
+    },
+    {
+      "name": "C_center_home",
+      "type": "center_home",
+      "group": "C_center_home",
+      "original_id": 97,
+      "original_label": "97",
+      "polygon_board_px": [
+        [
+          317.206543,
+          313.122772
+        ],
+        [
+          586.392395,
+          313.331665
+        ],
+        [
+          620.156555,
+          341.860779
+        ],
+        [
+          612.667603,
+          586.736023
+        ],
+        [
+          582.857971,
+          611.15387
+        ],
+        [
+          316.203613,
+          609.797241
+        ],
+        [
+          288.55246,
+          589.329651
+        ],
+        [
+          285.819977,
+          335.882202
+        ]
+      ],
+      "id": 69,
+      "label": "69",
+      "polygon_board_normalized": [
+        [
+          0.352452,
+          0.347914
+        ],
+        [
+          0.651547,
+          0.348146
+        ],
+        [
+          0.689063,
+          0.379845
+        ],
+        [
+          0.680742,
+          0.651929
+        ],
+        [
+          0.64762,
+          0.67906
+        ],
+        [
+          0.351337,
+          0.677552
+        ],
+        [
+          0.320614,
+          0.654811
+        ],
+        [
+          0.317578,
+          0.373202
+        ]
+      ],
+      "centroid_board_px": [
+        451.23214,
+        462.651775
+      ],
+      "centroid_normalized": [
+        0.501369,
+        0.514058
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 646.263962,
+        "S1_top_right": 644.545776,
+        "S2_bottom_right": 626.630722,
+        "S3_bottom_left": 628.397894
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 445.719487,
+          "S1_top_right": 661.584525,
+          "S2_bottom_right": 827.087114,
+          "S3_bottom_left": 667.116835
+        },
+        {
+          "S0_top_left": 664.855453,
+          "S1_top_right": 443.313052,
+          "S2_bottom_right": 665.228882,
+          "S3_bottom_left": 829.47922
+        },
+        {
+          "S0_top_left": 708.140484,
+          "S1_top_right": 441.793103,
+          "S2_bottom_right": 624.365073,
+          "S3_bottom_left": 834.334192
+        },
+        {
+          "S0_top_left": 848.304634,
+          "S1_top_right": 653.313912,
+          "S2_bottom_right": 425.081434,
+          "S3_bottom_left": 688.110391
+        },
+        {
+          "S0_top_left": 844.530915,
+          "S1_top_right": 688.540572,
+          "S2_bottom_right": 428.965212,
+          "S3_bottom_left": 650.504037
+        },
+        {
+          "S0_top_left": 686.904215,
+          "S1_top_right": 844.198375,
+          "S2_bottom_right": 651.947745,
+          "S3_bottom_left": 429.188031
+        },
+        {
+          "S0_top_left": 656.179822,
+          "S1_top_right": 849.221721,
+          "S2_bottom_right": 685.845581,
+          "S3_bottom_left": 424.003052
+        },
+        {
+          "S0_top_left": 441.03278,
+          "S1_top_right": 700.024253,
+          "S2_bottom_right": 833.934045,
+          "S3_bottom_left": 632.393824
+        }
+      ],
+      "source_region_id": 97
+    },
+    {
+      "name": "S0_top_left",
+      "type": "start_circle",
+      "group": "S0_top_left",
+      "original_id": 98,
+      "original_label": "98",
+      "polygon_board_px": [
+        [
+          292.862762,
+          202.453705
+        ],
+        [
+          288.504303,
+          231.498566
+        ],
+        [
+          273.541687,
+          260.576324
+        ],
+        [
+          255.103531,
+          286.300812
+        ],
+        [
+          229.764511,
+          305.136017
+        ],
+        [
+          199.524063,
+          317.138031
+        ],
+        [
+          168.377594,
+          322.387604
+        ],
+        [
+          136.347656,
+          317.043396
+        ],
+        [
+          107.379227,
+          305.011261
+        ],
+        [
+          81.459358,
+          286.276276
+        ],
+        [
+          62.597347,
+          260.883362
+        ],
+        [
+          50.783611,
+          230.736679
+        ],
+        [
+          47.008507,
+          199.703568
+        ],
+        [
+          50.286549,
+          167.763367
+        ],
+        [
+          62.62159,
+          138.835114
+        ],
+        [
+          82.014282,
+          112.900742
+        ],
+        [
+          106.417252,
+          93.838142
+        ],
+        [
+          136.832596,
+          81.68737
+        ],
+        [
+          168.186691,
+          77.350769
+        ],
+        [
+          199.436569,
+          81.790718
+        ],
+        [
+          229.562302,
+          94.007469
+        ],
+        [
+          254.525482,
+          112.940964
+        ],
+        [
+          273.327911,
+          137.579651
+        ],
+        [
+          290.291138,
+          169.306671
+        ]
+      ],
+      "id": 70,
+      "label": "70",
+      "polygon_board_normalized": [
+        [
+          0.325403,
+          0.224949
+        ],
+        [
+          0.32056,
+          0.257221
+        ],
+        [
+          0.303935,
+          0.289529
+        ],
+        [
+          0.283448,
+          0.318112
+        ],
+        [
+          0.255294,
+          0.33904
+        ],
+        [
+          0.221693,
+          0.352376
+        ],
+        [
+          0.187086,
+          0.358208
+        ],
+        [
+          0.151497,
+          0.35227
+        ],
+        [
+          0.11931,
+          0.338901
+        ],
+        [
+          0.09051,
+          0.318085
+        ],
+        [
+          0.069553,
+          0.28987
+        ],
+        [
+          0.056426,
+          0.256374
+        ],
+        [
+          0.052232,
+          0.221893
+        ],
+        [
+          0.055874,
+          0.186404
+        ],
+        [
+          0.06958,
+          0.154261
+        ],
+        [
+          0.091127,
+          0.125445
+        ],
+        [
+          0.118241,
+          0.104265
+        ],
+        [
+          0.152036,
+          0.090764
+        ],
+        [
+          0.186874,
+          0.085945
+        ],
+        [
+          0.221596,
+          0.090879
+        ],
+        [
+          0.255069,
+          0.104453
+        ],
+        [
+          0.282806,
+          0.12549
+        ],
+        [
+          0.303698,
+          0.152866
+        ],
+        [
+          0.322546,
+          0.188119
+        ]
+      ],
+      "centroid_board_px": [
+        168.614855,
+        199.714441
+      ],
+      "centroid_normalized": [
+        0.18735,
+        0.221905
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 261.374879,
+        "S1_top_right": 758.16231,
+        "S2_bottom_right": 1012.582883,
+        "S3_bottom_left": 720.299128
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 356.02823,
+          "S1_top_right": 640.002444,
+          "S2_bottom_right": 924.76292,
+          "S3_bottom_left": 756.531183
+        },
+        {
+          "S0_top_left": 369.900417,
+          "S1_top_right": 653.849045,
+          "S2_bottom_right": 905.991807,
+          "S3_bottom_left": 728.099513
+        },
+        {
+          "S0_top_left": 377.789724,
+          "S1_top_right": 678.491001,
+          "S2_bottom_right": 895.160687,
+          "S3_bottom_left": 695.476593
+        },
+        {
+          "S0_top_left": 383.46573,
+          "S1_top_right": 705.591674,
+          "S2_bottom_right": 890.234884,
+          "S3_bottom_left": 664.608535
+        },
+        {
+          "S0_top_left": 381.968218,
+          "S1_top_right": 736.426235,
+          "S2_bottom_right": 896.146623,
+          "S3_bottom_left": 637.694981
+        },
+        {
+          "S0_top_left": 374.681708,
+          "S1_top_right": 768.923318,
+          "S2_bottom_right": 911.259904,
+          "S3_bottom_left": 616.066495
+        },
+        {
+          "S0_top_left": 363.709749,
+          "S1_top_right": 799.503041,
+          "S2_bottom_right": 932.15204,
+          "S3_bottom_left": 601.653633
+        },
+        {
+          "S0_top_left": 345.119107,
+          "S1_top_right": 826.850299,
+          "S2_bottom_right": 960.73061,
+          "S3_bottom_left": 598.689473
+        },
+        {
+          "S0_top_left": 323.360739,
+          "S1_top_right": 849.28179,
+          "S2_bottom_right": 991.08995,
+          "S3_bottom_left": 604.60061
+        },
+        {
+          "S0_top_left": 297.640275,
+          "S1_top_right": 867.157937,
+          "S2_bottom_right": 1023.066758,
+          "S3_bottom_left": 619.10616
+        },
+        {
+          "S0_top_left": 268.288196,
+          "S1_top_right": 877.099385,
+          "S2_bottom_right": 1053.429295,
+          "S3_bottom_left": 642.174824
+        },
+        {
+          "S0_top_left": 236.259159,
+          "S1_top_right": 880.004483,
+          "S2_bottom_right": 1081.240892,
+          "S3_bottom_left": 671.187282
+        },
+        {
+          "S0_top_left": 205.161679,
+          "S1_top_right": 876.057077,
+          "S2_bottom_right": 1103.634714,
+          "S3_bottom_left": 701.872419
+        },
+        {
+          "S0_top_left": 175.1379,
+          "S1_top_right": 866.11633,
+          "S2_bottom_right": 1121.687763,
+          "S3_bottom_left": 733.961323
+        },
+        {
+          "S0_top_left": 152.304472,
+          "S1_top_right": 848.809632,
+          "S2_bottom_right": 1131.624755,
+          "S3_bottom_left": 763.736504
+        },
+        {
+          "S0_top_left": 139.545405,
+          "S1_top_right": 825.740402,
+          "S2_bottom_right": 1135.176584,
+          "S3_bottom_left": 791.360591
+        },
+        {
+          "S0_top_left": 141.881036,
+          "S1_top_right": 799.111491,
+          "S2_bottom_right": 1131.225229,
+          "S3_bottom_left": 813.155319
+        },
+        {
+          "S0_top_left": 159.36118,
+          "S1_top_right": 767.526751,
+          "S2_bottom_right": 1118.95489,
+          "S3_bottom_left": 829.673863
+        },
+        {
+          "S0_top_left": 185.121324,
+          "S1_top_right": 735.889842,
+          "S2_bottom_right": 1101.046083,
+          "S3_bottom_left": 839.665719
+        },
+        {
+          "S0_top_left": 215.556644,
+          "S1_top_right": 705.3218,
+          "S2_bottom_right": 1077.151591,
+          "S3_bottom_left": 842.164695
+        },
+        {
+          "S0_top_left": 248.065021,
+          "S1_top_right": 676.99639,
+          "S2_bottom_right": 1048.38479,
+          "S3_bottom_left": 838.047021
+        },
+        {
+          "S0_top_left": 278.458044,
+          "S1_top_right": 655.280867,
+          "S2_bottom_right": 1017.889621,
+          "S3_bottom_left": 827.191119
+        },
+        {
+          "S0_top_left": 306.000502,
+          "S1_top_right": 641.596499,
+          "S2_bottom_right": 986.915749,
+          "S3_bottom_left": 809.933908
+        },
+        {
+          "S0_top_left": 336.056087,
+          "S1_top_right": 632.779302,
+          "S2_bottom_right": 951.660463,
+          "S3_bottom_left": 786.245309
+        }
+      ],
+      "source_region_id": 98
+    },
+    {
+      "name": "S1_top_right",
+      "type": "start_circle",
+      "group": "S1_top_right",
+      "original_id": 99,
+      "original_label": "99",
+      "polygon_board_px": [
+        [
+          846.246094,
+          204.562256
+        ],
+        [
+          841.295776,
+          234.444641
+        ],
+        [
+          830.344238,
+          264.173859
+        ],
+        [
+          811.551208,
+          288.907135
+        ],
+        [
+          786.953674,
+          307.739014
+        ],
+        [
+          757.602966,
+          318.784363
+        ],
+        [
+          727.429749,
+          324.04541
+        ],
+        [
+          696.54895,
+          318.72348
+        ],
+        [
+          667.808411,
+          307.665253
+        ],
+        [
+          642.246887,
+          288.950684
+        ],
+        [
+          623.839172,
+          263.585419
+        ],
+        [
+          612.52063,
+          234.437241
+        ],
+        [
+          607.158508,
+          204.647797
+        ],
+        [
+          607.197754,
+          172.743637
+        ],
+        [
+          623.78717,
+          144.548187
+        ],
+        [
+          642.534607,
+          119.601158
+        ],
+        [
+          667.199707,
+          100.563339
+        ],
+        [
+          696.718201,
+          89.384644
+        ],
+        [
+          727.043945,
+          86.010162
+        ],
+        [
+          757.177124,
+          89.452354
+        ],
+        [
+          786.06427,
+          100.661789
+        ],
+        [
+          811.675476,
+          119.587608
+        ],
+        [
+          831.014221,
+          145.181564
+        ],
+        [
+          841.19281,
+          173.487854
+        ]
+      ],
+      "id": 71,
+      "label": "71",
+      "polygon_board_normalized": [
+        [
+          0.940273,
+          0.227291
+        ],
+        [
+          0.934773,
+          0.260494
+        ],
+        [
+          0.922605,
+          0.293527
+        ],
+        [
+          0.901724,
+          0.321008
+        ],
+        [
+          0.874393,
+          0.341932
+        ],
+        [
+          0.841781,
+          0.354205
+        ],
+        [
+          0.808255,
+          0.36005
+        ],
+        [
+          0.773943,
+          0.354137
+        ],
+        [
+          0.742009,
+          0.34185
+        ],
+        [
+          0.713608,
+          0.321056
+        ],
+        [
+          0.693155,
+          0.292873
+        ],
+        [
+          0.680578,
+          0.260486
+        ],
+        [
+          0.674621,
+          0.227386
+        ],
+        [
+          0.674664,
+          0.191937
+        ],
+        [
+          0.693097,
+          0.160609
+        ],
+        [
+          0.713927,
+          0.13289
+        ],
+        [
+          0.741333,
+          0.111737
+        ],
+        [
+          0.774131,
+          0.099316
+        ],
+        [
+          0.807827,
+          0.095567
+        ],
+        [
+          0.841308,
+          0.099392
+        ],
+        [
+          0.873405,
+          0.111846
+        ],
+        [
+          0.901862,
+          0.132875
+        ],
+        [
+          0.923349,
+          0.161313
+        ],
+        [
+          0.934659,
+          0.192764
+        ]
+      ],
+      "centroid_board_px": [
+        726.797981,
+        204.245369
+      ],
+      "centroid_normalized": [
+        0.807553,
+        0.226939
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 754.951307,
+        "S1_top_right": 267.79677,
+        "S2_bottom_right": 716.989154,
+        "S3_bottom_left": 1006.136081
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 870.619416,
+          "S1_top_right": 211.506971,
+          "S2_bottom_right": 697.512106,
+          "S3_bottom_left": 1095.338353
+        },
+        {
+          "S0_top_left": 873.351517,
+          "S1_top_right": 241.682593,
+          "S2_bottom_right": 668.139298,
+          "S3_bottom_left": 1072.726675
+        },
+        {
+          "S0_top_left": 871.354911,
+          "S1_top_right": 273.202769,
+          "S2_bottom_right": 639.630211,
+          "S3_bottom_left": 1045.823329
+        },
+        {
+          "S0_top_left": 861.442219,
+          "S1_top_right": 302.143213,
+          "S2_bottom_right": 617.460669,
+          "S3_bottom_left": 1015.898545
+        },
+        {
+          "S0_top_left": 844.984844,
+          "S1_top_right": 327.845653,
+          "S2_bottom_right": 602.953189,
+          "S3_bottom_left": 984.920891
+        },
+        {
+          "S0_top_left": 821.94022,
+          "S1_top_right": 349.142357,
+          "S2_bottom_right": 598.40499,
+          "S3_bottom_left": 954.86851
+        },
+        {
+          "S0_top_left": 796.341301,
+          "S1_top_right": 367.132019,
+          "S2_bottom_right": 601.252178,
+          "S3_bottom_left": 927.834968
+        },
+        {
+          "S0_top_left": 766.005938,
+          "S1_top_right": 378.122978,
+          "S2_bottom_right": 615.852841,
+          "S3_bottom_left": 907.228104
+        },
+        {
+          "S0_top_left": 735.272726,
+          "S1_top_right": 385.448884,
+          "S2_bottom_right": 636.218034,
+          "S3_bottom_left": 892.652523
+        },
+        {
+          "S0_top_left": 704.253904,
+          "S1_top_right": 387.206876,
+          "S2_bottom_right": 663.187707,
+          "S3_bottom_left": 886.488765
+        },
+        {
+          "S0_top_left": 677.238943,
+          "S1_top_right": 381.761805,
+          "S2_bottom_right": 693.749466,
+          "S3_bottom_left": 891.178339
+        },
+        {
+          "S0_top_left": 655.852378,
+          "S1_top_right": 370.95176,
+          "S2_bottom_right": 724.995293,
+          "S3_bottom_left": 904.51938
+        },
+        {
+          "S0_top_left": 640.720044,
+          "S1_top_right": 357.263012,
+          "S2_bottom_right": 754.500382,
+          "S3_bottom_left": 923.123037
+        },
+        {
+          "S0_top_left": 631.291911,
+          "S1_top_right": 339.961056,
+          "S2_bottom_right": 783.98659,
+          "S3_bottom_left": 947.412756
+        },
+        {
+          "S0_top_left": 640.316025,
+          "S1_top_right": 311.749428,
+          "S2_bottom_right": 804.363704,
+          "S3_bottom_left": 979.702953
+        },
+        {
+          "S0_top_left": 653.571081,
+          "S1_top_right": 283.888826,
+          "S2_bottom_right": 821.77295,
+          "S3_bottom_left": 1010.877378
+        },
+        {
+          "S0_top_left": 674.735826,
+          "S1_top_right": 253.592117,
+          "S2_bottom_right": 832.643352,
+          "S3_bottom_left": 1041.275383
+        },
+        {
+          "S0_top_left": 702.428548,
+          "S1_top_right": 222.065541,
+          "S2_bottom_right": 835.715709,
+          "S3_bottom_left": 1068.884235
+        },
+        {
+          "S0_top_left": 732.113821,
+          "S1_top_right": 193.161965,
+          "S2_bottom_right": 832.161795,
+          "S3_bottom_left": 1091.408427
+        },
+        {
+          "S0_top_left": 762.442733,
+          "S1_top_right": 168.523285,
+          "S2_bottom_right": 823.034543,
+          "S3_bottom_left": 1109.191004
+        },
+        {
+          "S0_top_left": 792.483333,
+          "S1_top_right": 152.033372,
+          "S2_bottom_right": 807.417442,
+          "S3_bottom_left": 1121.088138
+        },
+        {
+          "S0_top_left": 820.437855,
+          "S1_top_right": 148.668819,
+          "S2_bottom_right": 785.394629,
+          "S3_bottom_left": 1125.993153
+        },
+        {
+          "S0_top_left": 843.600808,
+          "S1_top_right": 160.738061,
+          "S2_bottom_right": 757.964319,
+          "S3_bottom_left": 1122.646653
+        },
+        {
+          "S0_top_left": 858.896606,
+          "S1_top_right": 183.183845,
+          "S2_bottom_right": 728.888321,
+          "S3_bottom_left": 1111.496847
+        }
+      ],
+      "source_region_id": 99
+    },
+    {
+      "name": "S2_bottom_right",
+      "type": "start_circle",
+      "group": "S2_bottom_right",
+      "original_id": 100,
+      "original_label": "100",
+      "polygon_board_px": [
+        [
+          841.215454,
+          723.447083
+        ],
+        [
+          837.272705,
+          754.319275
+        ],
+        [
+          824.547974,
+          782.192017
+        ],
+        [
+          806.044617,
+          806.194336
+        ],
+        [
+          777.251099,
+          821.50293
+        ],
+        [
+          747.057922,
+          832.275146
+        ],
+        [
+          718.183777,
+          835.757141
+        ],
+        [
+          685.450012,
+          833.579407
+        ],
+        [
+          657.973511,
+          821.831482
+        ],
+        [
+          630.264343,
+          803.284424
+        ],
+        [
+          616.154785,
+          781.438599
+        ],
+        [
+          602.273376,
+          752.982117
+        ],
+        [
+          598.627136,
+          716.690857
+        ],
+        [
+          605.642944,
+          686.95874
+        ],
+        [
+          621.19812,
+          663.389954
+        ],
+        [
+          638.343323,
+          637.657471
+        ],
+        [
+          664.910461,
+          621.802002
+        ],
+        [
+          693.012207,
+          609.976196
+        ],
+        [
+          723.868469,
+          606.694031
+        ],
+        [
+          753.54364,
+          610.006836
+        ],
+        [
+          781.964722,
+          621.797058
+        ],
+        [
+          809.35144,
+          641.106689
+        ],
+        [
+          829.988403,
+          664.651245
+        ],
+        [
+          837.253296,
+          692.392212
+        ]
+      ],
+      "id": 72,
+      "label": "72",
+      "polygon_board_normalized": [
+        [
+          0.934684,
+          0.80383
+        ],
+        [
+          0.930303,
+          0.838133
+        ],
+        [
+          0.916164,
+          0.869102
+        ],
+        [
+          0.895605,
+          0.895771
+        ],
+        [
+          0.863612,
+          0.912781
+        ],
+        [
+          0.830064,
+          0.92475
+        ],
+        [
+          0.797982,
+          0.928619
+        ],
+        [
+          0.761611,
+          0.926199
+        ],
+        [
+          0.731082,
+          0.913146
+        ],
+        [
+          0.700294,
+          0.892538
+        ],
+        [
+          0.684616,
+          0.868265
+        ],
+        [
+          0.669193,
+          0.836647
+        ],
+        [
+          0.665141,
+          0.796323
+        ],
+        [
+          0.672937,
+          0.763287
+        ],
+        [
+          0.69022,
+          0.7371
+        ],
+        [
+          0.70927,
+          0.708508
+        ],
+        [
+          0.738789,
+          0.690891
+        ],
+        [
+          0.770014,
+          0.677751
+        ],
+        [
+          0.804298,
+          0.674104
+        ],
+        [
+          0.837271,
+          0.677785
+        ],
+        [
+          0.86885,
+          0.690886
+        ],
+        [
+          0.899279,
+          0.712341
+        ],
+        [
+          0.922209,
+          0.738501
+        ],
+        [
+          0.930281,
+          0.769325
+        ]
+      ],
+      "centroid_board_px": [
+        720.891406,
+        721.746969
+      ],
+      "centroid_normalized": [
+        0.80099,
+        0.801941
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 1020.099557,
+        "S1_top_right": 743.63874,
+        "S2_bottom_right": 252.693553,
+        "S3_bottom_left": 742.60256
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 1109.513011,
+          "S1_top_right": 725.831457,
+          "S2_bottom_right": 186.08212,
+          "S3_bottom_left": 859.543119
+        },
+        {
+          "S0_top_left": 1126.953039,
+          "S1_top_right": 756.922904,
+          "S2_bottom_right": 158.611435,
+          "S3_bottom_left": 849.85202
+        },
+        {
+          "S0_top_left": 1136.531439,
+          "S1_top_right": 785.822728,
+          "S2_bottom_right": 139.898997,
+          "S3_bottom_left": 832.921414
+        },
+        {
+          "S0_top_left": 1140.025101,
+          "S1_top_right": 811.650739,
+          "S2_bottom_right": 132.767152,
+          "S3_bottom_left": 811.484705
+        },
+        {
+          "S0_top_left": 1130.92278,
+          "S1_top_right": 830.622872,
+          "S2_bottom_right": 145.702034,
+          "S3_bottom_left": 781.204877
+        },
+        {
+          "S0_top_left": 1118.381625,
+          "S1_top_right": 846.211084,
+          "S2_bottom_right": 167.26606,
+          "S3_bottom_left": 750.121454
+        },
+        {
+          "S0_top_left": 1101.942801,
+          "S1_top_right": 855.305289,
+          "S2_bottom_right": 192.832269,
+          "S3_bottom_left": 721.051373
+        },
+        {
+          "S0_top_left": 1079.210983,
+          "S1_top_right": 860.747538,
+          "S2_bottom_right": 224.596065,
+          "S3_bottom_left": 688.660595
+        },
+        {
+          "S0_top_left": 1052.775439,
+          "S1_top_right": 856.728549,
+          "S2_bottom_right": 254.336664,
+          "S3_bottom_left": 662.600527
+        },
+        {
+          "S0_top_left": 1021.028407,
+          "S1_top_right": 847.36249,
+          "S2_bottom_right": 286.550567,
+          "S3_bottom_left": 637.641784
+        },
+        {
+          "S0_top_left": 995.134666,
+          "S1_top_right": 831.393041,
+          "S2_bottom_right": 307.611625,
+          "S3_bottom_left": 627.457987
+        },
+        {
+          "S0_top_left": 964.217449,
+          "S1_top_right": 809.705632,
+          "S2_bottom_right": 332.047286,
+          "S3_bottom_left": 619.957642
+        },
+        {
+          "S0_top_left": 933.809527,
+          "S1_top_right": 777.47758,
+          "S2_bottom_right": 352.743313,
+          "S3_bottom_left": 626.064446
+        },
+        {
+          "S0_top_left": 915.814221,
+          "S1_top_right": 747.367638,
+          "S2_bottom_right": 363.362979,
+          "S3_bottom_left": 642.020213
+        },
+        {
+          "S0_top_left": 908.830752,
+          "S1_top_right": 719.59483,
+          "S2_bottom_right": 365.670346,
+          "S3_bottom_left": 664.734096
+        },
+        {
+          "S0_top_left": 902.268944,
+          "S1_top_right": 689.254138,
+          "S2_bottom_right": 370.52371,
+          "S3_bottom_left": 690.149115
+        },
+        {
+          "S0_top_left": 910.353586,
+          "S1_top_right": 664.75922,
+          "S2_bottom_right": 364.226876,
+          "S3_bottom_left": 720.763517
+        },
+        {
+          "S0_top_left": 923.220927,
+          "S1_top_right": 644.138888,
+          "S2_bottom_right": 356.311315,
+          "S3_bottom_left": 751.252105
+        },
+        {
+          "S0_top_left": 944.490978,
+          "S1_top_right": 631.74359,
+          "S2_bottom_right": 342.126742,
+          "S3_bottom_left": 781.0339
+        },
+        {
+          "S0_top_left": 969.50315,
+          "S1_top_right": 627.341857,
+          "S2_bottom_right": 324.87767,
+          "S3_bottom_left": 807.41814
+        },
+        {
+          "S0_top_left": 999.049752,
+          "S1_top_right": 632.901184,
+          "S2_bottom_right": 302.20722,
+          "S3_bottom_left": 829.979339
+        },
+        {
+          "S0_top_left": 1032.505468,
+          "S1_top_right": 647.483551,
+          "S2_bottom_right": 274.304407,
+          "S3_bottom_left": 849.750258
+        },
+        {
+          "S0_top_left": 1063.316523,
+          "S1_top_right": 668.328438,
+          "S2_bottom_right": 245.541565,
+          "S3_bottom_left": 862.71072
+        },
+        {
+          "S0_top_left": 1086.462174,
+          "S1_top_right": 695.229548,
+          "S2_bottom_right": 216.882785,
+          "S3_bottom_left": 862.608877
+        }
+      ],
+      "source_region_id": 100
+    },
+    {
+      "name": "S3_bottom_left",
+      "type": "start_circle",
+      "group": "S3_bottom_left",
+      "original_id": 101,
+      "original_label": "101",
+      "polygon_board_px": [
+        [
+          293.803711,
+          716.554199
+        ],
+        [
+          286.146881,
+          753.357544
+        ],
+        [
+          274.892029,
+          779.726074
+        ],
+        [
+          252.349075,
+          801.746338
+        ],
+        [
+          228.369781,
+          820.985657
+        ],
+        [
+          199.587219,
+          831.73468
+        ],
+        [
+          168.911972,
+          836.852661
+        ],
+        [
+          138.354401,
+          831.711304
+        ],
+        [
+          109.816025,
+          820.998474
+        ],
+        [
+          85.288246,
+          801.930359
+        ],
+        [
+          65.725731,
+          777.301453
+        ],
+        [
+          51.948929,
+          757.563721
+        ],
+        [
+          43.807049,
+          725.064392
+        ],
+        [
+          47.086468,
+          692.516052
+        ],
+        [
+          60.968651,
+          660.049683
+        ],
+        [
+          84.851616,
+          634.708252
+        ],
+        [
+          108.893005,
+          615.257202
+        ],
+        [
+          137.841141,
+          604.377686
+        ],
+        [
+          168.716721,
+          600.145935
+        ],
+        [
+          199.489578,
+          604.424927
+        ],
+        [
+          228.17485,
+          615.285461
+        ],
+        [
+          252.745575,
+          634.569519
+        ],
+        [
+          271.248993,
+          659.389343
+        ],
+        [
+          285.897766,
+          685.503052
+        ]
+      ],
+      "id": 73,
+      "label": "73",
+      "polygon_board_normalized": [
+        [
+          0.326449,
+          0.796171
+        ],
+        [
+          0.317941,
+          0.837064
+        ],
+        [
+          0.305436,
+          0.866362
+        ],
+        [
+          0.280388,
+          0.890829
+        ],
+        [
+          0.253744,
+          0.912206
+        ],
+        [
+          0.221764,
+          0.92415
+        ],
+        [
+          0.18768,
+          0.929836
+        ],
+        [
+          0.153727,
+          0.924124
+        ],
+        [
+          0.122018,
+          0.912221
+        ],
+        [
+          0.094765,
+          0.891034
+        ],
+        [
+          0.073029,
+          0.863668
+        ],
+        [
+          0.057721,
+          0.841737
+        ],
+        [
+          0.048674,
+          0.805627
+        ],
+        [
+          0.052318,
+          0.769462
+        ],
+        [
+          0.067743,
+          0.733389
+        ],
+        [
+          0.09428,
+          0.705231
+        ],
+        [
+          0.120992,
+          0.683619
+        ],
+        [
+          0.153157,
+          0.671531
+        ],
+        [
+          0.187463,
+          0.666829
+        ],
+        [
+          0.221655,
+          0.671583
+        ],
+        [
+          0.253528,
+          0.683651
+        ],
+        [
+          0.280828,
+          0.705077
+        ],
+        [
+          0.301388,
+          0.732655
+        ],
+        [
+          0.317664,
+          0.76167
+        ]
+      ],
+      "centroid_board_px": [
+        168.538142,
+        719.239749
+      ],
+      "centroid_normalized": [
+        0.187265,
+        0.799155
+      ],
+      "centroid_distances_to_green_corners_px": {
+        "S0_top_left": 738.722493,
+        "S1_top_right": 1025.837348,
+        "S2_bottom_right": 753.465804,
+        "S3_bottom_left": 247.142416
+      },
+      "vertex_distances_to_green_corners_px": [
+        {
+          "S0_top_left": 774.44854,
+          "S1_top_right": 938.575443,
+          "S2_bottom_right": 633.345327,
+          "S3_bottom_left": 346.371163
+        },
+        {
+          "S0_top_left": 805.870726,
+          "S1_top_right": 971.783536,
+          "S2_bottom_right": 631.12571,
+          "S3_bottom_left": 321.533898
+        },
+        {
+          "S0_top_left": 826.763798,
+          "S1_top_right": 999.366162,
+          "S2_bottom_right": 636.573478,
+          "S3_bottom_left": 300.052403
+        },
+        {
+          "S0_top_left": 840.522008,
+          "S1_top_right": 1030.654603,
+          "S2_bottom_right": 655.061449,
+          "S3_bottom_left": 270.802212
+        },
+        {
+          "S0_top_left": 852.15621,
+          "S1_top_right": 1060.709479,
+          "S2_bottom_right": 676.262092,
+          "S3_bottom_left": 241.652692
+        },
+        {
+          "S0_top_left": 855.346501,
+          "S1_top_right": 1087.36408,
+          "S2_bottom_right": 703.731637,
+          "S3_bottom_left": 210.938882
+        },
+        {
+          "S0_top_left": 853.729249,
+          "S1_top_right": 1111.220987,
+          "S2_bottom_right": 733.810119,
+          "S3_bottom_left": 180.329811
+        },
+        {
+          "S0_top_left": 843.14034,
+          "S1_top_right": 1127.762259,
+          "S2_bottom_right": 764.700834,
+          "S3_bottom_left": 154.289618
+        },
+        {
+          "S0_top_left": 828.310361,
+          "S1_top_right": 1139.48638,
+          "S2_bottom_right": 794.123388,
+          "S3_bottom_left": 135.280451
+        },
+        {
+          "S0_top_left": 806.452965,
+          "S1_top_right": 1143.174327,
+          "S2_bottom_right": 820.593015,
+          "S3_bottom_left": 129.968225
+        },
+        {
+          "S0_top_left": 780.075266,
+          "S1_top_right": 1140.267997,
+          "S2_bottom_right": 843.248771,
+          "S3_bottom_left": 139.193409
+        },
+        {
+          "S0_top_left": 759.342796,
+          "S1_top_right": 1137.142652,
+          "S2_bottom_right": 859.929481,
+          "S3_bottom_left": 151.613934
+        },
+        {
+          "S0_top_left": 726.386557,
+          "S1_top_right": 1121.955767,
+          "S2_bottom_right": 873.881477,
+          "S3_bottom_left": 180.337252
+        },
+        {
+          "S0_top_left": 694.114989,
+          "S1_top_right": 1098.653711,
+          "S2_bottom_right": 877.787606,
+          "S3_bottom_left": 212.75978
+        },
+        {
+          "S0_top_left": 662.859533,
+          "S1_top_right": 1067.538846,
+          "S2_bottom_right": 872.668184,
+          "S3_bottom_left": 247.5749
+        },
+        {
+          "S0_top_left": 640.354872,
+          "S1_top_right": 1033.112508,
+          "S2_bottom_right": 857.23194,
+          "S3_bottom_left": 278.530983
+        },
+        {
+          "S0_top_left": 624.819263,
+          "S1_top_right": 1002.193445,
+          "S2_bottom_right": 840.790543,
+          "S3_bottom_left": 304.854305
+        },
+        {
+          "S0_top_left": 619.897223,
+          "S1_top_right": 972.706797,
+          "S2_bottom_right": 817.483137,
+          "S3_bottom_left": 326.178989
+        },
+        {
+          "S0_top_left": 623.410359,
+          "S1_top_right": 946.01817,
+          "S2_bottom_right": 790.371871,
+          "S3_bottom_left": 344.060739
+        },
+        {
+          "S0_top_left": 636.494763,
+          "S1_top_right": 925.226644,
+          "S2_bottom_right": 760.315379,
+          "S3_bottom_left": 356.596012
+        },
+        {
+          "S0_top_left": 656.231637,
+          "S1_top_right": 911.002322,
+          "S2_bottom_right": 729.665266,
+          "S3_bottom_left": 364.864538
+        },
+        {
+          "S0_top_left": 683.051096,
+          "S1_top_right": 906.430783,
+          "S2_bottom_right": 699.565316,
+          "S3_bottom_left": 366.515574
+        },
+        {
+          "S0_top_left": 713.000927,
+          "S1_top_right": 911.110386,
+          "S2_bottom_right": 673.21714,
+          "S3_bottom_left": 362.587237
+        },
+        {
+          "S0_top_left": 742.732769,
+          "S1_top_right": 920.345581,
+          "S2_bottom_right": 650.484815,
+          "S3_bottom_left": 357.416387
+        }
+      ],
+      "source_region_id": 101
+    }
+  ]
+}

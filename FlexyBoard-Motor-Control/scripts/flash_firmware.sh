@@ -10,5 +10,8 @@ if [[ ! -f "${ELF_PATH}" ]]; then
   exit 1
 fi
 
+cd "${ROOT_DIR}"
+ELF_PROGRAM_PATH="build/$(basename "${ELF_PATH}")"
+
 openocd -f interface/stlink.cfg -f target/stm32f4x.cfg \
-  -c "init; reset halt; program ${ELF_PATH} verify; reset run; shutdown"
+  -c "init; reset halt; program ${ELF_PROGRAM_PATH} verify; reset run; shutdown"

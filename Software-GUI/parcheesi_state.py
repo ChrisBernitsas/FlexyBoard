@@ -150,7 +150,7 @@ class ParcheesiState:
         try:
             if parts[0] == "nest" and len(parts) in {2, 3}:
                 player = int(parts[1])
-                token = int(parts[2]) if len(parts) == 3 else 1
+                token = int(parts[2]) if len(parts) == 3 else 0
                 return ParsedLocation("nest", player, token)
             if parts[0] == "main" and len(parts) == 2:
                 return ParsedLocation("main", 0, int(parts[1]))
@@ -158,7 +158,7 @@ class ParcheesiState:
                 return ParsedLocation("home", int(parts[1]), int(parts[2]))
             if parts[0] == "homearea" and len(parts) in {2, 3}:
                 player = int(parts[1])
-                token = int(parts[2]) if len(parts) == 3 else 1
+                token = int(parts[2]) if len(parts) == 3 else 0
                 return ParsedLocation("homearea", player, token)
         except ValueError as exc:
             raise ValueError(f"invalid Parcheesi location ID: {location_id!r}") from exc
@@ -167,13 +167,13 @@ class ParcheesiState:
     @staticmethod
     def location_id(kind: str, player: int = 0, pos: int = 0) -> str:
         if kind == "nest":
-            return f"nest_{player}_{pos}"
+            return f"nest_{player}" if pos <= 0 else f"nest_{player}_{pos}"
         if kind == "main":
             return f"main_{pos}"
         if kind == "home":
             return f"home_{player}_{pos}"
         if kind == "homearea":
-            return f"homearea_{player}_{pos}"
+            return f"homearea_{player}" if pos <= 0 else f"homearea_{player}_{pos}"
         raise ValueError(f"unknown location kind: {kind}")
 
     def piece_location_id(self, piece: Piece) -> str:
@@ -430,6 +430,59 @@ class ParcheesiState:
                 return distance
         return None
 
+    def path_locations_for_move(self, piece: Piece, end_id: str) -> list[str]:
+        distance = self._distance_for_end(piece, end_id)
+        if distance is None:
+            raise ValueError(f"destination is not reachable from selected piece: {end_id}")
+
+        player = piece.to_player_num()
+        loc = self.piece_locations[piece]
+        path: list[str] = []
+
+        if loc.kind == "nest":
+            if distance != 5:
+                raise ValueError("nest moves must enter on a five")
+            path.append(self.location_id("main", pos=self.PLAYER_START_SQUARES[player]))
+            return path
+
+        if loc.kind == "main":
+            steps_to_entry = (self.PLAYER_HOME_ENTRY_SQUARES[player] - loc.pos) % self.MAIN_TRACK_LENGTH
+            main_steps = min(distance, steps_to_entry)
+            for step in range(1, main_steps + 1):
+                path.append(self.location_id("main", pos=(loc.pos + step) % self.MAIN_TRACK_LENGTH))
+
+            remaining = distance - main_steps
+            if remaining <= 0:
+                return path
+
+            if remaining <= self.HOME_PATH_LENGTH:
+                for home_pos in range(remaining):
+                    path.append(self.location_id("home", player, home_pos))
+                return path
+
+            if remaining == self.HOME_PATH_LENGTH + 1:
+                for home_pos in range(self.HOME_PATH_LENGTH):
+                    path.append(self.location_id("home", player, home_pos))
+                path.append(self.location_id("homearea", player, piece.to_token_num()))
+                return path
+
+            raise ValueError(f"unsupported main-track move distance: {distance}")
+
+        if loc.kind == "home":
+            target = loc.pos + distance
+            if target < self.HOME_PATH_LENGTH:
+                for home_pos in range(loc.pos + 1, target + 1):
+                    path.append(self.location_id("home", player, home_pos))
+                return path
+            if target == self.HOME_PATH_LENGTH:
+                for home_pos in range(loc.pos + 1, self.HOME_PATH_LENGTH):
+                    path.append(self.location_id("home", player, home_pos))
+                path.append(self.location_id("homearea", player, piece.to_token_num()))
+                return path
+            raise ValueError(f"unsupported home-path move distance: {distance}")
+
+        raise ValueError(f"cannot build path from location kind: {loc.kind}")
+
     def apply_move_trusted(self, start_id: str, end_id: str) -> None:
         try:
             piece = self._find_piece_for_start(start_id, 1)
@@ -554,8 +607,16 @@ class ParcheesiState:
         if loc.kind == "home":
             return cls.home_grid_position(loc.player, loc.pos)
         if loc.kind == "nest":
+            if loc.pos <= 0:
+                pts = [cls.nest_grid_position(loc.player, token) for token in range(1, cls.TOKENS_PER_PLAYER + 1)]
+                return (
+                    float(sum(x for x, _ in pts) / len(pts)),
+                    float(sum(y for _, y in pts) / len(pts)),
+                )
             return cls.nest_grid_position(loc.player, loc.pos)
         if loc.kind == "homearea":
+            if loc.pos <= 0:
+                return (9.0, 9.0)
             return cls.home_area_grid_position(loc.player, loc.pos)
         raise ValueError(f"unsupported Parcheesi location: {location_id}")
 

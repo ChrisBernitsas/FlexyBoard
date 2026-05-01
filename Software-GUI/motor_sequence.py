@@ -13,6 +13,7 @@ import config
 from checkers_state import CheckersState, Piece as CheckersPiece
 from chess_state import ChessPiece, ChessState
 from coords import Square, parse_square
+from parcheesi_layout import location_to_pct as parcheesi_location_to_pct_from_layout
 from parcheesi_state import ParcheesiState
 
 try:
@@ -49,6 +50,7 @@ class GeneratedSequence:
     capture_slots_used: List[str] = field(default_factory=list)
     manual_actions: List[str] = field(default_factory=list)
     debug_metrics: dict[str, object] = field(default_factory=dict)
+    player_ready_after_step_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -143,10 +145,17 @@ class CaptureInventory:
         captured_side: str,
         piece_name: str,
         blocked_indices: set[int] | None = None,
+        preferred_index: int | None = None,
     ) -> CaptureSlotRecord:
         if captured_side not in {"p1", "p2"}:
             raise ValueError(f"invalid captured_side: {captured_side}")
-        idx = self._next_free_index(blocked_indices)
+        blocked = blocked_indices or set()
+        if preferred_index is not None:
+            if preferred_index in self._slots or preferred_index in blocked:
+                raise ValueError(f"capture slot {preferred_index} is unavailable")
+            idx = preferred_index
+        else:
+            idx = self._next_free_index(blocked)
         slot = _capture_slot_by_index(idx)
         self._slots[idx] = _CaptureInventorySlot(
             captured_side=captured_side,
@@ -212,6 +221,11 @@ class CaptureInventory:
             ),
             assigned,
         )
+
+    def remove_captured_piece(self, slot_index: int) -> None:
+        if slot_index not in self._slots:
+            raise KeyError(f"unknown capture slot index: {slot_index}")
+        self._slots.pop(slot_index)
 
     def take_piece(self, captured_side: str, piece_name: str) -> CaptureSlotRecord | None:
         if captured_side not in {"p1", "p2"}:
@@ -680,28 +694,37 @@ def _checkers_capture_mid_square(start_sq: Square, end_sq: Square) -> Square | N
 
 
 def _parcheesi_location_to_pct(location_id: str) -> PercentEndpoint:
-    x_min = config.P2_PARCHEESI_MIN_X_PCT
-    x_max = config.P2_PARCHEESI_MAX_X_PCT
-    y_min = config.P2_PARCHEESI_MIN_Y_PCT
-    y_max = config.P2_PARCHEESI_MAX_Y_PCT
+    try:
+        x_pct, y_pct = parcheesi_location_to_pct_from_layout(location_id)
+        return _pct_ep(x_pct, y_pct)
+    except Exception:
+        x_min = config.P2_PARCHEESI_MIN_X_PCT
+        x_max = config.P2_PARCHEESI_MAX_X_PCT
+        y_min = config.P2_PARCHEESI_MIN_Y_PCT
+        y_max = config.P2_PARCHEESI_MAX_Y_PCT
 
-    span_x = max(1e-6, x_max - x_min)
-    span_y = max(1e-6, y_max - y_min)
+        span_x = max(1e-6, x_max - x_min)
+        span_y = max(1e-6, y_max - y_min)
 
-    gx, gy = ParcheesiState.location_id_to_grid(location_id)
-    fx = gx / float(ParcheesiState.GRID_MAX)
-    fy = gy / float(ParcheesiState.GRID_MAX)
-    if config.P2_PARCHEESI_INVERT_X:
-        fx = 1.0 - fx
-    if config.P2_PARCHEESI_INVERT_Y:
-        fy = 1.0 - fy
+        gx, gy = ParcheesiState.location_id_to_grid(location_id)
+        fx = gx / float(ParcheesiState.GRID_MAX)
+        fy = gy / float(ParcheesiState.GRID_MAX)
+        if config.P2_PARCHEESI_INVERT_X:
+            fx = 1.0 - fx
+        if config.P2_PARCHEESI_INVERT_Y:
+            fy = 1.0 - fy
 
-    x_pct = x_min + (fx * span_x)
-    y_pct = y_min + (fy * span_y)
-    return _pct_ep(x_pct, y_pct)
+        x_pct = x_min + (fx * span_x)
+        y_pct = y_min + (fy * span_y)
+        return _pct_ep(x_pct, y_pct)
 
 
-def _choose_legal_chess_move(state_before: ChessState, start_sq: Square, end_sq: Square) -> tuple[object | None, object | None]:
+def _choose_legal_chess_move(
+    state_before: ChessState,
+    start_sq: Square,
+    end_sq: Square,
+    promotion_type: int | None = None,
+) -> tuple[object | None, object | None]:
     if chess is None:
         return None, None
 
@@ -713,6 +736,11 @@ def _choose_legal_chess_move(state_before: ChessState, start_sq: Square, end_sq:
     ]
     if not candidates:
         return board, None
+
+    if promotion_type is not None:
+        for mv in candidates:
+            if mv.promotion == promotion_type:
+                return board, mv
 
     selected = candidates[0]
     for mv in candidates:
@@ -726,6 +754,42 @@ def _board_coord_from_chess_square(square_index: int) -> BoardCoord:
     if chess is None:
         raise RuntimeError("python-chess unavailable")
     return (chess.square_file(square_index), chess.square_rank(square_index))
+
+
+def _can_use_direct_chess_line_move(board_before: object | None, legal_move: object | None) -> bool:
+    if chess is None or board_before is None or legal_move is None:
+        return False
+
+    piece = board_before.piece_at(legal_move.from_square)
+    if piece is None or piece.piece_type not in (chess.BISHOP, chess.ROOK, chess.QUEEN):
+        return False
+
+    src_file = chess.square_file(legal_move.from_square)
+    src_rank = chess.square_rank(legal_move.from_square)
+    dst_file = chess.square_file(legal_move.to_square)
+    dst_rank = chess.square_rank(legal_move.to_square)
+    dx = dst_file - src_file
+    dy = dst_rank - src_rank
+
+    if dx == 0 and dy == 0:
+        return False
+    if piece.piece_type == chess.BISHOP and abs(dx) != abs(dy):
+        return False
+    if piece.piece_type == chess.ROOK and dx != 0 and dy != 0:
+        return False
+    if piece.piece_type == chess.QUEEN and not (dx == 0 or dy == 0 or abs(dx) == abs(dy)):
+        return False
+
+    step_file = 0 if dx == 0 else (1 if dx > 0 else -1)
+    step_rank = 0 if dy == 0 else (1 if dy > 0 else -1)
+    cur_file = src_file + step_file
+    cur_rank = src_rank + step_rank
+    while (cur_file, cur_rank) != (dst_file, dst_rank):
+        if board_before.piece_at(chess.square(cur_file, cur_rank)) is not None:
+            return False
+        cur_file += step_file
+        cur_rank += step_rank
+    return True
 
 
 def _piece_name(piece: object) -> str:
@@ -821,6 +885,26 @@ def _compressed_segment_count(path: Sequence[BoardCoord]) -> int:
     return len(_compress_path(path))
 
 
+def _mixed_segment_count(nodes: Sequence[MixedNode]) -> int:
+    if len(nodes) < 2:
+        return 0
+
+    segment_count = 0
+    idx = 0
+    while idx < len(nodes) - 1:
+        if _is_board_node(nodes[idx]) and _is_board_node(nodes[idx + 1]):
+            end_idx = idx + 1
+            while end_idx < len(nodes) and _is_board_node(nodes[end_idx]):
+                end_idx += 1
+            board_path = [node for node in nodes[idx:end_idx] if _is_board_node(node)]
+            segment_count += _compressed_segment_count(board_path)  # type: ignore[arg-type]
+            idx = end_idx - 1
+            continue
+        segment_count += 1
+        idx += 1
+    return segment_count
+
+
 def _step_collision_cells(a: BoardCoord, b: BoardCoord) -> set[BoardCoord]:
     """Return cells whose occupied pieces could be struck moving one grid step."""
     ax, ay = a
@@ -906,29 +990,55 @@ class MotionPlanner:
             capture_detected=False,
             temporary_relocations=len(self._temp_relocations),
             debug_metrics=self.debug_metrics(capture_detected=False, planning_ms=0.0),
+            player_ready_after_step_count=len(self.lines),
         )
 
-    def capture_slot_next(self, captured_side: str, piece_name: str) -> PercentEndpoint:
+    def capture_slot_next(
+        self,
+        captured_side: str,
+        piece_name: str,
+        *,
+        preferred_index: int | None = None,
+    ) -> PercentEndpoint:
         if self._capture_inventory is not None:
             rec = self._capture_inventory.add_captured_piece(
                 captured_side,
                 piece_name,
                 blocked_indices=self._reserved_capture_slot_indices,
+                preferred_index=preferred_index,
             )
             self._capture_slots_used.append(
                 f"{captured_side}[{rec.slot_index}]={rec.slot.x_pct:.2f}%,{rec.slot.y_pct:.2f}%:{piece_name}"
             )
             return rec.slot
 
-        slot_index = self._captured_count[captured_side]
-        while slot_index in self._reserved_capture_slot_indices:
-            slot_index += 1
+        if preferred_index is not None:
+            slot_index = preferred_index
+            if slot_index in self._reserved_capture_slot_indices:
+                raise ValueError(f"capture slot {slot_index} is unavailable")
+        else:
+            slot_index = self._captured_count[captured_side]
+            while slot_index in self._reserved_capture_slot_indices:
+                slot_index += 1
         slot = _capture_slot(captured_side, slot_index)
         self._captured_count[captured_side] = slot_index + 1
         self._capture_slots_used.append(
             f"{captured_side}[{slot_index}]={slot.x_pct:.2f}%,{slot.y_pct:.2f}%:{piece_name}"
         )
         return slot
+
+    def release_capture_slot_reservation(self, slot: PercentEndpoint) -> None:
+        idx = _capture_slot_index_from_key(_pct_key(slot))
+        if idx is None:
+            return
+        if self._capture_inventory is not None:
+            self._capture_inventory.remove_captured_piece(idx)
+        for i in range(len(self._capture_slots_used) - 1, -1, -1):
+            note = self._capture_slots_used[i]
+            if note.startswith("p1[") or note.startswith("p2["):
+                if f"[{idx}]=" in note:
+                    del self._capture_slots_used[i]
+                    break
 
     def append_segment(self, src: Endpoint, dst: Endpoint) -> None:
         self._total_distance_pct += _pct_distance(self._endpoint_to_pct(src), self._endpoint_to_pct(dst))
@@ -1271,6 +1381,10 @@ class MotionPlanner:
         b: PercentEndpoint,
         occupied_center: PercentEndpoint,
     ) -> bool:
+        # Collision policy: treat the moving piece as sweeping a full board-square
+        # footprint along the segment, not just its center point. That is the
+        # Minkowski sum of the stationary occupied square and the moving square,
+        # so the blocker rectangle expands by one extra half-square in each axis.
         return _segment_intersects_rect_interior(
             a,
             b,
@@ -1393,6 +1507,89 @@ class MotionPlanner:
                 nodes[_pct_key(point)] = point
         return list(nodes.values())
 
+    def _best_route_offboard_only(
+        self,
+        start: PercentEndpoint,
+        dst: PercentEndpoint,
+    ) -> MixedRoutePlan | None:
+        if not self._pct_is_in_green_area(start) or not self._pct_is_in_green_area(dst):
+            return None
+
+        nodes = self._offboard_lattice_nodes(extra_points=[start, dst])
+        ignore_slots = {_pct_key(start), _pct_key(dst)}
+        best_cost: dict[tuple[float, float], tuple[float, int, float]] = {
+            _pct_key(start): (0.0, 0, 0.0)
+        }
+        came_from: dict[tuple[float, float], tuple[float, float]] = {}
+        open_heap: list[tuple[float, float, int, float, int, PercentEndpoint]] = []
+        counter = 0
+        heapq.heappush(
+            open_heap,
+            (self._node_distance(start, dst), 0.0, 0, 0.0, counter, start),
+        )
+
+        while open_heap:
+            _priority, cost, segments, distance, _counter, cur = heapq.heappop(open_heap)
+            cur_key = _pct_key(cur)
+            if (cost, segments, distance) != best_cost.get(cur_key, (float("inf"), 10**9, float("inf"))):
+                continue
+            if cur_key == _pct_key(dst):
+                path_nodes: list[PercentEndpoint] = [cur]
+                while cur_key in came_from:
+                    cur_key = came_from[cur_key]
+                    path_nodes.append(_pct_ep(cur_key[0], cur_key[1]))
+                path_nodes.reverse()
+                return MixedRoutePlan(
+                    nodes=tuple(path_nodes),
+                    blockers=frozenset(),
+                )
+
+            for nxt in nodes:
+                if _pct_key(nxt) == _pct_key(cur):
+                    continue
+                if not self._offboard_segment_stays_in_green_area(cur, nxt):
+                    continue
+                if self._segment_offboard_blockers(cur, nxt, ignore_slots=ignore_slots):
+                    continue
+                edge_distance = _pct_distance(cur, nxt)
+                next_segments = segments + 1
+                next_distance = distance + edge_distance
+                next_cost = self._estimated_execution_cost(
+                    blocker_count=0,
+                    segment_count=next_segments,
+                    distance_pct=next_distance,
+                )
+                next_key = _pct_key(nxt)
+                next_metrics = (next_cost, next_segments, next_distance)
+                if next_metrics >= best_cost.get(next_key, (float("inf"), 10**9, float("inf"))):
+                    continue
+                best_cost[next_key] = next_metrics
+                came_from[next_key] = _pct_key(cur)
+                counter += 1
+                heapq.heappush(
+                    open_heap,
+                    (
+                        next_cost + self._node_distance(nxt, dst),
+                        next_cost,
+                        next_segments,
+                        next_distance,
+                        counter,
+                        nxt,
+                    ),
+                )
+        return None
+
+    def _best_route_pct_mixed_fallback(
+        self,
+        start: PercentEndpoint,
+        dst: PercentEndpoint,
+        protected: set[MixedNode],
+    ) -> MixedRoutePlan | None:
+        plan = self._best_route_mixed_any(start, dst, protected)
+        if plan is None or plan.blockers:
+            return None
+        return plan
+
     def _mixed_edge_blockers(
         self,
         cur: MixedNode,
@@ -1410,9 +1607,6 @@ class MotionPlanner:
             ignore_board.add(start)  # type: ignore[arg-type]
         if _is_board_node(goal):
             ignore_board.add(goal)  # type: ignore[arg-type]
-        for node in protected:
-            if _is_board_node(node):
-                ignore_board.add(node)  # type: ignore[arg-type]
 
         ignore_slots: set[tuple[float, float]] = set()
         if isinstance(start, PercentEndpoint):
@@ -1684,9 +1878,10 @@ class MotionPlanner:
             blockers = set(plan.blockers) - {blocker}
             if any(self._blocker_identity(node) in active for node in blockers):
                 continue
+            segment_count = max(1, _mixed_segment_count(plan.nodes))
             score = self._score_estimated_execution(
                 blocker_count=len(blockers),
-                segment_count=max(1, len(plan.nodes) - 1),
+                segment_count=segment_count,
                 distance_pct=self._mixed_route_distance(plan.nodes),
             )
             candidate_plans.append((score, destination, plan))
@@ -1837,18 +2032,15 @@ class MotionPlanner:
                 break
             plan = None
         if plan is None:
-            self.append_segment(_board_ep(start[0], start[1]), dst_pct)
-            self._apply_arrival_occupancy(start, dst_pct)
-            self._fallback_direct_segments += 1
-            self._record_route_cost(
-                self._estimated_execution_cost(blocker_count=0, segment_count=1, distance_pct=self._node_distance(start, dst_pct))
+            raise RuntimeError(
+                "No safe board-to-offboard route exists for "
+                f"{start[0]},{start[1]} -> {dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
             )
-            return
 
         self._record_route_cost(
             self._estimated_execution_cost(
                 blocker_count=len(plan.blockers),
-                segment_count=max(1, len(plan.nodes) - 1),
+                segment_count=max(1, _mixed_segment_count(plan.nodes)),
                 distance_pct=self._mixed_route_distance(plan.nodes),
             )
         )
@@ -1910,7 +2102,7 @@ class MotionPlanner:
         self._record_route_cost(
             self._estimated_execution_cost(
                 blocker_count=len(plan.blockers),
-                segment_count=max(1, len(plan.nodes) - 1),
+                segment_count=max(1, _mixed_segment_count(plan.nodes)),
                 distance_pct=self._mixed_route_distance(plan.nodes),
             )
         )
@@ -1918,89 +2110,85 @@ class MotionPlanner:
         self._apply_arrival_occupancy(src_pct, dst)
 
     def move_pct_piece_to_pct(self, src_pct: PercentEndpoint, dst_pct: PercentEndpoint) -> None:
-        protected: set[MixedNode] = {src_pct, dst_pct}
-        if self._direct_mixed_route_if_clear(src_pct, dst_pct, protected):
+        offboard_plan = self._best_route_offboard_only(src_pct, dst_pct)
+        if offboard_plan is not None:
+            direct_diagonal = len(offboard_plan.nodes) == 2
             self.record_note(
                 "pct_to_pct_route="
-                f"mixed_direct:{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
-                f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}% hops=1 blockers=0"
-            )
-            self.append_segment(src_pct, dst_pct)
-            self._apply_arrival_occupancy(src_pct, dst_pct)
-            return
-
-        moved_blockers: set[object] = set()
-        plan: MixedRoutePlan | None = None
-        for _ in range(config.MAX_TEMP_RELOCATIONS + 1):
-            plan = self._best_route_mixed_any(src_pct, dst_pct, protected)
-            if plan is None or not plan.blockers:
-                break
-            route_protected = protected | set(plan.nodes)
-            if not self._clear_route_blockers(
-                set(plan.blockers),
-                parking_protected=route_protected,
-                path_blocked=route_protected,
-                active=moved_blockers,
-            ):
-                plan = None
-                break
-            plan = None
-        if plan is None:
-            # Last resort: keep the move on the off-board perimeter instead of
-            # cutting diagonally across the yellow board.
-            route_y = (
-                _OFFBOARD_GEOMETRY.bottom_row_y_pcts[0]
-                if (src_pct.y_pct >= 50.0 or dst_pct.y_pct >= 50.0)
-                else _OFFBOARD_GEOMETRY.top_row_y_pcts[0]
-            )
-            fallback_points = [
-                src_pct,
-                _pct_ep(src_pct.x_pct, route_y),
-                _pct_ep(dst_pct.x_pct, route_y),
-                dst_pct,
-            ]
-            for src, dst in zip(fallback_points, fallback_points[1:]):
-                if _pct_key(src) == _pct_key(dst):
-                    continue
-                self.append_segment(src, dst)
-            self.record_note(
-                "pct_to_pct_route="
-                f"perimeter_fallback:{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
+                f"{'offboard_direct' if direct_diagonal else 'offboard_multi'}:"
+                f"{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
                 f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
+                f" hops={max(0, len(offboard_plan.nodes) - 1)} blockers=0"
             )
-            self._apply_arrival_occupancy(src_pct, dst_pct)
-            self._fallback_direct_segments += 1
             self._record_route_cost(
                 self._estimated_execution_cost(
                     blocker_count=0,
-                    segment_count=max(1, len([pt for pt in fallback_points if True]) - 1),
-                    distance_pct=sum(
-                        _pct_distance(a, b)
-                        for a, b in zip(fallback_points, fallback_points[1:])
-                        if _pct_key(a) != _pct_key(b)
-                    ),
+                    segment_count=max(1, _mixed_segment_count(offboard_plan.nodes)),
+                    distance_pct=self._mixed_route_distance(offboard_plan.nodes),
                 )
             )
+            self._emit_mixed_route_plan(offboard_plan)
+            self._apply_arrival_occupancy(src_pct, dst_pct)
             return
 
-        direct_diagonal = len(plan.nodes) == 2
+        protected: set[MixedNode] = {src_pct, dst_pct}
+        mixed_plan = self._best_route_pct_mixed_fallback(src_pct, dst_pct, protected)
+        if mixed_plan is not None:
+            direct_diagonal = len(mixed_plan.nodes) == 2
+            self.record_note(
+                "pct_to_pct_route="
+                f"{'mixed_direct' if direct_diagonal else 'mixed_transit'}:"
+                f"{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
+                f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
+                f" hops={max(0, len(mixed_plan.nodes) - 1)} blockers=0"
+            )
+            self._record_route_cost(
+                self._estimated_execution_cost(
+                    blocker_count=0,
+                    segment_count=max(1, _mixed_segment_count(mixed_plan.nodes)),
+                    distance_pct=self._mixed_route_distance(mixed_plan.nodes),
+                )
+            )
+            self._emit_mixed_route_plan(mixed_plan)
+            self._apply_arrival_occupancy(src_pct, dst_pct)
+            return
+
+        # Last resort: keep the move on the off-board perimeter instead of
+        # cutting diagonally across the yellow board.
+        route_y = (
+            _OFFBOARD_GEOMETRY.bottom_row_y_pcts[0]
+            if (src_pct.y_pct >= 50.0 or dst_pct.y_pct >= 50.0)
+            else _OFFBOARD_GEOMETRY.top_row_y_pcts[0]
+        )
+        fallback_points = [
+            src_pct,
+            _pct_ep(src_pct.x_pct, route_y),
+            _pct_ep(dst_pct.x_pct, route_y),
+            dst_pct,
+        ]
+        for src, dst in zip(fallback_points, fallback_points[1:]):
+            if _pct_key(src) == _pct_key(dst):
+                continue
+            self.append_segment(src, dst)
         self.record_note(
             "pct_to_pct_route="
-            f"{'mixed_direct' if direct_diagonal else 'mixed_multi'}:"
-            f"{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
+            f"perimeter_fallback:{src_pct.x_pct:.2f}%,{src_pct.y_pct:.2f}%"
             f"->{dst_pct.x_pct:.2f}%,{dst_pct.y_pct:.2f}%"
-            f" hops={max(0, len(plan.nodes) - 1)}"
-            f" blockers={len(plan.blockers)}"
         )
+        self._apply_arrival_occupancy(src_pct, dst_pct)
+        self._fallback_direct_segments += 1
         self._record_route_cost(
             self._estimated_execution_cost(
-                blocker_count=len(plan.blockers),
-                segment_count=max(1, len(plan.nodes) - 1),
-                distance_pct=self._mixed_route_distance(plan.nodes),
+                blocker_count=0,
+                segment_count=max(1, len([pt for pt in fallback_points if True]) - 1),
+                distance_pct=sum(
+                    _pct_distance(a, b)
+                    for a, b in zip(fallback_points, fallback_points[1:])
+                    if _pct_key(a) != _pct_key(b)
+                ),
             )
         )
-        self._emit_mixed_route_plan(plan)
-        self._apply_arrival_occupancy(src_pct, dst_pct)
+        return
 
     def move_board_piece_to_board(
         self,
@@ -2119,10 +2307,59 @@ def _settle_pending_manual_captures(
         planner.move_pct_piece_to_pct(manual_record.source, assigned_slot.slot)
 
 
+def _move_board_piece_to_best_capture_slot(
+    planner: MotionPlanner,
+    start: BoardCoord,
+    *,
+    captured_side: str,
+    piece_name: str,
+    protected_extra: set[BoardCoord] | None = None,
+    extra_blocked_indices: set[int] | None = None,
+) -> None:
+    if planner._capture_inventory is None:
+        slot = planner.capture_slot_next(captured_side, piece_name)
+        planner.move_board_piece_to_pct(start, slot, protected_extra=protected_extra)
+        return
+
+    occupied_indices = {rec.slot_index for rec in planner._capture_inventory.occupied_records()}
+    blocked_indices = set(planner._reserved_capture_slot_indices)
+    if extra_blocked_indices:
+        blocked_indices.update(int(idx) for idx in extra_blocked_indices)
+    search_limit = max(occupied_indices | blocked_indices | {0}) + 32
+    last_error: RuntimeError | None = None
+
+    for slot_index in range(search_limit + 1):
+        if slot_index in occupied_indices or slot_index in blocked_indices:
+            continue
+        try:
+            slot = planner.capture_slot_next(
+                captured_side,
+                piece_name,
+                preferred_index=slot_index,
+            )
+        except ValueError:
+            continue
+        try:
+            planner.move_board_piece_to_pct(start, slot, protected_extra=protected_extra)
+            return
+        except RuntimeError as exc:
+            planner.release_capture_slot_reservation(slot)
+            last_error = exc
+            occupied_indices.discard(slot_index)
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError(
+        "No available capture slot for "
+        f"{captured_side}:{piece_name} from {start[0]},{start[1]}"
+    )
+
+
 def generate_chess_p2_sequence(
     state_before: ChessState,
     start_id: str,
     end_id: str,
+    promotion_type: int | None = None,
     capture_inventory: CaptureInventory | None = None,
 ) -> GeneratedSequence:
     planning_started = time.perf_counter()
@@ -2137,11 +2374,15 @@ def generate_chess_p2_sequence(
         captured_count_p2=len(state_before.captured_by_p1),
         capture_inventory=capture_inventory,
     )
-    _settle_pending_manual_captures(planner, capture_inventory)
 
     capture = False
     manual_actions: list[str] = []
-    board_before, legal_move = _choose_legal_chess_move(state_before, start_sq, end_sq)
+    board_before, legal_move = _choose_legal_chess_move(
+        state_before,
+        start_sq,
+        end_sq,
+        promotion_type=promotion_type,
+    )
 
     if chess is not None and board_before is not None and legal_move is not None:
         is_capture = bool(board_before.is_capture(legal_move))
@@ -2156,13 +2397,23 @@ def generate_chess_p2_sequence(
             if captured_coord in planner.occupied:
                 capture = True
                 captured_piece = state_before.get(Square(captured_coord[0], captured_coord[1]))
-                slot = planner.capture_slot_next("p1", _piece_name(captured_piece))
-                planner.move_board_piece_to_pct(captured_coord, slot, protected_extra={start, end})
+                _move_board_piece_to_best_capture_slot(
+                    planner,
+                    captured_coord,
+                    captured_side="p1",
+                    piece_name=_piece_name(captured_piece),
+                    protected_extra={start, end},
+                )
         elif is_capture and end in planner.occupied:
             capture = True
             captured_piece = state_before.get(end_sq)
-            slot = planner.capture_slot_next("p1", _piece_name(captured_piece))
-            planner.move_board_piece_to_pct(end, slot, protected_extra={start})
+            _move_board_piece_to_best_capture_slot(
+                planner,
+                end,
+                captured_side="p1",
+                piece_name=_piece_name(captured_piece),
+                protected_extra={start},
+            )
 
         if is_castling:
             king_src = _board_coord_from_chess_square(legal_move.from_square)
@@ -2181,17 +2432,40 @@ def generate_chess_p2_sequence(
             planner.move_board_piece_direct(king_src, king_dst)
             if rook_src in planner.occupied:
                 planner.move_board_piece_to_board(rook_src, rook_dst, protected_extra={king_dst})
+        elif _can_use_direct_chess_line_move(board_before, legal_move):
+            direct_protected: set[MixedNode] = {start, end}
+            direct_blockers = planner._direct_board_segment_blockers(start, end, protected={start, end})
+            if direct_blockers == set():
+                planner.record_note(
+                    f"board_route=legal_chess_line:{start[0]},{start[1]}->{end[0]},{end[1]}"
+                )
+                planner._direct_route_hits += 1
+                planner._record_route_cost(
+                    planner._estimated_execution_cost(
+                        blocker_count=0,
+                        segment_count=1,
+                        distance_pct=planner._node_distance(start, end),
+                    )
+                )
+                planner.move_board_piece_direct(start, end)
+            else:
+                planner._direct_route_rejections.append(
+                    planner._direct_route_rejection_reason(start, end, direct_blockers)
+                )
+                planner.move_board_piece_to_board(start, end)
         else:
             planner.move_board_piece_to_board(start, end)
 
         if is_promotion and config.P2_PROMOTION_REPLACE_PHYSICAL:
-            promotion_bin = _pct_ep(config.P2_PROMOTION_STAGING_X_PCT, config.P2_PROMOTION_STAGING_Y_PCT)
             reserve_slot = _pct_ep(config.P2_PROMOTION_RESERVE_X_PCT, config.P2_PROMOTION_RESERVE_Y_PCT)
             promotion_piece = _chess_p2_piece_from_promotion(legal_move.promotion)
+            promoted_pawn = state_before.get(start_sq)
+            promotion_source_slot_index: int | None = None
             if capture_inventory is not None:
                 pulled = capture_inventory.take_piece("p2", _piece_name(promotion_piece))
                 if pulled is not None:
                     reserve_slot = pulled.slot
+                    promotion_source_slot_index = pulled.slot_index
                     planner.record_note(
                         f"promotion_source={pulled.captured_side}[{pulled.slot_index}]="
                         f"{pulled.slot.x_pct:.2f}%,{pulled.slot.y_pct:.2f}%:{pulled.piece_name}"
@@ -2210,20 +2484,37 @@ def generate_chess_p2_sequence(
                             f"promotion_source=reserve_config:{_piece_name(promotion_piece)}"
                         )
             if not manual_actions:
-                planner.move_board_piece_to_pct(end, promotion_bin)
+                _move_board_piece_to_best_capture_slot(
+                    planner,
+                    end,
+                    captured_side="p2",
+                    piece_name=_piece_name(promoted_pawn),
+                    extra_blocked_indices=(
+                        {promotion_source_slot_index}
+                        if promotion_source_slot_index is not None
+                        else None
+                    ),
+                )
                 planner.move_pct_piece_to_board(reserve_slot, end)
     else:
         # Fallback if python-chess is unavailable or move lookup fails.
         target = state_before.get(end_sq)
         if ChessPiece.P1_PAWN <= target <= ChessPiece.P1_KING:
             capture = True
-            slot = planner.capture_slot_next("p1", _piece_name(target))
-            planner.move_board_piece_to_pct(end, slot, protected_extra={start})
+            _move_board_piece_to_best_capture_slot(
+                planner,
+                end,
+                captured_side="p1",
+                piece_name=_piece_name(target),
+                protected_extra={start},
+            )
 
         planner.move_board_piece_to_board(start, end)
 
     temp_count = len(planner._temp_relocations)
     planner.restore_temp_blockers()
+    player_ready_after_step_count = len(planner.lines)
+    _settle_pending_manual_captures(planner, capture_inventory)
     planning_ms = (time.perf_counter() - planning_started) * 1000.0
 
     return GeneratedSequence(
@@ -2234,6 +2525,7 @@ def generate_chess_p2_sequence(
         capture_slots_used=planner._capture_slots_used[:],
         manual_actions=manual_actions,
         debug_metrics=planner.debug_metrics(capture_detected=capture, planning_ms=planning_ms),
+        player_ready_after_step_count=player_ready_after_step_count,
     )
 
 
@@ -2255,7 +2547,6 @@ def generate_checkers_p2_sequence(
         captured_count_p2=len(state_before.captured_by_p1),
         capture_inventory=capture_inventory,
     )
-    _settle_pending_manual_captures(planner, capture_inventory)
 
     capture = False
     manual_actions: list[str] = []
@@ -2265,12 +2556,19 @@ def generate_checkers_p2_sequence(
         if jumped_piece in (CheckersPiece.P1_MAN, CheckersPiece.P1_KING):
             capture = True
             mid_coord = (mid.file_index, mid.rank_index)
-            slot = planner.capture_slot_next("p1", _piece_name(jumped_piece))
-            planner.move_board_piece_to_pct(mid_coord, slot, protected_extra={start, end})
+            _move_board_piece_to_best_capture_slot(
+                planner,
+                mid_coord,
+                captured_side="p1",
+                piece_name=_piece_name(jumped_piece),
+                protected_extra={start, end},
+            )
 
     planner.move_board_piece_to_board(start, end)
     temp_count = len(planner._temp_relocations)
     planner.restore_temp_blockers()
+    player_ready_after_step_count = len(planner.lines)
+    _settle_pending_manual_captures(planner, capture_inventory)
     planning_ms = (time.perf_counter() - planning_started) * 1000.0
 
     return GeneratedSequence(
@@ -2281,6 +2579,7 @@ def generate_checkers_p2_sequence(
         capture_slots_used=planner._capture_slots_used[:],
         manual_actions=manual_actions,
         debug_metrics=planner.debug_metrics(capture_detected=capture, planning_ms=planning_ms),
+        player_ready_after_step_count=player_ready_after_step_count,
     )
 
 
@@ -2296,6 +2595,7 @@ def generate_parcheesi_p2_sequence(
 
     capture = False
     capture_slots_used: list[str] = []
+    slot: PercentEndpoint | None = None
 
     mover = state_before.piece_at_id(start_id)
     target = state_before.piece_at_id(end_id)
@@ -2322,7 +2622,28 @@ def generate_parcheesi_p2_sequence(
             )
         lines.append(f"{_endpoint_token(end_pct)} -> {_endpoint_token(slot)}")
 
-    lines.append(f"{_endpoint_token(start_pct)} -> {_endpoint_token(end_pct)}")
+    path_location_ids: list[str]
+    try:
+        if mover is None or mover.name == "EMPTY":
+            raise ValueError("missing mover for Parcheesi path generation")
+        path_location_ids = state_before.path_locations_for_move(mover, end_id)
+    except Exception:
+        path_location_ids = [end_id]
+
+    current_pct = start_pct
+    total_distance = 0.0
+    for location_id in path_location_ids:
+        next_pct = _parcheesi_location_to_pct(location_id)
+        if _endpoint_token(current_pct) == _endpoint_token(next_pct):
+            current_pct = next_pct
+            continue
+        lines.append(f"{_endpoint_token(current_pct)} -> {_endpoint_token(next_pct)}")
+        total_distance += _pct_distance(current_pct, next_pct)
+        current_pct = next_pct
+
+    if _endpoint_token(current_pct) != _endpoint_token(end_pct):
+        lines.append(f"{_endpoint_token(current_pct)} -> {_endpoint_token(end_pct)}")
+        total_distance += _pct_distance(current_pct, end_pct)
 
     return GeneratedSequence(
         lines=lines,
@@ -2334,12 +2655,13 @@ def generate_parcheesi_p2_sequence(
         debug_metrics={
             "segments": len(lines),
             "xy_distance_pct": round(
-                _pct_distance(start_pct, end_pct) + (_pct_distance(end_pct, slot) if capture else 0.0),
+                total_distance + (_pct_distance(end_pct, slot) if slot is not None else 0.0),
                 3,
             ),
             "estimated_piece_moves": 1 + int(capture),
             "planning_time_ms": round((time.perf_counter() - planning_started) * 1000.0, 3),
         },
+        player_ready_after_step_count=len(lines),
     )
 
 
@@ -2348,6 +2670,7 @@ def generate_p2_sequence(
     state_before: ChessState | CheckersState | ParcheesiState,
     start_id: str,
     end_id: str,
+    promotion_type: int | None = None,
     capture_inventory: CaptureInventory | None = None,
 ) -> GeneratedSequence:
     if game == "chess":
@@ -2355,6 +2678,7 @@ def generate_p2_sequence(
             state_before,
             start_id,
             end_id,
+            promotion_type=promotion_type,
             capture_inventory=capture_inventory,
         )
     if game == "checkers":

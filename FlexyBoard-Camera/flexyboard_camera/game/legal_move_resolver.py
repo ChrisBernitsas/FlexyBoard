@@ -204,13 +204,13 @@ def _score_candidate(
     for coord in expected_changed:
         strength = observed_strengths.get(coord, 0.0)
         if coord not in observed_changed:
-            score += 6.0
+            score += 7.5
         else:
             score += max(0.0, 1.0 - strength)
 
     for coord in observed_changed - expected_changed:
         strength = observed_strengths.get(coord, 0.0)
-        score += 0.75 + (4.0 * strength)
+        score += 0.5 + (3.0 * strength)
 
     if observed.source is not None and observed.source != source:
         score += 0.25

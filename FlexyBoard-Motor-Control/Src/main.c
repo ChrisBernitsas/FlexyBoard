@@ -21,8 +21,11 @@ typedef struct
     uint32_t z_step_delay_us;
     uint32_t step_pulse_high_us;
     uint32_t z_pre_pickup_pause_cycles;
+    uint32_t z_pre_release_pause_cycles;
     uint32_t moveheld_settle_cycles;
     uint32_t z_post_release_pause_cycles;
+    uint32_t correction_steps_pos_x;
+    uint32_t correction_steps_neg_y;
     uint32_t return_start_seat_steps;
 } motion_runtime_config_t;
 
@@ -71,8 +74,11 @@ static motion_runtime_config_t g_motion_cfg = {
     .z_step_delay_us = STEP_DELAY_CYCLES_Z,
     .step_pulse_high_us = STEP_PULSE_HIGH_US,
     .z_pre_pickup_pause_cycles = Z_PRE_PICKUP_PAUSE_CYCLES,
+    .z_pre_release_pause_cycles = Z_PRE_RELEASE_PAUSE_CYCLES,
     .moveheld_settle_cycles = MOVEHELD_SETTLE_CYCLES,
     .z_post_release_pause_cycles = Z_POST_RELEASE_PAUSE_CYCLES,
+    .correction_steps_pos_x = CORRECTION_STEPS_POS_X,
+    .correction_steps_neg_y = CORRECTION_STEPS_NEG_Y,
     .return_start_seat_steps = RETURN_START_SEAT_STEPS,
 };
 
@@ -441,19 +447,32 @@ static int32_t scale_logical_y_to_left_steps(int32_t logical_y_steps)
     return logical_y_steps;
 }
 
-static uint32_t get_xy_cruise_delay(uint32_t x_steps, uint32_t y_steps)
+static uint32_t get_xy_cruise_delay(uint32_t x_steps, uint32_t y_steps, uint32_t y_left_steps)
 {
+    uint32_t cruise_delay;
     if (x_steps == 0U)
     {
-        return g_motion_cfg.y_step_delay_us;
+        cruise_delay = g_motion_cfg.y_step_delay_us;
     }
-
-    if (y_steps == 0U)
+    else if (y_steps == 0U)
     {
-        return g_motion_cfg.x_step_delay_us;
+        cruise_delay = g_motion_cfg.x_step_delay_us;
+    }
+    else
+    {
+        cruise_delay = max_u32(g_motion_cfg.x_step_delay_us, g_motion_cfg.y_step_delay_us);
     }
 
-    return max_u32(g_motion_cfg.x_step_delay_us, g_motion_cfg.y_step_delay_us);
+    if (XY_SHORT_MOVE_ENABLE != 0U)
+    {
+        uint32_t move_span_steps = max_u32(max_u32(x_steps, y_steps), y_left_steps);
+        if (move_span_steps > 0U && move_span_steps <= XY_SHORT_MOVE_THRESHOLD_STEPS)
+        {
+            cruise_delay = max_u32(cruise_delay, XY_SHORT_MOVE_DELAY_CYCLES);
+        }
+    }
+
+    return cruise_delay;
 }
 
 static uint32_t get_xy_step_delay(uint32_t step_index, uint32_t total_steps, uint32_t cruise_delay)
@@ -527,7 +546,7 @@ static void motion_begin_xy(uint32_t x_steps, uint8_t x_dir, uint32_t y_right_st
     g_motion.x_acc = 0U;
     g_motion.y_right_acc = 0U;
     g_motion.y_left_acc = 0U;
-    g_motion.cruise_delay_us = get_xy_cruise_delay(x_steps, y_right_steps);
+    g_motion.cruise_delay_us = get_xy_cruise_delay(x_steps, y_right_steps, y_left_steps);
     g_motion.z_delay_us = 0U;
 
     motion_timer_prime(get_xy_step_delay(0U, max_steps, g_motion.cruise_delay_us));
@@ -854,8 +873,11 @@ static void reset_motion_runtime_config(void)
     g_motion_cfg.z_step_delay_us = STEP_DELAY_CYCLES_Z;
     g_motion_cfg.step_pulse_high_us = STEP_PULSE_HIGH_US;
     g_motion_cfg.z_pre_pickup_pause_cycles = Z_PRE_PICKUP_PAUSE_CYCLES;
+    g_motion_cfg.z_pre_release_pause_cycles = Z_PRE_RELEASE_PAUSE_CYCLES;
     g_motion_cfg.moveheld_settle_cycles = MOVEHELD_SETTLE_CYCLES;
     g_motion_cfg.z_post_release_pause_cycles = Z_POST_RELEASE_PAUSE_CYCLES;
+    g_motion_cfg.correction_steps_pos_x = CORRECTION_STEPS_POS_X;
+    g_motion_cfg.correction_steps_neg_y = CORRECTION_STEPS_NEG_Y;
     g_motion_cfg.return_start_seat_steps = RETURN_START_SEAT_STEPS;
 }
 
@@ -865,7 +887,7 @@ static void send_motion_config(void)
     (void)snprintf(
         line,
         sizeof(line),
-        "MOTIONCFG x_delay=%lu y_delay=%lu xy_start=%lu xy_ramp=%lu z_delay=%lu pulse_high=%lu pre_pickup=%lu moveheld_settle=%lu post_release=%lu return_seat=%lu",
+        "MOTIONCFG x_delay=%lu y_delay=%lu xy_start=%lu xy_ramp=%lu z_delay=%lu pulse_high=%lu pre_pickup=%lu pre_release=%lu moveheld_settle=%lu post_release=%lu correction_pos_x=%lu correction_neg_y=%lu return_seat=%lu",
         (unsigned long)g_motion_cfg.x_step_delay_us,
         (unsigned long)g_motion_cfg.y_step_delay_us,
         (unsigned long)g_motion_cfg.xy_start_delay_us,
@@ -873,8 +895,11 @@ static void send_motion_config(void)
         (unsigned long)g_motion_cfg.z_step_delay_us,
         (unsigned long)g_motion_cfg.step_pulse_high_us,
         (unsigned long)g_motion_cfg.z_pre_pickup_pause_cycles,
+        (unsigned long)g_motion_cfg.z_pre_release_pause_cycles,
         (unsigned long)g_motion_cfg.moveheld_settle_cycles,
         (unsigned long)g_motion_cfg.z_post_release_pause_cycles,
+        (unsigned long)g_motion_cfg.correction_steps_pos_x,
+        (unsigned long)g_motion_cfg.correction_steps_neg_y,
         (unsigned long)g_motion_cfg.return_start_seat_steps
     );
     uart_write_line(line);
@@ -897,8 +922,22 @@ static void move_to_steps_common(int32_t target_x_steps, int32_t target_y_steps)
     uint32_t x_steps = (dx >= 0) ? (uint32_t)dx : (uint32_t)(-dx);
     uint32_t y_steps = (dy >= 0) ? (uint32_t)dy : (uint32_t)(-dy);
     uint32_t y_left_steps = (dy_left >= 0) ? (uint32_t)dy_left : (uint32_t)(-dy_left);
+    uint32_t y_comp_steps = 0U;
+    uint32_t y_left_comp_steps = 0U;
 
-    motion_begin_xy(x_steps, x_dir, y_steps, y_left_steps, y_dir);
+    if (Y_NEGATIVE_DIRECTION_COMP_STEPS > 0U)
+    {
+        if (dy < 0)
+        {
+            y_comp_steps = Y_NEGATIVE_DIRECTION_COMP_STEPS;
+        }
+        if (dy_left < 0)
+        {
+            y_left_comp_steps = Y_NEGATIVE_DIRECTION_COMP_STEPS;
+        }
+    }
+
+    motion_begin_xy(x_steps, x_dir, y_steps + y_comp_steps, y_left_steps + y_left_comp_steps, y_dir);
     wait_for_motion_complete();
 
     g_current_x_steps = target_x_steps;
@@ -935,7 +974,34 @@ static void execute_moveheld_steps(int32_t dst_x_steps, int32_t dst_y_steps)
 
 static void execute_release_steps(int32_t dst_x_steps, int32_t dst_y_steps)
 {
+    int32_t start_x_steps = g_current_x_steps;
+    int32_t start_y_steps = g_current_y_steps;
+    int32_t corrected_x_steps = dst_x_steps;
+    int32_t corrected_y_steps = dst_y_steps;
+
     move_to_steps(dst_x_steps, dst_y_steps);
+
+    {
+        int32_t dx_steps = dst_x_steps - start_x_steps;
+        int32_t dy_steps = dst_y_steps - start_y_steps;
+
+        if ((dx_steps > 0) && (g_motion_cfg.correction_steps_pos_x > 0U))
+        {
+            corrected_x_steps += (int32_t)g_motion_cfg.correction_steps_pos_x;
+        }
+
+        if ((dy_steps < 0) && (g_motion_cfg.correction_steps_neg_y > 0U))
+        {
+            corrected_y_steps -= (int32_t)g_motion_cfg.correction_steps_neg_y;
+        }
+
+        if ((corrected_x_steps != dst_x_steps) || (corrected_y_steps != dst_y_steps))
+        {
+            move_to_steps(corrected_x_steps, corrected_y_steps);
+        }
+    }
+
+    delay_cycles(g_motion_cfg.z_pre_release_pause_cycles);
     z_release();
     reset_moveheld_direction_tracking();
     delay_cycles(g_motion_cfg.z_post_release_pause_cycles);
@@ -946,6 +1012,14 @@ static void execute_pick_and_place_steps(int32_t src_x_steps, int32_t src_y_step
 {
     execute_pickup_steps(src_x_steps, src_y_steps);
     execute_release_steps(dst_x_steps, dst_y_steps);
+}
+
+static void command_end_settle(void)
+{
+    if (COMMAND_END_SETTLE_CYCLES > 0U)
+    {
+        delay_cycles(COMMAND_END_SETTLE_CYCLES);
+    }
 }
 
 static void process_command(const char *cmd)
@@ -1081,6 +1155,7 @@ static void process_command(const char *cmd)
             g_current_y_left_steps = 0;
         }
         reset_moveheld_direction_tracking();
+        command_end_settle();
         uart_write_line("OK RETURN_START");
         return;
     }
@@ -1088,6 +1163,7 @@ static void process_command(const char *cmd)
     if (sscanf(sanitized, "GOTO_STEPS %d %d", &gx, &gy) == 2)
     {
         move_to_steps_unladen((int32_t)gx, (int32_t)gy);
+        command_end_settle();
         uart_write_line("OK GOTO_STEPS");
         return;
     }
@@ -1098,6 +1174,7 @@ static void process_command(const char *cmd)
         int32_t target_y = g_current_y_steps + (int32_t)gy;
 
         move_to_steps_unladen(target_x, target_y);
+        command_end_settle();
         uart_write_line("OK JOG_STEPS");
         return;
     }
@@ -1114,6 +1191,7 @@ static void process_command(const char *cmd)
             step_y_side_only(Y_RIGHT_STEP_PORT, Y_RIGHT_STEP_PIN, (uint32_t)(-delta), 0U);
         }
 
+        command_end_settle();
         uart_write_line("OK JOG_Y_RIGHT");
         return;
     }
@@ -1130,6 +1208,7 @@ static void process_command(const char *cmd)
             step_y_side_only(Y_LEFT_STEP_PORT, Y_LEFT_STEP_PIN, (uint32_t)(-delta), 0U);
         }
 
+        command_end_settle();
         uart_write_line("OK JOG_Y_LEFT");
         return;
     }
@@ -1147,6 +1226,7 @@ static void process_command(const char *cmd)
             step_z((uint32_t)(-delta_z), 0U);
         }
 
+        command_end_settle();
         uart_write_line("OK JOG_Z");
         return;
     }
@@ -1160,6 +1240,7 @@ static void process_command(const char *cmd)
         }
 
         move_to_steps_unladen(goto_x_steps, goto_y_steps);
+        command_end_settle();
         uart_write_line("OK GOTOPCT");
         return;
     }
@@ -1173,6 +1254,7 @@ static void process_command(const char *cmd)
         }
 
         move_to_steps_unladen(goto_x_steps, goto_y_steps);
+        command_end_settle();
         uart_write_line("OK GOTO");
         return;
     }
@@ -1196,6 +1278,7 @@ static void process_command(const char *cmd)
         }
 
         execute_pick_and_place_steps(src_x_steps, src_y_steps, dst_x_steps, dst_y_steps);
+        command_end_settle();
         uart_write_line("OK MOVE_STEPS");
         return;
     }
@@ -1212,6 +1295,7 @@ static void process_command(const char *cmd)
         }
 
         execute_pickup_steps(src_x_steps, src_y_steps);
+        command_end_settle();
         uart_write_line("OK PICKUP_STEPS");
         return;
     }
@@ -1228,6 +1312,7 @@ static void process_command(const char *cmd)
         }
 
         execute_moveheld_steps(dst_x_steps, dst_y_steps);
+        command_end_settle();
         uart_write_line("OK MOVEHELD_STEPS");
         return;
     }
@@ -1244,6 +1329,7 @@ static void process_command(const char *cmd)
         }
 
         execute_release_steps(dst_x_steps, dst_y_steps);
+        command_end_settle();
         uart_write_line("OK RELEASE_STEPS");
         return;
     }
@@ -1262,6 +1348,7 @@ static void process_command(const char *cmd)
         }
 
         execute_pick_and_place_steps(src_x_steps, src_y_steps, dst_x_steps, dst_y_steps);
+        command_end_settle();
         uart_write_line("OK MOVEPCT");
         return;
     }
@@ -1280,6 +1367,7 @@ static void process_command(const char *cmd)
         }
 
         execute_pick_and_place_steps(src_x_steps, src_y_steps, dst_x_steps, dst_y_steps);
+        command_end_settle();
         uart_write_line("OK MOVE");
         return;
     }

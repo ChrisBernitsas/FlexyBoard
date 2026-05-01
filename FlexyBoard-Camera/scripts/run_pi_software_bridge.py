@@ -5,6 +5,7 @@ import argparse
 import base64
 from datetime import datetime
 import json
+import math
 import re
 import select
 import shutil
@@ -27,7 +28,7 @@ if str(ROOT) not in sys.path:
 
 from flexyboard_camera.app.end_turn_controller import EndTurnController
 from flexyboard_camera.game.legal_move_resolver import Player1MoveResolver
-from flexyboard_camera.app.trigger import TriggerError, wait_for_gpio_trigger
+from flexyboard_camera.app.trigger import GPIOControlPanel, TriggerError, wait_for_gpio_trigger
 from flexyboard_camera.utils.config import load_config
 from flexyboard_camera.utils.logging_utils import setup_logging
 from flexyboard_camera.vision.board_detector import (
@@ -36,11 +37,28 @@ from flexyboard_camera.vision.board_detector import (
     draw_square_grid_overlay,
     generate_square_geometry,
 )
+from flexyboard_camera.vision.parcheesi_geometry import (
+    draw_parcheesi_overlay,
+    parcheesi_layout_payload,
+    project_parcheesi_regions,
+)
 
 MOVE_FILE = ROOT / "sample_data" / "stm32_move_sequence.txt"
 DEFAULT_CONFIG_PATH = ROOT / "configs" / "default.yaml"
 MANUAL_CORNERS_INFO_PATH = ROOT / "configs" / "corners_info.json"
-MANUAL_CORNERS_SAMPLES_DIR = ROOT / "configs" / "all_manual"
+MANUAL_CORNERS_INFO_TEMP_PATH = ROOT / "configs" / "corners_info_temp.json"
+MANUAL_ARCHIVE_ROOT_DIR = ROOT / "configs" / "all_manual"
+OUTER_NORM = np.float32([
+    [0.0, 0.0],
+    [1.0, 0.0],
+    [1.0, 1.0],
+    [0.0, 1.0],
+])
+BLACK_THRESH = 100
+MORPH_KERNEL_SIZE = 15
+_ORIGINAL_STDOUT = sys.stdout
+_ORIGINAL_STDERR = sys.stderr
+_RUNTIME_LOG_HANDLE: Any | None = None
 
 
 class _TeeStream:
@@ -62,27 +80,48 @@ class _TeeStream:
 
 
 def _install_runtime_log(game_debug_dir: Path) -> Path:
+    global _RUNTIME_LOG_HANDLE
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = game_debug_dir / f"bridge_runtime_{timestamp}.log"
+    if _RUNTIME_LOG_HANDLE is not None:
+        try:
+            _RUNTIME_LOG_HANDLE.flush()
+            _RUNTIME_LOG_HANDLE.close()
+        except Exception:
+            pass
     handle = log_path.open("a", encoding="utf-8")
-    sys.stdout = _TeeStream(sys.stdout, handle)  # type: ignore[assignment]
-    sys.stderr = _TeeStream(sys.stderr, handle)  # type: ignore[assignment]
+    _RUNTIME_LOG_HANDLE = handle
+    sys.stdout = _TeeStream(_ORIGINAL_STDOUT, handle)  # type: ignore[assignment]
+    sys.stderr = _TeeStream(_ORIGINAL_STDERR, handle)  # type: ignore[assignment]
     return log_path
 
 
-def _next_game_debug_dir(debug_root: Path) -> Path:
+def _next_game_debug_dir(debug_root: Path, game: str) -> Path:
     debug_root.mkdir(parents=True, exist_ok=True)
     max_index = 0
-    pattern = re.compile(r"^Game(\d+)$")
+    pattern = re.compile(r"^Game(\d+)(?:_(chess|checkers|parcheesi))?$")
     for child in debug_root.iterdir():
         if not child.is_dir():
             continue
         match = pattern.fullmatch(child.name)
         if match:
             max_index = max(max_index, int(match.group(1)))
-    game_dir = debug_root / f"Game{max_index + 1}"
+    normalized = _normalize_game_name(game)
+    game_dir = debug_root / f"Game{max_index + 1}_{normalized}"
     game_dir.mkdir(parents=True, exist_ok=False)
     return game_dir
+
+
+def _create_game_debug_session(
+    debug_root: Path,
+    *,
+    game: str,
+    args: argparse.Namespace,
+) -> tuple[Path, Path]:
+    game_dir = _next_game_debug_dir(debug_root, game)
+    runtime_log_path = _install_runtime_log(game_dir)
+    _write_game_session_metadata(game_dir, game=game, args=args)
+    return game_dir, runtime_log_path
 
 
 def _write_game_session_metadata(game_dir: Path, *, game: str, args: argparse.Namespace) -> None:
@@ -119,6 +158,102 @@ def _normalize_game_name(raw: object, default: str = "chess") -> str:
     return game
 
 
+def _manual_archive_family_for_game(game: str) -> str:
+    normalized = _normalize_game_name(game)
+    if normalized == "parcheesi":
+        return "parcheesi"
+    return "chess_checkers"
+
+
+def _manual_archive_dir_for_game(game: str) -> Path:
+    return MANUAL_ARCHIVE_ROOT_DIR / _manual_archive_family_for_game(game)
+
+
+def _ensure_manual_archive_layout(game: str) -> Path:
+    archive_dir = _manual_archive_dir_for_game(game)
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    return archive_dir
+
+
+def _next_manual_archive_game_dir(game: str) -> Path:
+    samples_dir = _ensure_manual_archive_layout(game)
+    pattern = re.compile(r"^Game(\d+)$")
+    max_index = 0
+    for child in samples_dir.iterdir():
+        if not child.is_dir():
+            continue
+        match = pattern.fullmatch(child.name)
+        if match:
+            max_index = max(max_index, int(match.group(1)))
+    archive_dir = samples_dir / f"Game{max_index + 1}"
+    archive_dir.mkdir(parents=True, exist_ok=False)
+    return archive_dir
+
+
+def _manual_archive_calibration_paths(game: str) -> list[Path]:
+    calib_root = _manual_archive_dir_for_game(game)
+    archive_paths: list[Path] = []
+
+    for child in sorted(calib_root.iterdir() if calib_root.exists() else []):
+        if child.is_dir() and re.fullmatch(r"Game\d+", child.name):
+            corners_path = child / "corners_info.json"
+            if corners_path.is_file():
+                archive_paths.append(corners_path)
+
+    legacy_paths = sorted(
+        path
+        for path in calib_root.glob("*_corners.json")
+        if path.is_file()
+    )
+    archive_paths.extend(path for path in legacy_paths if path not in archive_paths)
+    return archive_paths
+
+
+def _payload_supports_startup_game(payload: dict[str, Any], game: str) -> bool:
+    normalized = _normalize_game_name(game)
+    if normalized == "parcheesi":
+        return isinstance(payload.get("parcheesi_layout"), dict)
+    return isinstance(payload.get("chessboard_corners_px"), list)
+
+
+def _describe_startup_geometry_strategy(game: str) -> str:
+    normalized = _normalize_game_name(game)
+    if MANUAL_CORNERS_INFO_PATH.is_file():
+        try:
+            payload = json.loads(MANUAL_CORNERS_INFO_PATH.read_text(encoding="utf-8"))
+            if isinstance(payload, dict) and _payload_supports_startup_game(payload, normalized):
+                return "direct configs/corners_info.json"
+        except Exception:
+            pass
+    if normalized == "parcheesi":
+        return "outer auto-detect + stored Parcheesi region template (101 mapped locations)"
+    if normalized in {"chess", "checkers"}:
+        archive_paths = _manual_archive_calibration_paths(normalized)
+        if archive_paths:
+            return f"outer auto-detect + archived outer->inner calibration ({len(archive_paths)} sample(s))"
+    return "legacy live auto-detect fallback"
+
+
+def _archive_confirmed_geometry(
+    *,
+    game: str,
+    payload: dict[str, Any],
+    reference_path: Path,
+    overlay_path: Path | None,
+) -> Path:
+    archive_dir = _next_manual_archive_game_dir(game)
+    archive_json_path = archive_dir / "corners_info.json"
+    archive_json_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+
+    reference_copy_path = archive_dir / "reference.png"
+    shutil.copy2(reference_path, reference_copy_path)
+
+    if overlay_path is not None and overlay_path.exists():
+        shutil.copy2(overlay_path, archive_dir / "startup_grid_overlay.png")
+
+    return archive_dir
+
+
 def _load_scaled_corners_payload(
     *,
     corners_path: Path,
@@ -134,8 +269,7 @@ def _load_scaled_corners_payload(
         stored_w = float(target_image_w)
         stored_h = float(target_image_h)
 
-    def scale_quad(key: str) -> list[list[float]] | None:
-        raw = payload.get(key)
+    def scale_quad(raw: object) -> list[list[float]] | None:
         if not isinstance(raw, list) or len(raw) != 4:
             return None
         out: list[list[float]] = []
@@ -148,16 +282,268 @@ def _load_scaled_corners_payload(
             ])
         return out
 
-    scaled_outer = scale_quad("outer_sheet_corners_px")
-    scaled_chess = scale_quad("chessboard_corners_px")
-    if scaled_chess is None:
+    scaled_outer = scale_quad(payload.get("outer_sheet_corners_px"))
+    scaled_chess = scale_quad(payload.get("chessboard_corners_px"))
+    is_parcheesi_payload = isinstance(payload.get("parcheesi_layout"), dict)
+    if scaled_chess is None and not is_parcheesi_payload:
         raise RuntimeError(f"Invalid chessboard corners in {corners_path}")
 
-    payload = dict(payload)
-    payload["outer_sheet_corners_px"] = scaled_outer
-    payload["chessboard_corners_px"] = scaled_chess
-    payload["image_size_px"] = {"width": int(target_image_w), "height": int(target_image_h)}
-    return payload
+    scaled_payload = dict(payload)
+    for key, value in payload.items():
+        if not isinstance(key, str) or not key.endswith("_corners_px"):
+            continue
+        scaled = scale_quad(value)
+        if scaled is not None:
+            scaled_payload[key] = scaled
+    scaled_payload["outer_sheet_corners_px"] = scaled_outer
+    if scaled_chess is not None:
+        scaled_payload["chessboard_corners_px"] = scaled_chess
+    scaled_payload["image_size_px"] = {"width": int(target_image_w), "height": int(target_image_h)}
+    return scaled_payload
+
+
+def _order_points(pts: object) -> np.ndarray:
+    points = np.asarray(pts, dtype=np.float32).reshape(4, 2)
+    s = points.sum(axis=1)
+    diff = np.diff(points, axis=1).reshape(-1)
+    tl = points[np.argmin(s)]
+    br = points[np.argmax(s)]
+    tr = points[np.argmin(diff)]
+    bl = points[np.argmax(diff)]
+    return np.array([tl, tr, br, bl], dtype=np.float32)
+
+
+def _polygon_area(pts: object) -> float:
+    contour = np.asarray(pts, dtype=np.float32).reshape(-1, 1, 2)
+    return abs(float(cv2.contourArea(contour)))
+
+
+def _quad_mean_corner_error(a: object, b: object) -> float:
+    qa = _order_points(a)
+    qb = _order_points(b)
+    return float(np.mean(np.linalg.norm(qa - qb, axis=1)))
+
+
+def _scale_quad_exact(quad: object, from_size: object, to_size: object) -> np.ndarray:
+    if isinstance(from_size, dict):
+        fw = float(from_size["width"])
+        fh = float(from_size["height"])
+    else:
+        fw = float(from_size[0])
+        fh = float(from_size[1])
+
+    if isinstance(to_size, dict):
+        tw = float(to_size["width"])
+        th = float(to_size["height"])
+    else:
+        tw = float(to_size[0])
+        th = float(to_size[1])
+
+    q = _order_points(quad).copy()
+    q[:, 0] *= tw / fw
+    q[:, 1] *= th / fh
+    return _order_points(q)
+
+
+def _quad_is_valid_outer_field(quad: np.ndarray, image_shape: tuple[int, ...]) -> bool:
+    h, w = image_shape[:2]
+    q = _order_points(quad)
+    area = _polygon_area(q)
+    area_frac = area / float(w * h)
+    x, y, bw, bh = cv2.boundingRect(q.astype(np.int32))
+    width_frac = bw / float(w)
+    height_frac = bh / float(h)
+
+    if not cv2.isContourConvex(q.reshape(-1, 1, 2).astype(np.float32)):
+        return False
+
+    if not (0.18 <= area_frac <= 0.65):
+        return False
+
+    if not (0.30 <= width_frac <= 0.80):
+        return False
+
+    if not (0.55 <= height_frac <= 1.00):
+        return False
+
+    margin = 3
+    if x <= margin or y <= margin:
+        return False
+
+    return True
+
+
+def _quad_score(quad: np.ndarray, image_shape: tuple[int, ...], method_bonus: float = 0.0) -> float:
+    h, w = image_shape[:2]
+    q = _order_points(quad)
+    area = _polygon_area(q)
+    cx = float(q[:, 0].mean())
+    cy = float(q[:, 1].mean())
+    center_dist = math.hypot((cx - w / 2.0) / w, (cy - h / 2.0) / h)
+    return area - center_dist * 100000.0 + method_bonus
+
+
+def _coerce_quad(raw: object) -> np.ndarray | None:
+    if not isinstance(raw, list) or len(raw) != 4:
+        return None
+    try:
+        return _order_points(raw)
+    except Exception:
+        return None
+
+
+def _collect_named_region_quads(payload: dict[str, Any]) -> dict[str, np.ndarray]:
+    regions: dict[str, np.ndarray] = {}
+    for key, value in payload.items():
+        if key in {"outer_sheet_corners_px", "image_size_px"}:
+            continue
+        if not key.endswith("_corners_px"):
+            continue
+        quad = _coerce_quad(value)
+        if quad is not None:
+            regions[key] = quad
+    return regions
+
+
+def _load_outer_to_inner_calibration(calib_paths: list[Path]) -> dict[str, Any]:
+    all_outer_px: list[np.ndarray] = []
+    all_region_norms: dict[str, list[np.ndarray]] = {}
+    all_region_px: dict[str, list[np.ndarray]] = {}
+    source_sizes: list[dict[str, Any] | None] = []
+    used_files: list[str] = []
+
+    for path in calib_paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        outer_quad = _coerce_quad(data.get("outer_sheet_corners_px"))
+        if outer_quad is None:
+            continue
+        region_quads = _collect_named_region_quads(data)
+        if not region_quads:
+            continue
+        image_size = data.get("image_size_px")
+
+        h_img_to_outer_norm = cv2.getPerspectiveTransform(outer_quad, OUTER_NORM)
+        all_outer_px.append(outer_quad)
+        for key, region_quad in region_quads.items():
+            region_norm = cv2.perspectiveTransform(
+                region_quad.reshape(-1, 1, 2),
+                h_img_to_outer_norm,
+            ).reshape(4, 2)
+            all_region_norms.setdefault(key, []).append(region_norm)
+            all_region_px.setdefault(key, []).append(region_quad)
+        source_sizes.append(image_size if isinstance(image_size, dict) else None)
+        used_files.append(str(path))
+
+    if not all_region_norms:
+        raise RuntimeError("No valid calibration JSONs loaded.")
+
+    outer_px_stack = np.stack(all_outer_px, axis=0)
+    source_image_size = next((size for size in source_sizes if size is not None), None)
+    mean_regions_norm_in_outer: dict[str, np.ndarray] = {}
+    std_regions_norm_in_outer: dict[str, np.ndarray] = {}
+    mean_regions_px: dict[str, np.ndarray] = {}
+    std_regions_px: dict[str, np.ndarray] = {}
+    region_counts: dict[str, int] = {}
+
+    for key, region_norms in all_region_norms.items():
+        region_norm_stack = np.stack(region_norms, axis=0)
+        region_px_stack = np.stack(all_region_px[key], axis=0)
+        mean_regions_norm_in_outer[key] = np.mean(region_norm_stack, axis=0).astype(np.float32)
+        std_regions_norm_in_outer[key] = np.std(region_norm_stack, axis=0).astype(np.float32)
+        mean_regions_px[key] = np.mean(region_px_stack, axis=0).astype(np.float32)
+        std_regions_px[key] = np.std(region_px_stack, axis=0).astype(np.float32)
+        region_counts[key] = int(region_norm_stack.shape[0])
+
+    return {
+        "files": used_files,
+        "count": len(used_files),
+        "region_counts": region_counts,
+        "source_image_size": source_image_size,
+        "mean_regions_norm_in_outer": mean_regions_norm_in_outer,
+        "std_regions_norm_in_outer": std_regions_norm_in_outer,
+        "mean_region_px": mean_regions_px,
+        "std_region_px": std_regions_px,
+        "mean_outer_px": np.mean(outer_px_stack, axis=0).astype(np.float32),
+        "std_outer_px": np.std(outer_px_stack, axis=0).astype(np.float32),
+    }
+
+
+def _predict_region_from_outer(outer_quad: np.ndarray, region_norm_in_outer: np.ndarray) -> np.ndarray:
+    outer_quad = _order_points(outer_quad).astype(np.float32)
+    region_norm_in_outer = _order_points(region_norm_in_outer).astype(np.float32)
+    h_outer_norm_to_img = cv2.getPerspectiveTransform(OUTER_NORM, outer_quad)
+    region_pred = cv2.perspectiveTransform(
+        region_norm_in_outer.reshape(-1, 1, 2),
+        h_outer_norm_to_img,
+    ).reshape(4, 2)
+    return _order_points(region_pred)
+
+
+def _find_outer_field_corners_initial_style(image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    h, w = image.shape[:2]
+    _, mask = cv2.threshold(gray, BLACK_THRESH, 255, cv2.THRESH_BINARY_INV)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (MORPH_KERNEL_SIZE, MORPH_KERNEL_SIZE))
+    closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    contours, hierarchy = cv2.findContours(closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    if hierarchy is None:
+        raise RuntimeError("No contours found for outer tape.")
+
+    hierarchy = hierarchy[0]
+    candidates: list[dict[str, Any]] = []
+    for i, contour in enumerate(contours):
+        area = float(cv2.contourArea(contour))
+        x, y, bw, bh = cv2.boundingRect(contour)
+        if area < 0.10 * w * h:
+            continue
+        if bw < 0.30 * w or bh < 0.50 * h:
+            continue
+        if x < 0.12 * w or x > 0.85 * w:
+            continue
+
+        perimeter = cv2.arcLength(contour, True)
+        for eps_frac in (0.005, 0.008, 0.010, 0.015, 0.020):
+            approx = cv2.approxPolyDP(contour, eps_frac * perimeter, True)
+            if len(approx) != 4:
+                continue
+            quad = _order_points(approx.reshape(4, 2))
+            has_parent = hierarchy[i][3] != -1
+            cx = x + bw / 2.0
+            cy = y + bh / 2.0
+            center_penalty = abs(cx - 0.55 * w) * 100.0 + abs(cy - 0.52 * h) * 40.0
+            score = area + (2_000_000.0 if has_parent else 0.0) - center_penalty
+            candidates.append(
+                {
+                    "index": int(i),
+                    "quad": quad,
+                    "contour": contour,
+                    "area": area,
+                    "bbox": [int(x), int(y), int(bw), int(bh)],
+                    "has_parent": bool(has_parent),
+                    "eps_frac": float(eps_frac),
+                    "score": float(score),
+                }
+            )
+            break
+
+    if not candidates:
+        raise RuntimeError("Could not find a 4-corner inner-tape contour.")
+
+    best = max(candidates, key=lambda candidate: float(candidate["score"]))
+    debug = {
+        "method": "initial_style_inner_tape_hole_contour",
+        "score": float(best["score"]),
+        "best_area": float(best["area"]),
+        "best_bbox": best["bbox"],
+        "has_parent": bool(best["has_parent"]),
+        "eps_frac": float(best["eps_frac"]),
+        "num_candidates": len(candidates),
+    }
+    return _order_points(best["quad"]), debug
+
+
+def _choose_outer_field(image: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
+    return _find_outer_field_corners_initial_style(image)
 
 
 def _capture_startup_reference(controller: EndTurnController, *, output_path: Path | None = None) -> Path:
@@ -206,6 +592,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="FlexyBoard-Camera YAML config path")
     parser.add_argument("--wait-mode", choices=("enter", "gpio"), default="enter")
     parser.add_argument("--gpio-pin", type=int, default=17)
+    parser.add_argument("--status-led-pin", type=int, default=None)
     parser.add_argument("--trigger-timeout", type=float, default=None)
     parser.add_argument("--analysis-out-dir", default=None)
     parser.add_argument("--serial-port", default=None)
@@ -397,15 +784,15 @@ def _expected_manual_green_capture_count(
     game: str,
     resolved: Any,
 ) -> int:
-    if not bool(getattr(resolved, "capture", False)):
+    if game not in {"chess", "checkers"}:
         return 0
     steps = getattr(resolved, "steps", None)
     if not isinstance(steps, list) or len(steps) != 1:
         return 0
-    if game not in {"chess", "checkers"}:
-        return 0
     if game == "chess" and getattr(resolved, "special", None) == "promotion":
-        return 2
+        return 1 + int(bool(getattr(resolved, "capture", False)))
+    if not bool(getattr(resolved, "capture", False)):
+        return 0
     return 1
 
 
@@ -619,16 +1006,104 @@ def _run_analysis(
         ) from exc
 
 
-def _wait_for_turn_trigger(args: argparse.Namespace, prompt: str) -> None:
+def _runtime_panel(args: argparse.Namespace) -> GPIOControlPanel | None:
+    panel = getattr(args, "_runtime_gpio_panel", None)
+    return panel if isinstance(panel, GPIOControlPanel) else None
+
+
+def _wait_action_label(args: argparse.Namespace, *, capitalized: bool = False) -> str:
+    phrase = "press the button or press Enter" if args.wait_mode == "gpio" else "press Enter"
+    if capitalized:
+        return phrase[:1].upper() + phrase[1:]
+    return phrase
+
+
+def _set_player_ready_indicator(args: argparse.Namespace, on: bool) -> None:
+    panel = _runtime_panel(args)
+    if panel is not None:
+        panel.set_player_ready(on)
+
+
+def _poll_terminal_line(timeout_sec: float = 0.0) -> str | None:
+    ready, _, _ = select.select([sys.stdin], [], [], timeout_sec)
+    if not ready:
+        return None
+    raw = sys.stdin.readline()
+    if raw == "":
+        return ""
+    return raw.strip().lower()
+
+
+def _wait_for_turn_trigger(
+    args: argparse.Namespace,
+    prompt: str,
+    *,
+    runtime_state: dict[str, Any] | None = None,
+    player_ready_led: bool = False,
+    blink_led: bool = False,
+) -> str:
     if args.wait_mode == "gpio":
+        print(prompt)
+        panel = _runtime_panel(args)
+        blink_state = False
+        last_blink_toggle = time.monotonic()
+        if player_ready_led and not blink_led:
+            _set_player_ready_indicator(args, True)
+        else:
+            _set_player_ready_indicator(args, False)
         try:
-            triggered = wait_for_gpio_trigger(pin=args.gpio_pin, timeout_sec=args.trigger_timeout)
-        except TriggerError as exc:
-            raise RuntimeError(str(exc)) from exc
-        if not triggered:
-            raise RuntimeError("gpio trigger timeout")
+            while True:
+                if blink_led:
+                    now = time.monotonic()
+                    if (now - last_blink_toggle) >= 0.25:
+                        blink_state = not blink_state
+                        _set_player_ready_indicator(args, blink_state)
+                        last_blink_toggle = now
+                if runtime_state is not None and runtime_state.get("reset_requested"):
+                    runtime_state["reset_requested"] = False
+                    print(
+                        "\n[Bridge] Runtime reset acknowledged. Start the next game and "
+                        f"{_wait_action_label(args)} when ready."
+                    )
+                    return "__runtime_reset__"
+                try:
+                    if panel is not None:
+                        triggered = panel.wait_for_button(timeout_sec=0.1)
+                    else:
+                        triggered = wait_for_gpio_trigger(pin=args.gpio_pin, timeout_sec=0.1)
+                except TriggerError as exc:
+                    raise RuntimeError(str(exc)) from exc
+                if triggered:
+                    print(f"[Bridge] GPIO button press detected on BCM {args.gpio_pin}")
+                    return "__button__"
+                terminal_raw = _poll_terminal_line(timeout_sec=0.0)
+                if terminal_raw is not None:
+                    return terminal_raw
+                if args.trigger_timeout is not None:
+                    # The panel wait is polled in short slices so runtime reset messages
+                    # can still interrupt a GPIO wait. Enforce the user-facing timeout here.
+                    deadline = getattr(args, "_runtime_trigger_deadline", None)
+                    if deadline is None:
+                        deadline = time.monotonic() + float(args.trigger_timeout)
+                        setattr(args, "_runtime_trigger_deadline", deadline)
+                    if time.monotonic() >= float(deadline):
+                        raise RuntimeError("gpio trigger timeout")
+        finally:
+            if hasattr(args, "_runtime_trigger_deadline"):
+                delattr(args, "_runtime_trigger_deadline")
+            if player_ready_led or blink_led:
+                _set_player_ready_indicator(args, False)
     else:
-        input(prompt)
+        if player_ready_led:
+            _set_player_ready_indicator(args, True)
+        else:
+            _set_player_ready_indicator(args, False)
+        try:
+            input(prompt)
+        finally:
+            if player_ready_led or blink_led:
+                _set_player_ready_indicator(args, False)
+    return ""
 
 
 def _read_terminal_prompt_with_runtime_control(prompt: str, runtime_state: dict[str, Any] | None = None) -> str:
@@ -654,13 +1129,19 @@ def _prompt_rolling_turn_action(
     runtime_state: dict[str, Any] | None = None,
 ) -> str:
     if args.wait_mode == "gpio":
-        _wait_for_turn_trigger(
+        raw = _wait_for_turn_trigger(
             args,
-            f"[Bridge] Turn {turn_index}: make Player 1 move, then press Enter to capture current board...",
+            f"[Bridge] Turn {turn_index}: make Player 1 move, then {_wait_action_label(args)} to capture current board...",
+            runtime_state=runtime_state,
+            player_ready_led=True,
         )
+        if raw == "__runtime_reset__":
+            return "runtime_reset"
+        if raw in {"r", "ref", "reference", "recapture"}:
+            return "recapture_reference"
         return "capture"
 
-    prompt = f"[Bridge] Turn {turn_index}: make Player 1 move, then press Enter to capture current board..."
+    prompt = f"[Bridge] Turn {turn_index}: make Player 1 move, then {_wait_action_label(args)} to capture current board..."
     if show_recapture_hint:
         prompt += (
             "\n[Bridge] Type 'r' then Enter to recapture the rolling reference "
@@ -668,7 +1149,11 @@ def _prompt_rolling_turn_action(
         )
     else:
         prompt += " "
-    raw = _read_terminal_prompt_with_runtime_control(prompt, runtime_state=runtime_state)
+    _set_player_ready_indicator(args, True)
+    try:
+        raw = _read_terminal_prompt_with_runtime_control(prompt, runtime_state=runtime_state)
+    finally:
+        _set_player_ready_indicator(args, False)
     if raw == "__runtime_reset__":
         return "runtime_reset"
     if raw in {"r", "ref", "reference", "recapture"}:
@@ -808,9 +1293,10 @@ def _draw_manual_reference_overlay(
     *,
     reference_path: Path,
     outer_corners_px: list[list[float]],
-    chessboard_corners_px: list[list[float]],
+    chessboard_corners_px: list[list[float]] | None,
     out_dir: Path,
-) -> None:
+    parcheesi_layout: dict[str, Any] | None = None,
+) -> Path | None:
     out_dir.mkdir(parents=True, exist_ok=True)
     overlay_path = out_dir / "manual_startup_grid_overlay.png"
     try:
@@ -819,39 +1305,177 @@ def _draw_manual_reference_overlay(
             outer_corners_px=outer_corners_px,
             chessboard_corners_px=chessboard_corners_px,
             out_path=overlay_path,
+            parcheesi_layout=parcheesi_layout,
         )
         print(f"[Bridge] Manual startup grid overlay saved: {overlay_path}")
+        return overlay_path
     except Exception as exc:  # noqa: BLE001
         print(f"[Bridge] Warning: could not create manual startup grid overlay: {exc}")
+        return None
+
+
+def _grid_lines_from_quad(
+    quad: np.ndarray,
+    *,
+    divisions: int = 8,
+) -> tuple[list[tuple[np.ndarray, np.ndarray]], list[tuple[np.ndarray, np.ndarray]]]:
+    tl, tr, br, bl = _order_points(quad)
+    vertical: list[tuple[np.ndarray, np.ndarray]] = []
+    horizontal: list[tuple[np.ndarray, np.ndarray]] = []
+    for i in range(divisions + 1):
+        t = i / divisions
+        top = (1.0 - t) * tl + t * tr
+        bottom = (1.0 - t) * bl + t * br
+        left = (1.0 - t) * tl + t * bl
+        right = (1.0 - t) * tr + t * br
+        vertical.append((top, bottom))
+        horizontal.append((left, right))
+    return vertical, horizontal
 
 
 def _write_startup_preview_overlay(
     *,
     reference_path: Path,
     outer_corners_px: list[list[float]] | None,
-    chessboard_corners_px: list[list[float]],
+    chessboard_corners_px: list[list[float]] | None,
     out_path: Path,
+    parcheesi_layout: dict[str, Any] | None = None,
 ) -> Path:
     image = cv2.imread(str(reference_path), cv2.IMREAD_COLOR)
     if image is None:
         raise RuntimeError(f"Could not read startup reference image for preview: {reference_path}")
 
-    detection = BoardDetection(
-        outer_sheet_corners=np.array(outer_corners_px, dtype=np.float32) if outer_corners_px is not None else None,
-        chessboard_corners=np.array(chessboard_corners_px, dtype=np.float32),
-    )
-    overlay = draw_detection_overlay(image, detection)
-    squares = generate_square_geometry(
-        board_corners=np.array(chessboard_corners_px, dtype=np.float32),
-        board_size=(8, 8),
-    )
-    overlay = draw_square_grid_overlay(overlay, squares=squares, label_mode="none")
+    outer_quad = _order_points(np.array(outer_corners_px, dtype=np.float32)) if outer_corners_px is not None else None
+    if parcheesi_layout is not None:
+        if outer_quad is None:
+            raise RuntimeError("Parcheesi startup preview requires outer corners.")
+        overlay = draw_parcheesi_overlay(
+            image,
+            outer_corners_px=outer_quad,
+            projected_regions=project_parcheesi_regions(outer_quad),
+            show_labels=True,
+            outer_thickness=5,
+            region_thickness=2,
+        )
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(out_path), overlay)
+        return out_path
+
+    if chessboard_corners_px is None:
+        raise RuntimeError("Chess/checkers startup preview requires chessboard corners.")
+
+    overlay = image.copy()
+    chess_quad = _order_points(np.array(chessboard_corners_px, dtype=np.float32))
+
+    if outer_quad is not None:
+        outer_i = np.round(outer_quad).astype(np.int32)
+        cv2.polylines(overlay, [outer_i], True, (0, 255, 0), 5, cv2.LINE_AA)
+        for idx, pt in enumerate(outer_i):
+            cv2.circle(overlay, tuple(pt), 7, (0, 255, 0), -1, cv2.LINE_AA)
+            cv2.putText(
+                overlay,
+                f"O{idx}",
+                tuple(pt + np.array([8, -8])),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA,
+            )
+
+    vertical, horizontal = _grid_lines_from_quad(chess_quad, divisions=8)
+    for p1, p2 in vertical + horizontal:
+        cv2.line(
+            overlay,
+            tuple(np.round(p1).astype(int)),
+            tuple(np.round(p2).astype(int)),
+            (255, 0, 0),
+            2,
+            cv2.LINE_AA,
+        )
+
+    chess_i = np.round(chess_quad).astype(np.int32)
+    cv2.polylines(overlay, [chess_i], True, (255, 0, 0), 4, cv2.LINE_AA)
+    for idx, pt in enumerate(chess_i):
+        cv2.circle(overlay, tuple(pt), 6, (0, 0, 255), -1, cv2.LINE_AA)
+        cv2.putText(
+            overlay,
+            f"I{idx}",
+            tuple(pt + np.array([8, 18])),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (255, 0, 0),
+            2,
+            cv2.LINE_AA,
+        )
+
+    label = "OUTER = GREEN | INNER = BLUE (from outer->inner reference)"
+    cv2.putText(overlay, label, (30, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.82, (0, 0, 0), 4, cv2.LINE_AA)
+    cv2.putText(overlay, label, (30, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.82, (255, 255, 255), 2, cv2.LINE_AA)
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(out_path), overlay)
     return out_path
 
 
+def _log_startup_geometry_reference_path(
+    *,
+    outer_method: str,
+    inner_method: str,
+    calibration_source: str | None = None,
+    calibration_files: list[str] | None = None,
+    calibration_count: int | None = None,
+) -> None:
+    print(f"[Bridge] Startup geometry path: outer={outer_method} | inner={inner_method}")
+    if calibration_source is not None:
+        print(f"[Bridge] Startup geometry calibration source: {calibration_source}")
+    if calibration_count is not None:
+        print(f"[Bridge] Startup geometry calibration sample count: {calibration_count}")
+    if calibration_files:
+        print("[Bridge] Startup geometry calibration files:")
+        for path in calibration_files:
+            print(f"  - {path}")
+
+
+def _update_selected_game(
+    *,
+    requested_raw: object,
+    game_holder: dict[str, str],
+    resolver_holder: dict[str, Any],
+    resolver_orientation: str,
+    context: str,
+) -> None:
+    requested_game = _normalize_game_name(requested_raw, default=game_holder["game"])
+    previous_game = game_holder["game"]
+    game_holder["game"] = requested_game
+    resolver_holder["resolver"] = Player1MoveResolver(
+        requested_game,
+        camera_square_orientation=resolver_orientation,
+    )
+    if requested_game != previous_game:
+        print(f"[Bridge] {context} game selection updated: {previous_game} -> {requested_game}")
+    else:
+        print(f"[Bridge] {context} game selection reaffirmed: {requested_game}")
+    print(f"[Bridge] {context} calibration strategy for {requested_game}: {_describe_startup_geometry_strategy(requested_game)}")
+
+
 def _write_session_geometry_reference(analysis: dict[str, Any], out_path: Path) -> Path:
+    if isinstance(analysis.get("parcheesi_layout"), dict):
+        source_image = analysis.get("before_image") or analysis.get("after_image")
+        payload = {
+            "version": 1,
+            "generated_by": "run_pi_software_bridge.py",
+            "source": "initial_rolling_reference",
+            "game": "parcheesi",
+            "source_image": source_image,
+            "image_size_px": analysis.get("image_size_px"),
+            "outer_sheet_corners_px": analysis.get("outer_sheet_corners_px"),
+            "parcheesi_layout": analysis.get("parcheesi_layout"),
+        }
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+        return out_path
+
     crop = analysis.get("pre_detection_crop")
     if not isinstance(crop, dict):
         raise RuntimeError("Initial analysis did not include pre_detection_crop metadata.")
@@ -900,11 +1524,75 @@ def _write_session_geometry_reference(analysis: dict[str, Any], out_path: Path) 
     return out_path
 
 
+def _write_session_geometry_reference_from_quads(
+    *,
+    reference_path: Path,
+    outer_corners_px: np.ndarray | None,
+    chessboard_corners_px: np.ndarray,
+    out_path: Path,
+    source: str,
+    extra_debug: dict[str, Any] | None = None,
+) -> Path:
+    image_w, image_h = _png_size(reference_path)
+    payload: dict[str, Any] = {
+        "version": 1,
+        "generated_by": "run_pi_software_bridge.py",
+        "source": source,
+        "source_image": str(reference_path),
+        "image_size_px": {
+            "width": image_w,
+            "height": image_h,
+        },
+        "outer_sheet_corners_px": (
+            [[float(x), float(y)] for x, y in _order_points(outer_corners_px).tolist()]
+            if outer_corners_px is not None
+            else None
+        ),
+        "chessboard_corners_px": [[float(x), float(y)] for x, y in _order_points(chessboard_corners_px).tolist()],
+    }
+    if extra_debug:
+        payload["startup_auto_debug"] = extra_debug
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    return out_path
+
+
+def _write_session_geometry_reference_from_payload(
+    *,
+    reference_path: Path,
+    payload: dict[str, Any],
+    out_path: Path,
+    source: str,
+    extra_debug: dict[str, Any] | None = None,
+) -> Path:
+    image_w, image_h = _png_size(reference_path)
+    session_payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"version", "generated_by", "source", "source_image", "image_size_px", "startup_auto_debug"}
+    }
+    session_payload["version"] = 1
+    session_payload["generated_by"] = "run_pi_software_bridge.py"
+    session_payload["source"] = source
+    session_payload["source_image"] = str(reference_path)
+    session_payload["image_size_px"] = {
+        "width": image_w,
+        "height": image_h,
+    }
+    if extra_debug:
+        session_payload["startup_auto_debug"] = extra_debug
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(session_payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    return out_path
+
+
 def _store_auto_session_geometry(
     *,
     session_geometry_path: Path,
     preview_path: Path | None,
     game_dir: Path,
+    game: str,
 ) -> Path:
     payload = json.loads(session_geometry_path.read_text(encoding="utf-8"))
     payload["source"] = "auto_startup_geometry"
@@ -914,16 +1602,20 @@ def _store_auto_session_geometry(
     game_corners_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
     print(f"[Bridge] Auto startup geometry saved for game: {game_corners_path}")
 
-    sample_path = _next_manual_archive_path(MANUAL_CORNERS_SAMPLES_DIR)
-    sample_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
-    print(f"[Bridge] Accepted auto geometry archive saved: {sample_path}")
-
-    MANUAL_CORNERS_INFO_PATH.parent.mkdir(parents=True, exist_ok=True)
-    MANUAL_CORNERS_INFO_PATH.write_text(
+    MANUAL_CORNERS_INFO_TEMP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    MANUAL_CORNERS_INFO_TEMP_PATH.write_text(
         json.dumps(payload, ensure_ascii=True, indent=2),
         encoding="utf-8",
     )
-    print(f"[Bridge] Auto startup geometry baseline saved: {MANUAL_CORNERS_INFO_PATH}")
+    print(f"[Bridge] Auto startup geometry temp baseline saved: {MANUAL_CORNERS_INFO_TEMP_PATH}")
+
+    if _normalize_game_name(game) == "parcheesi":
+        MANUAL_CORNERS_INFO_PATH.parent.mkdir(parents=True, exist_ok=True)
+        MANUAL_CORNERS_INFO_PATH.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2),
+            encoding="utf-8",
+        )
+        print(f"[Bridge] Parcheesi startup geometry baseline saved: {MANUAL_CORNERS_INFO_PATH}")
 
     if preview_path is not None and preview_path.exists():
         preview_copy_path = game_dir / "auto_startup_grid_overlay.png"
@@ -931,37 +1623,33 @@ def _store_auto_session_geometry(
             shutil.copy2(preview_path, preview_copy_path)
         print(f"[Bridge] Auto startup preview archived: {preview_copy_path}")
 
+    reference_path = Path(str(payload.get("source_image", session_geometry_path)))
+    archive_dir = _archive_confirmed_geometry(
+        game=game,
+        payload=payload,
+        reference_path=reference_path,
+        overlay_path=preview_path,
+    )
+    print(f"[Bridge] Accepted auto geometry archive saved: {archive_dir}")
+
     return game_corners_path
-
-
-def _next_manual_archive_path(samples_dir: Path) -> Path:
-    samples_dir.mkdir(parents=True, exist_ok=True)
-    pattern = re.compile(r"^game(\d+)_corners\.json$")
-    max_index = 0
-    for child in samples_dir.iterdir():
-        if not child.is_file():
-            continue
-        match = pattern.fullmatch(child.name)
-        if match:
-            max_index = max(max_index, int(match.group(1)))
-    return samples_dir / f"game{max_index + 1}_corners.json"
-
 
 def _build_manual_corners_info_payload(
     *,
     reference_path: Path,
     outer_corners_px: object,
     chessboard_corners_px: object,
+    game: str,
+    extra_geometry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     image_w, image_h = _png_size(reference_path)
+    normalized_game = _normalize_game_name(game)
     outer = _quad_entry_from_raw(outer_corners_px, image_w=image_w, image_h=image_h)
     chess = _quad_entry_from_raw(chessboard_corners_px, image_w=image_w, image_h=image_h)
     if outer is None:
         raise RuntimeError("Manual geometry did not include 4 valid outer corners.")
-    if chess is None:
-        raise RuntimeError("Manual geometry did not include 4 valid inner chessboard corners.")
 
-    return {
+    payload: dict[str, Any] = {
         "version": 1,
         "generated_by": "run_pi_software_bridge.py",
         "source": "manual_startup_geometry",
@@ -971,8 +1659,24 @@ def _build_manual_corners_info_payload(
             "height": image_h,
         },
         "outer_sheet_corners_px": outer["corners_px"],
-        "chessboard_corners_px": chess["corners_px"],
     }
+    if normalized_game == "parcheesi":
+        payload["game"] = "parcheesi"
+        payload["parcheesi_layout"] = (
+            extra_geometry.get("parcheesi_layout")
+            if isinstance(extra_geometry, dict) and isinstance(extra_geometry.get("parcheesi_layout"), dict)
+            else parcheesi_layout_payload()
+        )
+    else:
+        if chess is None:
+            raise RuntimeError("Manual geometry did not include 4 valid inner chessboard corners.")
+        payload["chessboard_corners_px"] = chess["corners_px"]
+    if extra_geometry:
+        for key, value in extra_geometry.items():
+            if key in payload:
+                continue
+            payload[key] = value
+    return payload
 
 
 def _store_manual_corners_info(
@@ -981,34 +1685,50 @@ def _store_manual_corners_info(
     outer_corners_px: object,
     chessboard_corners_px: object,
     game_dir: Path,
+    game: str,
+    extra_geometry: dict[str, Any] | None = None,
 ) -> Path:
     payload = _build_manual_corners_info_payload(
         reference_path=reference_path,
         outer_corners_px=outer_corners_px,
         chessboard_corners_px=chessboard_corners_px,
+        game=game,
+        extra_geometry=extra_geometry,
     )
 
     game_corners_path = game_dir / "corners_info.json"
     game_corners_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
     print(f"[Bridge] Manual corners saved for game: {game_corners_path}")
 
-    sample_path = _next_manual_archive_path(MANUAL_CORNERS_SAMPLES_DIR)
-    sample_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
-    print(f"[Bridge] Manual corners archive saved: {sample_path}")
-
-    MANUAL_CORNERS_INFO_PATH.parent.mkdir(parents=True, exist_ok=True)
-    MANUAL_CORNERS_INFO_PATH.write_text(
+    MANUAL_CORNERS_INFO_TEMP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    MANUAL_CORNERS_INFO_TEMP_PATH.write_text(
         json.dumps(payload, ensure_ascii=True, indent=2),
         encoding="utf-8",
     )
-    print(f"[Bridge] Manual corners baseline saved: {MANUAL_CORNERS_INFO_PATH}")
+    print(f"[Bridge] Manual corners temp baseline saved: {MANUAL_CORNERS_INFO_TEMP_PATH}")
 
-    _draw_manual_reference_overlay(
+    if _normalize_game_name(game) == "parcheesi":
+        MANUAL_CORNERS_INFO_PATH.parent.mkdir(parents=True, exist_ok=True)
+        MANUAL_CORNERS_INFO_PATH.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2),
+            encoding="utf-8",
+        )
+        print(f"[Bridge] Parcheesi manual geometry baseline saved: {MANUAL_CORNERS_INFO_PATH}")
+
+    overlay_path = _draw_manual_reference_overlay(
         reference_path=reference_path,
         outer_corners_px=payload["outer_sheet_corners_px"],
-        chessboard_corners_px=payload["chessboard_corners_px"],
+        chessboard_corners_px=payload.get("chessboard_corners_px"),
         out_dir=game_dir,
+        parcheesi_layout=payload.get("parcheesi_layout") if _normalize_game_name(game) == "parcheesi" else None,
     )
+    archive_dir = _archive_confirmed_geometry(
+        game=game,
+        payload=payload,
+        reference_path=reference_path,
+        overlay_path=overlay_path,
+    )
+    print(f"[Bridge] Manual corners archive saved: {archive_dir}")
     return game_corners_path
 
 
@@ -1023,66 +1743,149 @@ def _build_session_geometry_reference(
     print("[Bridge] Building live session geometry from initial reference...")
     try:
         started_at = time.perf_counter()
-        image_w, image_h = _png_size(reference_path)
         preview_path = game_debug_dir / "auto_startup_grid_overlay.png"
-        if MANUAL_CORNERS_INFO_PATH.exists():
+        session_path = Path(args.session_geometry_path)
+        session_path.parent.mkdir(parents=True, exist_ok=True)
+
+        used_outer_calibration = False
+        if MANUAL_CORNERS_INFO_PATH.is_file():
             try:
-                preview_started_at = time.perf_counter()
+                detect_started_at = time.perf_counter()
+                image_w, image_h = _png_size(reference_path)
                 payload = _load_scaled_corners_payload(
                     corners_path=MANUAL_CORNERS_INFO_PATH,
                     target_image_w=image_w,
                     target_image_h=image_h,
                 )
-                payload["source"] = "config_corners_info_startup_geometry"
-                payload["generated_by"] = "run_pi_software_bridge.py"
-                payload["source_image"] = str(reference_path)
-                session_path = Path(args.session_geometry_path)
-                session_path.parent.mkdir(parents=True, exist_ok=True)
-                session_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
-                _write_startup_preview_overlay(
-                    reference_path=reference_path,
-                    outer_corners_px=payload.get("outer_sheet_corners_px"),
-                    chessboard_corners_px=payload["chessboard_corners_px"],
-                    out_path=preview_path,
-                )
-                print(
-                    "[Bridge] Startup geometry baseline load+preview completed in "
-                    f"{time.perf_counter() - preview_started_at:.3f}s"
-                )
+                if not _payload_supports_startup_game(payload, game):
+                    payload = None
+                if payload is None:
+                    used_outer_calibration = False
+                else:
+                    session_path = _write_session_geometry_reference_from_payload(
+                        reference_path=reference_path,
+                        payload=payload,
+                        out_path=session_path,
+                        source="startup_direct_from_baseline_corners_info",
+                        extra_debug={
+                            "calibration_source": "baseline_corners_info_direct",
+                            "calibration_files": [str(MANUAL_CORNERS_INFO_PATH)],
+                            "calibration_count": 1,
+                        },
+                    )
+                    print(
+                        "[Bridge] Startup direct baseline geometry completed in "
+                        f"{time.perf_counter() - detect_started_at:.3f}s"
+                    )
+                    _log_startup_geometry_reference_path(
+                        outer_method="baseline_corners_info_direct",
+                        inner_method=(
+                            "baseline_corners_info_direct"
+                            if _normalize_game_name(game) in {"chess", "checkers"}
+                            else "baseline_parcheesi_region_layout_direct"
+                        ),
+                        calibration_source="baseline_corners_info_direct",
+                        calibration_files=[str(MANUAL_CORNERS_INFO_PATH)],
+                        calibration_count=1,
+                    )
+                    used_outer_calibration = True
             except Exception as exc:  # noqa: BLE001
                 print(
-                    "[Bridge] Warning: configs/corners_info.json was not usable for startup preview; "
-                    f"falling back to live auto-detect. Details: {exc}"
+                    "[Bridge] Warning: direct baseline startup geometry failed; "
+                    f"falling back to archive/auto paths. Details: {exc}"
                 )
-                analyze_started_at = time.perf_counter()
-                analysis = _run_analysis(
-                    before_path=reference_path,
-                    after_path=reference_path,
-                    out_dir=str(game_debug_dir),
-                    game=game,
-                    analysis_config=analysis_config,
-                    fast_locked_geometry=False,
-                    disable_geometry_reference_override=True,
-                    artifact_mode_override="minimal",
-                )
-                print(
-                    "[Bridge] Startup live auto-detect analysis completed in "
-                    f"{time.perf_counter() - analyze_started_at:.3f}s"
-                )
-                session_path = _write_session_geometry_reference(analysis, Path(args.session_geometry_path))
-                preview_started_at = time.perf_counter()
-                payload = json.loads(session_path.read_text(encoding="utf-8"))
-                _write_startup_preview_overlay(
+
+        if (not used_outer_calibration) and _normalize_game_name(game) == "parcheesi":
+            try:
+                detect_started_at = time.perf_counter()
+                image = cv2.imread(str(reference_path))
+                if image is None:
+                    raise RuntimeError(f"Could not read image: {reference_path}")
+                outer_quad, outer_debug = _choose_outer_field(image)
+                session_path = _write_session_geometry_reference_from_payload(
                     reference_path=reference_path,
-                    outer_corners_px=payload.get("outer_sheet_corners_px"),
-                    chessboard_corners_px=payload["chessboard_corners_px"],
-                    out_path=preview_path,
+                    payload={
+                        "game": "parcheesi",
+                        "outer_sheet_corners_px": [[float(x), float(y)] for x, y in _order_points(outer_quad).tolist()],
+                        "parcheesi_layout": parcheesi_layout_payload(),
+                    },
+                    out_path=session_path,
+                    source="startup_outer_initial_style_parcheesi_template",
+                    extra_debug={
+                        "outer_method": outer_debug.get("method"),
+                        "inner_method": "projected_from_parcheesi_template",
+                        "calibration_source": "stored_parcheesi_region_template",
+                    },
                 )
                 print(
-                    "[Bridge] Startup live preview render completed in "
-                    f"{time.perf_counter() - preview_started_at:.3f}s"
+                    "[Bridge] Startup outer black-tape detect + Parcheesi template projection completed in "
+                    f"{time.perf_counter() - detect_started_at:.3f}s"
                 )
-        else:
+                _log_startup_geometry_reference_path(
+                    outer_method=str(outer_debug.get("method", "unknown")),
+                    inner_method="projected_from_parcheesi_template",
+                    calibration_source="stored_parcheesi_region_template",
+                    calibration_files=[
+                        str(ROOT / "configs" / "all_manual" / "parcheesi" / "stored_data" / "parcheesi_full_101_corner_distances_corrected.json"),
+                        str(ROOT / "configs" / "all_manual" / "parcheesi" / "stored_data" / "parcheesi_location_mapping.json"),
+                    ],
+                    calibration_count=101,
+                )
+                used_outer_calibration = True
+            except Exception as exc:  # noqa: BLE001
+                print(
+                    "[Bridge] Warning: Parcheesi startup outer detection failed; "
+                    f"falling back to legacy live auto-detect. Details: {exc}"
+                )
+
+        if (not used_outer_calibration) and _normalize_game_name(game) in {"chess", "checkers"}:
+            calib_paths = _manual_archive_calibration_paths(game)
+            if calib_paths:
+                try:
+                    detect_started_at = time.perf_counter()
+                    calibration = _load_outer_to_inner_calibration(calib_paths)
+                    chess_norm_in_outer = calibration["mean_regions_norm_in_outer"].get("chessboard_corners_px")
+                    if not isinstance(chess_norm_in_outer, np.ndarray):
+                        raise RuntimeError("Calibration set is missing chessboard_corners_px samples.")
+                    image = cv2.imread(str(reference_path))
+                    if image is None:
+                        raise RuntimeError(f"Could not read image: {reference_path}")
+                    outer_quad, outer_debug = _choose_outer_field(image)
+                    chess_quad = _predict_region_from_outer(outer_quad, chess_norm_in_outer)
+                    session_path = _write_session_geometry_reference_from_quads(
+                        reference_path=reference_path,
+                        outer_corners_px=outer_quad,
+                        chessboard_corners_px=chess_quad,
+                        out_path=session_path,
+                        source="startup_outer_initial_style_inner_from_archive_calibration",
+                        extra_debug={
+                            "outer_method": outer_debug.get("method"),
+                            "outer_debug": outer_debug,
+                            "calibration_count": calibration["count"],
+                            "calibration_region_counts": calibration.get("region_counts"),
+                            "calibration_files": calibration["files"],
+                            "calibration_source": "all_manual_archive_relative_outer_to_inner",
+                        },
+                    )
+                    print(
+                        "[Bridge] Startup outer black-tape detect + calibrated inner completed in "
+                        f"{time.perf_counter() - detect_started_at:.3f}s"
+                    )
+                    _log_startup_geometry_reference_path(
+                        outer_method=str(outer_debug.get("method", "unknown")),
+                        inner_method="projected_from_outer_to_inner_reference_calibration",
+                        calibration_source="all_manual_archive_relative_outer_to_inner",
+                        calibration_files=[str(path) for path in calibration["files"]],
+                        calibration_count=int(calibration["count"]),
+                    )
+                    used_outer_calibration = True
+                except Exception as exc:  # noqa: BLE001
+                    print(
+                        "[Bridge] Warning: outer black-tape startup detect failed; "
+                        f"falling back to legacy live auto-detect. Details: {exc}"
+                    )
+
+        if not used_outer_calibration:
             analyze_started_at = time.perf_counter()
             analysis = _run_analysis(
                 before_path=reference_path,
@@ -1098,19 +1901,33 @@ def _build_session_geometry_reference(
                 "[Bridge] Startup live auto-detect analysis completed in "
                 f"{time.perf_counter() - analyze_started_at:.3f}s"
             )
-            session_path = _write_session_geometry_reference(analysis, Path(args.session_geometry_path))
-            preview_started_at = time.perf_counter()
-            payload = json.loads(session_path.read_text(encoding="utf-8"))
-            _write_startup_preview_overlay(
-                reference_path=reference_path,
-                outer_corners_px=payload.get("outer_sheet_corners_px"),
-                chessboard_corners_px=payload["chessboard_corners_px"],
-                out_path=preview_path,
+            _log_startup_geometry_reference_path(
+                outer_method=str(analysis.get("algorithm_live_outer_source_before", "unknown")),
+                inner_method=str(analysis.get("algorithm_live_inner_source_before", "unknown")),
+                calibration_source=str(
+                    analysis.get("algorithm_live_outer_to_inner_calibration", {}).get("source", "unknown")
+                ),
+                calibration_count=(
+                    int(analysis.get("algorithm_live_outer_to_inner_calibration", {}).get("count"))
+                    if analysis.get("algorithm_live_outer_to_inner_calibration", {}).get("count") is not None
+                    else None
+                ),
             )
-            print(
-                "[Bridge] Startup live preview render completed in "
-                f"{time.perf_counter() - preview_started_at:.3f}s"
-            )
+            session_path = _write_session_geometry_reference(analysis, session_path)
+
+        preview_started_at = time.perf_counter()
+        payload = json.loads(session_path.read_text(encoding="utf-8"))
+        _write_startup_preview_overlay(
+            reference_path=reference_path,
+            outer_corners_px=payload.get("outer_sheet_corners_px"),
+            chessboard_corners_px=payload.get("chessboard_corners_px"),
+            out_path=preview_path,
+            parcheesi_layout=payload.get("parcheesi_layout") if _normalize_game_name(game) == "parcheesi" else None,
+        )
+        print(
+            "[Bridge] Startup live preview render completed in "
+            f"{time.perf_counter() - preview_started_at:.3f}s"
+        )
         elapsed_sec = round(time.perf_counter() - started_at, 3)
     except Exception as exc:  # noqa: BLE001
         print(
@@ -1141,7 +1958,11 @@ def _capture_and_analyze_two_shot(
     print(f"[Bridge] BEFORE capture completed in {time.perf_counter() - before_capture_started_at:.3f}s")
     print(f"[Bridge] BEFORE captured: {before_path}")
 
-    _wait_for_turn_trigger(args, "[Bridge] Move Player 1 piece, then press Enter to capture AFTER...")
+    _wait_for_turn_trigger(
+        args,
+        f"[Bridge] Move Player 1 piece, then {_wait_action_label(args)} to capture AFTER...",
+        player_ready_led=True,
+    )
 
     after_capture_started_at = time.perf_counter()
     after_path = controller.capture_after(
@@ -1174,15 +1995,30 @@ def _capture_and_analyze_rolling(
     analysis_config: Any,
     turn_debug_dir: Path | None,
     show_recapture_hint: bool = False,
+    force_reference_recapture: bool = False,
     runtime_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     game_debug_dir = turn_debug_dir.parent if turn_debug_dir is not None else None
-    action = _prompt_rolling_turn_action(
-        args,
-        turn_index,
-        show_recapture_hint=show_recapture_hint,
-        runtime_state=runtime_state,
-    )
+    if force_reference_recapture:
+        raw = _wait_for_turn_trigger(
+            args,
+            (
+                f"[Bridge] Turn {turn_index}: previous BEFORE/reference was likely bad. "
+                f"Correct the board, then {_wait_action_label(args)} to recapture a fresh BEFORE/reference image..."
+            ),
+            runtime_state=runtime_state,
+            blink_led=True,
+        )
+        if raw == "__runtime_reset__":
+            return {"action": "runtime_reset"}
+        action = "recapture_reference"
+    else:
+        action = _prompt_rolling_turn_action(
+            args,
+            turn_index,
+            show_recapture_hint=show_recapture_hint,
+            runtime_state=runtime_state,
+        )
     latest_reference_getter = getattr(args, "_runtime_reference_getter", None)
     if callable(latest_reference_getter):
         refreshed = latest_reference_getter()
@@ -1234,12 +2070,22 @@ def _capture_and_analyze_rolling(
     )
 
 
-def _send_moves_to_stm(*, skip_return_start: bool = False, return_start_only: bool = False) -> dict[str, Any]:
+def _send_moves_to_stm(
+    *,
+    skip_return_start: bool = False,
+    return_start_only: bool = False,
+    move_file: Path | None = None,
+    continue_from_current: bool = False,
+) -> dict[str, Any]:
     cmd = [sys.executable, str(ROOT / "scripts" / "send_moves_from_file.py")]
+    if move_file is not None:
+        cmd.extend(["--move-file", str(move_file)])
     if skip_return_start:
         cmd.append("--skip-return-start")
     if return_start_only:
         cmd.append("--return-start-only")
+    if continue_from_current:
+        cmd.append("--continue-from-current")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(
@@ -1296,46 +2142,143 @@ def _write_json_line(conn_file: Any, obj: dict[str, Any], *, write_lock: threadi
 
 
 def _request_manual_startup_geometry(
+    conn: socket.socket,
     conn_file: Any,
     *,
     reference_path: Path,
+    selector_image_path: Path | None = None,
     game_debug_dir: Path,
+    game: str,
+    game_holder: dict[str, str] | None = None,
+    resolver_holder: dict[str, Any] | None = None,
+    resolver_orientation: str | None = None,
+    startup_message_queue: Queue[dict[str, Any]] | None = None,
 ) -> Path | None:
-    image_b64 = base64.b64encode(reference_path.read_bytes()).decode("ascii")
-    _write_json_line(
-        conn_file,
-        {
-            "type": "geometry_calibration_request",
-            "title": "Manual Board Geometry",
-            "summary": (
-                "Click 4 green outer-grid corners first, then 4 yellow inner-grid corners. "
-                "Use order: top-left, top-right, bottom-right, bottom-left."
-            ),
-            "source_path": str(reference_path),
-            "image_png_b64": image_b64,
-        },
-    )
-    print("[Bridge] Sent initial board image to Software-GUI for manual grid selection.")
+    normalized_game = _normalize_game_name(game)
+    outer_only = normalized_game == "parcheesi"
 
     while True:
-        msg = _read_json_line(conn_file)
+        selector_path = selector_image_path if selector_image_path is not None and selector_image_path.exists() else reference_path
+        image_b64 = base64.b64encode(selector_path.read_bytes()).decode("ascii")
+        _write_json_line(
+            conn_file,
+            {
+                "type": "geometry_calibration_request",
+                "title": "Manual Parcheesi Geometry" if outer_only else "Manual Board Geometry",
+                "summary": (
+                    "Click the 4 green outer-board corners only. "
+                    "Use order: top-left, top-right, bottom-right, bottom-left."
+                    if outer_only
+                    else (
+                        "Click 4 green outer-grid corners first, then 4 yellow inner-grid corners. "
+                        "Use order: top-left, top-right, bottom-right, bottom-left."
+                    )
+                ),
+                "source_path": str(selector_path),
+                "image_png_b64": image_b64,
+                "mode": "outer_only" if outer_only else "outer_inner",
+                "game": normalized_game,
+            },
+        )
+        print("[Bridge] Sent initial board image to Software-GUI for manual grid selection.")
+
+        msg = _read_startup_control_message(
+            conn,
+            conn_file,
+            startup_message_queue=startup_message_queue,
+        )
+        if (
+            msg.get("type") in {"set_game", "reset_game"}
+            and game_holder is not None
+            and resolver_holder is not None
+            and resolver_orientation is not None
+        ):
+            _update_selected_game(
+                requested_raw=msg.get("game"),
+                game_holder=game_holder,
+                resolver_holder=resolver_holder,
+                resolver_orientation=resolver_orientation,
+                context="Startup",
+            )
+            continue
         if msg.get("type") != "geometry_calibration_result":
             print(f"[Bridge] Ignoring message while waiting for manual geometry: {msg.get('type')}")
             continue
         if not bool(msg.get("accepted")):
             print("[Bridge] Manual startup geometry was cancelled.")
             return None
+        extra_geometry = {
+            key: value
+            for key, value in msg.items()
+            if key not in {"type", "accepted", "error", "outer_corners_px", "chessboard_corners_px"}
+        }
+        if outer_only:
+            extra_geometry["game"] = "parcheesi"
+            extra_geometry["parcheesi_layout"] = parcheesi_layout_payload()
+            candidate_payload = _build_manual_corners_info_payload(
+                reference_path=reference_path,
+                outer_corners_px=msg.get("outer_corners_px"),
+                chessboard_corners_px=msg.get("chessboard_corners_px"),
+                game=game,
+                extra_geometry=extra_geometry,
+            )
+            candidate_geometry_path = game_debug_dir / "manual_parcheesi_geometry_candidate.json"
+            candidate_geometry_path.write_text(
+                json.dumps(candidate_payload, ensure_ascii=True, indent=2),
+                encoding="utf-8",
+            )
+            candidate_preview_path = game_debug_dir / "manual_parcheesi_geometry_candidate_overlay.png"
+            _write_startup_preview_overlay(
+                reference_path=reference_path,
+                outer_corners_px=candidate_payload.get("outer_sheet_corners_px"),
+                chessboard_corners_px=None,
+                out_path=candidate_preview_path,
+                parcheesi_layout=candidate_payload.get("parcheesi_layout"),
+            )
+            print("[Bridge] Manual Parcheesi outer corners selected; waiting for projected region confirmation...")
+            accepted = _confirm_startup_geometry(
+                conn,
+                conn_file,
+                candidate_preview_path,
+                candidate_geometry_path,
+                game_holder=game_holder,
+                resolver_holder=resolver_holder,
+                resolver_orientation=resolver_orientation,
+                startup_message_queue=startup_message_queue,
+            )
+            if not accepted:
+                print("[Bridge] Manual Parcheesi region overlay rejected; restarting outer-corner selection.")
+                selector_image_path = candidate_preview_path if candidate_preview_path.exists() else selector_image_path
+                continue
         path = _store_manual_corners_info(
             reference_path=reference_path,
             outer_corners_px=msg.get("outer_corners_px"),
             chessboard_corners_px=msg.get("chessboard_corners_px"),
             game_dir=game_debug_dir,
+            game=game,
+            extra_geometry=extra_geometry,
         )
         print(f"[Bridge] Manual startup geometry saved: {path}")
         return path
 
 
-def _confirm_startup_geometry(conn_file: Any, preview_path: Path | None, geometry_path: Path) -> bool:
+def _confirm_startup_geometry(
+    conn: socket.socket,
+    conn_file: Any,
+    preview_path: Path | None,
+    geometry_path: Path,
+    *,
+    game_holder: dict[str, str] | None = None,
+    resolver_holder: dict[str, Any] | None = None,
+    resolver_orientation: str | None = None,
+    startup_message_queue: Queue[dict[str, Any]] | None = None,
+) -> bool:
+    is_parcheesi_preview = False
+    try:
+        payload = json.loads(geometry_path.read_text(encoding="utf-8"))
+        is_parcheesi_preview = isinstance(payload, dict) and isinstance(payload.get("parcheesi_layout"), dict)
+    except Exception:
+        is_parcheesi_preview = False
     if preview_path is None or not preview_path.exists():
         print("[Bridge] No startup grid preview image available; using terminal confirmation.")
         reply = input(
@@ -1349,11 +2292,17 @@ def _confirm_startup_geometry(conn_file: Any, preview_path: Path | None, geometr
         conn_file,
         {
             "type": "geometry_preview",
-            "title": "Confirm Detected Board Grid",
+            "title": "Confirm Detected Parcheesi Regions" if is_parcheesi_preview else "Confirm Detected Board Grid",
             "summary": (
-                "Review the startup green/blue grid. Click Confirm only if the board outline "
-                "and 8x8 chess/checkers grid line up with the physical board. "
-                "If not, reject it and the bridge will switch to manual corner selection."
+                "Review the startup green outer corners and projected Parcheesi regions. "
+                "Click Confirm only if the outer board and region overlay line up with the physical board. "
+                "If not, reject it and the bridge will switch to manual outer-corner selection."
+                if is_parcheesi_preview
+                else (
+                    "Review the startup green/blue grid. Click Confirm only if the board outline "
+                    "and 8x8 chess/checkers grid line up with the physical board. "
+                    "If not, reject it and the bridge will switch to manual corner selection."
+                )
             ),
             "source_path": str(preview_path),
             "geometry_path": str(geometry_path),
@@ -1363,7 +2312,25 @@ def _confirm_startup_geometry(conn_file: Any, preview_path: Path | None, geometr
     print("[Bridge] Sent startup grid preview to Software-GUI; waiting for Confirm...")
 
     while True:
-        msg = _read_json_line(conn_file)
+        msg = _read_startup_control_message(
+            conn,
+            conn_file,
+            startup_message_queue=startup_message_queue,
+        )
+        if (
+            msg.get("type") in {"set_game", "reset_game"}
+            and game_holder is not None
+            and resolver_holder is not None
+            and resolver_orientation is not None
+        ):
+            _update_selected_game(
+                requested_raw=msg.get("game"),
+                game_holder=game_holder,
+                resolver_holder=resolver_holder,
+                resolver_orientation=resolver_orientation,
+                context="Startup",
+            )
+            continue
         if msg.get("type") != "geometry_confirm":
             print(f"[Bridge] Ignoring message while waiting for geometry confirmation: {msg.get('type')}")
             continue
@@ -1375,7 +2342,16 @@ def _confirm_startup_geometry(conn_file: Any, preview_path: Path | None, geometr
         return accepted
 
 
+def _startup_geometry_is_direct_baseline(session_geometry_path: Path) -> bool:
+    try:
+        payload = json.loads(session_geometry_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return str(payload.get("source")) == "startup_direct_from_baseline_corners_info"
+
+
 def _resolve_startup_geometry(
+    conn: socket.socket,
     conn_file: Any,
     *,
     reference_path: Path,
@@ -1383,12 +2359,23 @@ def _resolve_startup_geometry(
     game: str,
     analysis_config: Any,
     game_debug_dir: Path,
+    game_holder: dict[str, str] | None = None,
+    resolver_holder: dict[str, Any] | None = None,
+    resolver_orientation: str | None = None,
+    startup_message_queue: Queue[dict[str, Any]] | None = None,
 ) -> Path | None:
+    normalized_game = _normalize_game_name(game)
     if args.startup_geometry_mode == "manual":
         return _request_manual_startup_geometry(
+            conn,
             conn_file,
             reference_path=reference_path,
             game_debug_dir=game_debug_dir,
+            game=game,
+            game_holder=game_holder,
+            resolver_holder=resolver_holder,
+            resolver_orientation=resolver_orientation,
+            startup_message_queue=startup_message_queue,
         )
 
     session_geometry_result = _build_session_geometry_reference(
@@ -1402,43 +2389,151 @@ def _resolve_startup_geometry(
         session_geometry_path = session_geometry_result["geometry"]
         preview_path = session_geometry_result.get("preview")
         accepted = True
-        if not args.skip_geometry_confirmation:
+        if _startup_geometry_is_direct_baseline(session_geometry_path) and normalized_game != "parcheesi":
+            print("[Bridge] Startup geometry auto-accepted from configs/corners_info.json.")
+        elif normalized_game == "parcheesi" or not args.skip_geometry_confirmation:
             accepted = _confirm_startup_geometry(
+                conn,
                 conn_file,
                 preview_path,
                 session_geometry_path,
+                game_holder=game_holder,
+                resolver_holder=resolver_holder,
+                resolver_orientation=resolver_orientation,
+                startup_message_queue=startup_message_queue,
             )
         if accepted:
             return _store_auto_session_geometry(
                 session_geometry_path=session_geometry_path,
                 preview_path=preview_path,
                 game_dir=game_debug_dir,
+                game=game,
             )
 
         print("[Bridge] Switching to manual startup geometry selection...")
+        manual_selector_image = preview_path if normalized_game == "parcheesi" else None
 
     else:
         print("[Bridge] Automatic startup geometry failed; switching to manual selection...")
+        manual_selector_image = None
 
     return _request_manual_startup_geometry(
+        conn,
         conn_file,
         reference_path=reference_path,
+        selector_image_path=manual_selector_image,
         game_debug_dir=game_debug_dir,
+        game=game,
+        game_holder=game_holder,
+        resolver_holder=resolver_holder,
+        resolver_orientation=resolver_orientation,
+        startup_message_queue=startup_message_queue,
     )
 
 
 def _initialize_rolling_reference_for_game(
+    conn: socket.socket,
     conn_file: Any,
     *,
     controller: EndTurnController,
     args: argparse.Namespace,
-    game: str,
+    game_holder: dict[str, str],
+    resolver_holder: dict[str, Any],
+    resolver_orientation: str,
     analysis_config: Any,
     game_debug_dir: Path,
     output_name: str,
     prompt: str,
+    startup_message_queue: Queue[dict[str, Any]] | None = None,
 ) -> Path | None:
-    input(prompt)
+    _set_player_ready_indicator(args, False)
+    print(f"[Bridge] Startup selected game: {game_holder['game']}")
+    print(f"[Bridge] Startup calibration strategy for {game_holder['game']}: {_describe_startup_geometry_strategy(game_holder['game'])}")
+    blink_state = False
+    last_blink_toggle = time.monotonic()
+    try:
+        if args.wait_mode == "gpio":
+            print(prompt)
+            panel = _runtime_panel(args)
+            while True:
+                now = time.monotonic()
+                if args.status_led_pin is not None and (now - last_blink_toggle) >= 0.25:
+                    blink_state = not blink_state
+                    _set_player_ready_indicator(args, blink_state)
+                    last_blink_toggle = now
+                msg = _poll_startup_control_message(
+                    conn,
+                    conn_file,
+                    startup_message_queue=startup_message_queue,
+                    timeout_sec=0.0,
+                )
+                if msg is not None:
+                    msg_type = msg.get("type")
+                    if msg_type in {"set_game", "reset_game"}:
+                        _update_selected_game(
+                            requested_raw=msg.get("game"),
+                            game_holder=game_holder,
+                            resolver_holder=resolver_holder,
+                            resolver_orientation=resolver_orientation,
+                            context="Startup",
+                        )
+                        print(prompt)
+                        continue
+                    print(f"[Bridge] Ignoring startup control message before initial capture: {msg_type}")
+                    print(prompt)
+                    continue
+                terminal_raw = _poll_terminal_line(timeout_sec=0.0)
+                if terminal_raw is not None:
+                    break
+                try:
+                    if panel is not None:
+                        triggered = panel.wait_for_button(timeout_sec=0.1)
+                    else:
+                        triggered = wait_for_gpio_trigger(pin=args.gpio_pin, timeout_sec=0.1)
+                except TriggerError as exc:
+                    raise RuntimeError(str(exc)) from exc
+                if triggered:
+                    print(f"[Bridge] GPIO button press detected on BCM {args.gpio_pin}")
+                    break
+        else:
+            print(prompt, end="", flush=True)
+            while True:
+                now = time.monotonic()
+                if args.status_led_pin is not None and (now - last_blink_toggle) >= 0.25:
+                    blink_state = not blink_state
+                    _set_player_ready_indicator(args, blink_state)
+                    last_blink_toggle = now
+                msg = _poll_startup_control_message(
+                    conn,
+                    conn_file,
+                    startup_message_queue=startup_message_queue,
+                    timeout_sec=0.0,
+                )
+                if msg is not None:
+                    msg_type = msg.get("type")
+                    if msg_type in {"set_game", "reset_game"}:
+                        print()
+                        _update_selected_game(
+                            requested_raw=msg.get("game"),
+                            game_holder=game_holder,
+                            resolver_holder=resolver_holder,
+                            resolver_orientation=resolver_orientation,
+                            context="Startup",
+                        )
+                        print(prompt, end="", flush=True)
+                        continue
+                    print(f"\n[Bridge] Ignoring startup control message before initial capture: {msg_type}")
+                    print(prompt, end="", flush=True)
+                    continue
+                ready, _, _ = select.select([sys.stdin], [], [], 0.2)
+                if sys.stdin in ready:
+                    raw = sys.stdin.readline()
+                    if raw == "":
+                        return None
+                    break
+    finally:
+        if args.status_led_pin is not None:
+            _set_player_ready_indicator(args, False)
     capture_started_at = time.perf_counter()
     reference_path = _capture_startup_reference(
         controller,
@@ -1448,12 +2543,17 @@ def _initialize_rolling_reference_for_game(
     print(f"[Bridge] Initial reference captured: {reference_path}")
     if not args.slow_live_analysis:
         session_geometry = _resolve_startup_geometry(
+            conn,
             conn_file,
             reference_path=reference_path,
             args=args,
-            game=game,
+            game=game_holder["game"],
             analysis_config=analysis_config,
             game_debug_dir=game_debug_dir,
+            game_holder=game_holder,
+            resolver_holder=resolver_holder,
+            resolver_orientation=resolver_orientation,
+            startup_message_queue=startup_message_queue,
         )
         if session_geometry is None:
             print("[Bridge] Stopping before turn capture because startup geometry was cancelled.")
@@ -1486,14 +2586,107 @@ def _normalize_sequence_lines_from_p2(msg: dict[str, Any]) -> list[str]:
     return [f"{sx},{sy} -> {dx},{dy}"]
 
 
-def _write_move_file(lines: list[str], game: str | None, p2_from: str | None, p2_to: str | None) -> None:
-    MOVE_FILE.parent.mkdir(parents=True, exist_ok=True)
+def _write_move_file(
+    lines: list[str],
+    game: str | None,
+    p2_from: str | None,
+    p2_to: str | None,
+    *,
+    path: Path = MOVE_FILE,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     header = [
         "# Auto-generated by run_pi_software_bridge.py",
         f"# game={game or 'unknown'} p2_move={p2_from or '?'}->{p2_to or '?'}",
         "# Format: source -> dest (board: x,y  |  off-board: x%,y%)",
     ]
-    MOVE_FILE.write_text("\n".join([*header, *lines]) + "\n", encoding="utf-8")
+    path.write_text("\n".join([*header, *lines]) + "\n", encoding="utf-8")
+
+
+def _extract_player_ready_after_step_count(msg: dict[str, Any], total_steps: int) -> int | None:
+    raw = msg.get("player_ready_after_step_count")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if value <= 0 or value > total_steps:
+        return None
+    return value
+
+
+def _dispatch_stm_sequence_batches(
+    *,
+    args: argparse.Namespace,
+    sequence_lines: list[str],
+    incoming: dict[str, Any],
+    analysis_dir: Path | None,
+) -> dict[str, Any]:
+    ready_after_step_count = _extract_player_ready_after_step_count(incoming, len(sequence_lines))
+    game = incoming.get("game")
+    p2_from = incoming.get("from")
+    p2_to = incoming.get("to")
+
+    first_batch = sequence_lines
+    second_batch: list[str] = []
+    if ready_after_step_count is not None and ready_after_step_count < len(sequence_lines):
+        first_batch = sequence_lines[:ready_after_step_count]
+        second_batch = sequence_lines[ready_after_step_count:]
+
+    first_move_file = MOVE_FILE
+    if second_batch:
+        first_move_file = MOVE_FILE.with_name("stm32_move_sequence_batch1.txt")
+    _write_move_file(first_batch, game, p2_from, p2_to, path=first_move_file)
+
+    batches: list[dict[str, Any]] = []
+    first_started_at = time.perf_counter()
+    first_result = _send_moves_to_stm(
+        skip_return_start=True,
+        move_file=first_move_file,
+    )
+    batches.append(
+        {
+            "phase": "pre_ready" if second_batch else "full_sequence",
+            "move_file": str(first_move_file),
+            "duration_sec": round(time.perf_counter() - first_started_at, 3),
+            "result": first_result,
+        }
+    )
+
+    if ready_after_step_count is not None and args.capture_mode != "rolling":
+        _set_player_ready_indicator(args, True)
+        print("[Bridge] Player 1 ready indicator ON.")
+
+    if analysis_dir is not None and second_batch:
+        shutil.copy2(first_move_file, analysis_dir / "stm32_move_sequence_pre_ready.txt")
+
+    if second_batch:
+        second_move_file = MOVE_FILE.with_name("stm32_move_sequence_post_ready.txt")
+        _write_move_file(second_batch, game, p2_from, p2_to, path=second_move_file)
+        second_started_at = time.perf_counter()
+        second_result = _send_moves_to_stm(
+            skip_return_start=True,
+            move_file=second_move_file,
+            continue_from_current=True,
+        )
+        batches.append(
+            {
+                "phase": "post_ready",
+                "move_file": str(second_move_file),
+                "duration_sec": round(time.perf_counter() - second_started_at, 3),
+                "result": second_result,
+            }
+        )
+        if analysis_dir is not None:
+            shutil.copy2(second_move_file, analysis_dir / "stm32_move_sequence_post_ready.txt")
+
+    final_result = batches[-1]["result"] if batches else {}
+    return {
+        "status": "ok",
+        "mode": "split" if second_batch else "single",
+        "player_ready_after_step_count": ready_after_step_count,
+        "batches": batches,
+        "final_status": final_result.get("final_status"),
+    }
 
 
 def _as_float(value: Any, default: float = 0.0) -> float:
@@ -1563,10 +2756,17 @@ def _player1_rejection_status_payload(
     else:
         message = f"Player 1 move was rejected: {reason}."
 
-    extra = [
-        "The previous clean reference image is still active; the rejected after-frame was not promoted to the new reference.",
-        "Remove any hand/arm or obstruction, leave the board in the intended state, and press Enter to retry the same turn.",
-    ]
+    if reason == "excessive_significant_changed_squares":
+        extra = [
+            "The previous clean reference image is still active; the rejected after-frame was not promoted to the new reference.",
+            f"Correct the physical board first. The next button/Enter will recapture a fresh BEFORE/reference image instead of analyzing a move.",
+            f"After that, make the actual Player 1 move and {_wait_action_label(args)} again for the new AFTER image.",
+        ]
+    else:
+        extra = [
+            "The previous clean reference image is still active; the rejected after-frame was not promoted to the new reference.",
+            f"Remove any hand/arm or obstruction, leave the board in the intended state, and {_wait_action_label(args)} to retry the same turn.",
+        ]
     if args.max_p1_detection_attempts > 0:
         remaining = max(0, args.max_p1_detection_attempts - attempt_index)
         extra.append(f"Retries remaining before stop: {remaining}.")
@@ -1591,6 +2791,35 @@ def _send_status_message(
     except Exception:
         # UI-side status messaging is best-effort only.
         pass
+
+
+def _poll_startup_control_message(
+    conn: socket.socket,
+    conn_file: Any,
+    *,
+    startup_message_queue: Queue[dict[str, Any]] | None = None,
+    timeout_sec: float = 0.0,
+) -> dict[str, Any] | None:
+    if startup_message_queue is not None:
+        try:
+            return startup_message_queue.get(timeout=timeout_sec)
+        except Empty:
+            return None
+    ready, _, _ = select.select([conn], [], [], timeout_sec)
+    if conn in ready:
+        return _read_json_line(conn_file)
+    return None
+
+
+def _read_startup_control_message(
+    conn: socket.socket,
+    conn_file: Any,
+    *,
+    startup_message_queue: Queue[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    if startup_message_queue is not None:
+        return startup_message_queue.get()
+    return _read_json_line(conn_file)
 
 
 def _connection_reader_loop(
@@ -1632,7 +2861,7 @@ def _runtime_control_worker(
     controller: EndTurnController,
     args: argparse.Namespace,
     game_holder: dict[str, str],
-    game_debug_dir: Path,
+    game_debug_dir_holder: dict[str, Path],
     resolver_holder: dict[str, Any],
     reference_holder: dict[str, Path | None],
     resolver_orientation: str,
@@ -1643,6 +2872,11 @@ def _runtime_control_worker(
         msg_type = msg.get("type")
         if msg_type == "__disconnect__":
             return
+        startup_queue = runtime_state.get("startup_message_queue")
+        if runtime_state.get("startup_interactive") and startup_queue is not None:
+            if msg_type in {"set_game", "reset_game", "geometry_confirm", "geometry_calibration_result"}:
+                startup_queue.put(msg)
+                continue
         if msg_type == "refresh_reference":
             reason = str(msg.get("reason", "manual"))
             if args.capture_mode != "rolling":
@@ -1659,11 +2893,24 @@ def _runtime_control_worker(
                 )
                 continue
             try:
+                wait_for_trigger = bool(msg.get("wait_for_trigger", False))
+                if wait_for_trigger:
+                    raw = _wait_for_turn_trigger(
+                        args,
+                        (
+                            "[Bridge] Software state changed. Arrange the physical board to match, "
+                            f"then {_wait_action_label(args)} to capture a fresh rolling reference..."
+                        ),
+                        runtime_state=runtime_state,
+                        blink_led=True,
+                    )
+                    if raw == "__runtime_reset__":
+                        continue
                 started_at = time.perf_counter()
                 reference_path = _capture_runtime_reference(
                     controller,
                     args=args,
-                    game_debug_dir=game_debug_dir,
+                    game_debug_dir=game_debug_dir_holder["path"],
                 )
                 reference_holder["path"] = reference_path
                 elapsed = time.perf_counter() - started_at
@@ -1698,26 +2945,25 @@ def _runtime_control_worker(
                 )
             continue
         if msg_type == "set_game":
-            requested_game = _normalize_game_name(msg.get("game"), default=game_holder["game"])
-            previous_game = game_holder["game"]
-            game_holder["game"] = requested_game
-            resolver_holder["resolver"] = Player1MoveResolver(
-                requested_game,
-                camera_square_orientation=resolver_orientation,
+            _update_selected_game(
+                requested_raw=msg.get("game"),
+                game_holder=game_holder,
+                resolver_holder=resolver_holder,
+                resolver_orientation=resolver_orientation,
+                context="Runtime",
             )
             runtime_state["reset_requested"] = True
             runtime_state["await_new_game_capture"] = True
             runtime_state["game_over"] = False
-            print(f"[Bridge] Runtime game selection updated: {previous_game} -> {requested_game}")
             _send_status_message(
                 conn_file,
                 {
                     "type": "status",
                     "level": "info",
                     "title": "Game Selection Updated",
-                    "message": f"Physical board/game rules switched to {requested_game}.",
+                    "message": f"Physical board/game rules switched to {game_holder['game']}.",
                     "details": [
-                        "Arrange the board for the selected game, then press Enter in the bridge terminal to capture a new starting reference."
+                        f"Arrange the board for the selected game, then {_wait_action_label(args)} to capture a new starting reference."
                     ],
                     "duration_ms": 2600,
                 },
@@ -1738,7 +2984,7 @@ def _runtime_control_worker(
                 )
                 details: list[str] = [
                     "Pi-side move resolver reset to opening state.",
-                    "Press Enter in the bridge terminal after the board is arranged to capture a fresh starting reference.",
+                    f"{_wait_action_label(args, capitalized=True)} after the board is arranged to capture a fresh starting reference.",
                 ]
                 print(
                     f"[Bridge] Runtime game reset requested (reason={reason})"
@@ -1769,6 +3015,26 @@ def _runtime_control_worker(
                     },
                     write_lock=write_lock,
                 )
+            continue
+        if msg_type == "game_over":
+            runtime_state["reset_requested"] = True
+            runtime_state["await_new_game_capture"] = True
+            runtime_state["game_over"] = True
+            winner = str(msg.get("winner", "unknown")).strip() or "unknown"
+            _send_status_message(
+                conn_file,
+                {
+                    "type": "status",
+                    "level": "warning",
+                    "title": "Game Over",
+                    "message": f"{game_holder['game'].title()} game ended. Winner: {winner}.",
+                    "details": [
+                        f"Arrange the board for the next game, then {_wait_action_label(args)} to capture a fresh starting reference."
+                    ],
+                    "sticky": True,
+                },
+                write_lock=write_lock,
+            )
             continue
         print(f"[Bridge] Ignoring runtime control message: {msg}")
 
@@ -1813,7 +3079,16 @@ def _print_rejected_player1_attempt(
     if details:
         print(f"[Bridge] Rejection details: {json.dumps(details, separators=(',', ':'))}")
     print(f"[Bridge] Rejection record saved: {rejection_path}")
-    print("[Bridge] Keeping the same before/reference image. Correct the physical board, then retry this same turn.")
+    if reason == "excessive_significant_changed_squares":
+        print(
+            "[Bridge] Keeping the same before/reference image for now. "
+            "Correct the physical board, then the next button/Enter will recapture a fresh BEFORE/reference image."
+        )
+        print(
+            f"[Bridge] After that, make the actual Player 1 move and {_wait_action_label(args)} again to capture the new AFTER image."
+        )
+    else:
+        print("[Bridge] Keeping the same before/reference image. Correct the physical board, then retry this same turn.")
     if args.max_p1_detection_attempts > 0:
         remaining = args.max_p1_detection_attempts - attempt_index
         print(f"[Bridge] Detection retry attempts remaining before stop: {max(0, remaining)}")
@@ -1851,7 +3126,8 @@ def _serve_client(
     game: str,
     resolver: Player1MoveResolver,
     analysis_config: Any,
-    game_debug_dir: Path,
+    game_debug_root: Path,
+    game_debug_dir_holder: dict[str, Path],
 ) -> None:
     conn.settimeout(None)
     with conn:
@@ -1861,26 +3137,35 @@ def _serve_client(
         reference_path: Path | None = None
         show_reference_recapture_hint = False
         game_holder: dict[str, str] = {"game": _normalize_game_name(game)}
+        resolver_holder: dict[str, Any] = {"resolver": resolver}
+        runtime_state: dict[str, Any] = {
+            "reset_requested": False,
+            "await_new_game_capture": False,
+            "game_over": False,
+            "startup_interactive": False,
+            "startup_message_queue": Queue(),
+        }
 
         if args.capture_mode == "rolling":
             reference_path = _initialize_rolling_reference_for_game(
+                conn,
                 conn_file,
                 controller=controller,
                 args=args,
-                game=game_holder["game"],
+                game_holder=game_holder,
+                resolver_holder=resolver_holder,
+                resolver_orientation=resolver.camera_square_orientation,
                 analysis_config=analysis_config,
-                game_debug_dir=game_debug_dir,
+                game_debug_dir=game_debug_dir_holder["path"],
                 output_name="initial_reference.png",
-                prompt="[Bridge] Make sure the physical board matches the software state, then press Enter to capture INITIAL reference...",
+                prompt=f"[Bridge] Make sure the physical board matches the software state, then {_wait_action_label(args)} to capture INITIAL reference...",
             )
             if reference_path is None:
                 return
 
         p2_queue: Queue[dict[str, Any]] = Queue()
         control_queue: Queue[dict[str, Any]] = Queue()
-        resolver_holder: dict[str, Any] = {"resolver": resolver}
         reference_holder: dict[str, Path | None] = {"path": reference_path}
-        runtime_state: dict[str, Any] = {"reset_requested": False, "await_new_game_capture": False, "game_over": False}
         reader_thread = threading.Thread(
             target=_connection_reader_loop,
             kwargs={
@@ -1900,7 +3185,7 @@ def _serve_client(
                 "controller": controller,
                 "args": args,
                 "game_holder": game_holder,
-                "game_debug_dir": game_debug_dir,
+                "game_debug_dir_holder": game_debug_dir_holder,
                 "resolver_holder": resolver_holder,
                 "reference_holder": reference_holder,
                 "resolver_orientation": resolver.camera_square_orientation,
@@ -1910,34 +3195,62 @@ def _serve_client(
         )
         control_thread.start()
         setattr(args, "_runtime_reference_getter", lambda: reference_holder["path"])
+        show_reference_recapture_hint = False
+        force_reference_recapture_next = False
 
         while True:
             if runtime_state.get("game_over") or runtime_state.get("await_new_game_capture"):
                 runtime_state["game_over"] = False
                 runtime_state["await_new_game_capture"] = False
+                turn_index = 1
+                game_debug_dir, runtime_log_path = _create_game_debug_session(
+                    game_debug_root,
+                    game=game_holder["game"],
+                    args=args,
+                )
+                game_debug_dir_holder["path"] = game_debug_dir
+                print(f"[Bridge] Runtime log: {runtime_log_path}")
+                print(f"[Bridge] Game debug folder: {game_debug_dir}")
                 resolver_holder["resolver"] = Player1MoveResolver(
                     game_holder["game"],
                     camera_square_orientation=resolver.camera_square_orientation,
                 )
                 if args.capture_mode == "rolling":
-                    reference_path = _initialize_rolling_reference_for_game(
-                        conn_file,
-                        controller=controller,
-                        args=args,
-                        game=game_holder["game"],
-                        analysis_config=analysis_config,
-                        game_debug_dir=game_debug_dir,
-                        output_name="rolling_reference.png",
-                        prompt="[Bridge] Arrange the physical board for the next game, then press Enter to capture a new starting reference...",
-                    )
+                    startup_message_queue = runtime_state["startup_message_queue"]
+                    while True:
+                        try:
+                            startup_message_queue.get_nowait()
+                        except Empty:
+                            break
+                    runtime_state["startup_interactive"] = True
+                    try:
+                        reference_path = _initialize_rolling_reference_for_game(
+                            conn,
+                            conn_file,
+                            controller=controller,
+                            args=args,
+                            game_holder=game_holder,
+                            resolver_holder=resolver_holder,
+                            resolver_orientation=resolver.camera_square_orientation,
+                            analysis_config=analysis_config,
+                            game_debug_dir=game_debug_dir,
+                            output_name="rolling_reference.png",
+                            prompt=f"[Bridge] Arrange the physical board for the next game, then {_wait_action_label(args)} to capture a new starting reference...",
+                            startup_message_queue=startup_message_queue,
+                        )
+                    finally:
+                        runtime_state["startup_interactive"] = False
                     if reference_path is None:
                         return
                     reference_holder["path"] = reference_path
                 show_reference_recapture_hint = False
+                force_reference_recapture_next = False
 
             attempt_index = 1
+            restart_for_runtime_reset = False
             while True:
                 print("")
+                game_debug_dir = game_debug_dir_holder["path"]
                 turn_debug_dir = (
                     game_debug_dir / f"Move{turn_index}"
                     if attempt_index == 1
@@ -1957,20 +3270,27 @@ def _serve_client(
                         analysis_config=analysis_config,
                         turn_debug_dir=turn_debug_dir,
                         show_recapture_hint=show_reference_recapture_hint,
+                        force_reference_recapture=force_reference_recapture_next,
                         runtime_state=runtime_state,
                     )
                     if analysis_wrap.get("action") == "runtime_reset":
                         show_reference_recapture_hint = False
-                        continue
+                        force_reference_recapture_next = False
+                        restart_for_runtime_reset = True
+                        break
                     if analysis_wrap.get("action") == "recapture_reference":
                         ref_raw = analysis_wrap.get("reference_path")
                         if isinstance(ref_raw, str):
                             reference_path = Path(ref_raw)
                         show_reference_recapture_hint = False
+                        force_reference_recapture_next = False
                         print("[Bridge] Rolling reference updated. Retry the same turn when ready.")
                         continue
                 else:
-                    input(f"[Bridge] Turn {turn_index}: press Enter to capture BEFORE...")
+                    _wait_for_turn_trigger(
+                        args,
+                        f"[Bridge] Turn {turn_index}: {_wait_action_label(args)} to capture BEFORE...",
+                    )
                     analysis_wrap = _capture_and_analyze_two_shot(
                         controller,
                         args,
@@ -2016,6 +3336,7 @@ def _serve_client(
                         print("[Bridge] Stopping after rejected Player 1 detection attempts.")
                         return
                     show_reference_recapture_hint = True
+                    force_reference_recapture_next = False
                     attempt_index += 1
                     continue
 
@@ -2069,7 +3390,8 @@ def _serve_client(
                     if _p1_detection_attempts_exhausted(args, attempt_index):
                         print("[Bridge] Stopping after rejected Player 1 detection attempts.")
                         return
-                    show_reference_recapture_hint = True
+                    show_reference_recapture_hint = False
+                    force_reference_recapture_next = True
                     attempt_index += 1
                     continue
                 if significant_count < args.min_significant_changes:
@@ -2107,6 +3429,7 @@ def _serve_client(
                         print("[Bridge] Stopping after rejected Player 1 detection attempts.")
                         return
                     show_reference_recapture_hint = True
+                    force_reference_recapture_next = False
                     attempt_index += 1
                     continue
 
@@ -2162,80 +3485,193 @@ def _serve_client(
                         print("[Bridge] Stopping after rejected Player 1 detection attempts.")
                         return
                     show_reference_recapture_hint = True
+                    force_reference_recapture_next = False
                     attempt_index += 1
                     continue
 
                 break
 
+            if restart_for_runtime_reset:
+                continue
+
             analysis_dir_raw = analysis_wrap.get("analysis_dir")
             analysis_dir: Path | None = None
-            if isinstance(analysis_dir_raw, str):
-                analysis_dir = Path(analysis_dir_raw)
-                if resolver_changed_squares:
-                    (analysis_dir / "player1_resolver_changed_squares.json").write_text(
-                        json.dumps(resolver_changed_squares, ensure_ascii=True, indent=2),
+            incoming: dict[str, Any]
+            if game_holder["game"] == "parcheesi":
+                if isinstance(analysis_dir_raw, str):
+                    analysis_dir = Path(analysis_dir_raw)
+                source_obj = observed_move.get("source")
+                destination_obj = observed_move.get("destination")
+                source_location = (
+                    str(source_obj.get("location_id"))
+                    if isinstance(source_obj, dict) and source_obj.get("location_id") is not None
+                    else None
+                )
+                destination_location = (
+                    str(destination_obj.get("location_id"))
+                    if isinstance(destination_obj, dict) and destination_obj.get("location_id") is not None
+                    else None
+                )
+                if not source_location or not destination_location:
+                    details = {
+                        "observed_move": observed_move,
+                        "changed_region_count": int(analysis_payload.get("changed_region_count", 0)),
+                    }
+                    rejection_path = _write_rejected_player1_attempt(
+                        analysis_wrap=analysis_wrap,
+                        reason="missing_parcheesi_location_move",
+                        details=details,
+                        resolver=resolver_holder["resolver"],
+                        turn_debug_dir=turn_debug_dir,
+                    )
+                    _print_rejected_player1_attempt(
+                        reason="missing_parcheesi_location_move",
+                        details=details,
+                        rejection_path=rejection_path,
+                        attempt_index=attempt_index,
+                        args=args,
+                    )
+                    _send_status_message(
+                        conn_file,
+                        _player1_rejection_status_payload(
+                            reason="missing_parcheesi_location_move",
+                            details=details,
+                            attempt_index=attempt_index,
+                            args=args,
+                        ),
+                        write_lock=write_lock,
+                    )
+                    if _p1_detection_attempts_exhausted(args, attempt_index):
+                        print("[Bridge] Stopping after rejected Player 1 detection attempts.")
+                        return
+                    show_reference_recapture_hint = True
+                    attempt_index += 1
+                    continue
+
+                if analysis_dir is not None:
+                    (analysis_dir / "player1_resolved_move.json").write_text(
+                        json.dumps(
+                            {
+                                "resolver": "parcheesi_direct_region_inference",
+                                "steps": [{"from": source_location, "to": destination_location}],
+                                "capture": observed_move.get("capture"),
+                                "score": observed_move.get("confidence"),
+                                "metadata": observed_move.get("metadata", {}),
+                            },
+                            ensure_ascii=True,
+                            indent=2,
+                        ),
                         encoding="utf-8",
                     )
-                (analysis_dir / "player1_resolved_move.json").write_text(
-                    json.dumps(resolved.to_dict(), ensure_ascii=True, indent=2),
-                    encoding="utf-8",
-                )
-                (analysis_dir / "pi_resolver_state_after_p1.json").write_text(
-                    json.dumps(resolver_holder["resolver"].debug_state(), ensure_ascii=True, indent=2),
-                    encoding="utf-8",
-                )
 
-            print(
-                f"[Bridge] Resolved P1 move with {resolved.resolver}: "
-                f"steps={len(resolved.steps)} capture={resolved.capture} "
-                f"special={resolved.special} score={resolved.score}"
-            )
-            show_reference_recapture_hint = False
-            manual_green_captures = _detect_manual_green_captures(
-                analysis_payload=analysis_payload,
-                diff_threshold=int(analysis_config.diff_threshold),
-                expected_count=_expected_manual_green_capture_count(game=game_holder["game"], resolved=resolved),
-                analysis_dir=analysis_dir,
-            )
-            if manual_green_captures:
                 print(
-                    "[Bridge] Detected manual green-area capture source(s): "
-                    + ", ".join(
-                        f"{item['x_pct']:.2f}%,{item['y_pct']:.2f}%"
-                        for item in manual_green_captures
-                    )
+                    "[Bridge] Accepted P1 Parcheesi move: "
+                    f"{source_location} -> {destination_location}"
                 )
-            _send_status_message(
-                conn_file,
-                {
-                    "type": "status",
-                    "level": "success",
-                    "title": "Player 1 Move Accepted",
-                    "message": (
-                        f"Accepted {len(resolved.steps)} logical step(s) with {resolved.resolver}."
-                    ),
-                    "details": [f"Resolver score: {resolved.score}"],
-                    "duration_ms": 1800,
-                },
-                write_lock=write_lock,
-            )
-            for idx, step in enumerate(resolved.steps, start=1):
-                p1_from, p1_to = resolver.step_to_square_pair(step)
-                p1_msg = {"type": "p1_move", "from": p1_from, "to": p1_to}
-                if manual_green_captures and idx == len(resolved.steps):
-                    p1_msg["manual_green_captures"] = manual_green_captures
-                _write_json_line(conn_file, p1_msg, write_lock=write_lock)
-                print(f"[Bridge] Sent P1 step {idx}/{len(resolved.steps)}: {p1_from} -> {p1_to}")
+                show_reference_recapture_hint = False
+                force_reference_recapture_next = False
+                _send_status_message(
+                    conn_file,
+                    {
+                        "type": "status",
+                        "level": "success",
+                        "title": "Player 1 Move Accepted",
+                        "message": f"Accepted Parcheesi move {source_location} -> {destination_location}.",
+                        "duration_ms": 1800,
+                    },
+                    write_lock=write_lock,
+                )
+                _write_json_line(
+                    conn_file,
+                    {"type": "p1_move", "from": source_location, "to": destination_location},
+                    write_lock=write_lock,
+                )
+                print(f"[Bridge] Sent P1 move: {source_location} -> {destination_location}")
+            else:
+                if isinstance(analysis_dir_raw, str):
+                    analysis_dir = Path(analysis_dir_raw)
+                    if resolver_changed_squares:
+                        (analysis_dir / "player1_resolver_changed_squares.json").write_text(
+                            json.dumps(resolver_changed_squares, ensure_ascii=True, indent=2),
+                            encoding="utf-8",
+                        )
+                    (analysis_dir / "player1_resolved_move.json").write_text(
+                        json.dumps(resolved.to_dict(), ensure_ascii=True, indent=2),
+                        encoding="utf-8",
+                    )
+                    (analysis_dir / "pi_resolver_state_after_p1.json").write_text(
+                        json.dumps(resolver_holder["resolver"].debug_state(), ensure_ascii=True, indent=2),
+                        encoding="utf-8",
+                    )
 
+                print(
+                    f"[Bridge] Resolved P1 move with {resolved.resolver}: "
+                    f"steps={len(resolved.steps)} capture={resolved.capture} "
+                    f"special={resolved.special} score={resolved.score}"
+                )
+                show_reference_recapture_hint = False
+                force_reference_recapture_next = False
+                manual_green_captures = _detect_manual_green_captures(
+                    analysis_payload=analysis_payload,
+                    diff_threshold=int(analysis_config.diff_threshold),
+                    expected_count=_expected_manual_green_capture_count(game=game_holder["game"], resolved=resolved),
+                    analysis_dir=analysis_dir,
+                )
+                if manual_green_captures:
+                    print(
+                        "[Bridge] Detected manual green-area capture source(s): "
+                        + ", ".join(
+                            f"{item['x_pct']:.2f}%,{item['y_pct']:.2f}%"
+                            for item in manual_green_captures
+                        )
+                    )
+                _send_status_message(
+                    conn_file,
+                    {
+                        "type": "status",
+                        "level": "success",
+                        "title": "Player 1 Move Accepted",
+                        "message": (
+                            f"Accepted {len(resolved.steps)} logical step(s) with {resolved.resolver}."
+                        ),
+                        "details": [f"Resolver score: {resolved.score}"],
+                        "duration_ms": 1800,
+                    },
+                    write_lock=write_lock,
+                )
+                for idx, step in enumerate(resolved.steps, start=1):
+                    p1_from, p1_to = resolver.step_to_square_pair(step)
+                    p1_msg = {"type": "p1_move", "from": p1_from, "to": p1_to}
+                    if manual_green_captures and idx == len(resolved.steps):
+                        p1_msg["manual_green_captures"] = manual_green_captures
+                    _write_json_line(conn_file, p1_msg, write_lock=write_lock)
+                    print(f"[Bridge] Sent P1 step {idx}/{len(resolved.steps)}: {p1_from} -> {p1_to}")
+
+            restart_for_runtime_event = False
             while True:
                 incoming = p2_queue.get()
                 msg_type = incoming.get("type")
                 if msg_type == "__disconnect__":
                     raise ConnectionError(str(incoming.get("error", "GUI disconnected")))
+                if msg_type == "game_over":
+                    runtime_state["reset_requested"] = True
+                    runtime_state["await_new_game_capture"] = True
+                    runtime_state["game_over"] = True
+                    print(
+                        "[Bridge] Runtime game-over notice received from Software-GUI. "
+                        "Preparing a fresh game capture."
+                    )
+                    restart_for_runtime_event = True
+                    break
                 if msg_type != "p2_move":
                     print(f"[Bridge] Ignoring non-p2 message: {incoming}")
                     continue
                 break
+
+            if restart_for_runtime_event:
+                show_reference_recapture_hint = False
+                force_reference_recapture_next = False
+                continue
 
             p2_from = incoming.get("from")
             p2_to = incoming.get("to")
@@ -2251,7 +3687,7 @@ def _serve_client(
                     encoding="utf-8",
                 )
 
-            if p2_steps:
+            if p2_steps and game_holder["game"] in {"chess", "checkers"}:
                 try:
                     for step_from, step_to in p2_steps:
                         resolver_holder["resolver"].apply_player2(step_from, step_to)
@@ -2272,10 +3708,10 @@ def _serve_client(
                                 "level": "warning" if result_name == "stalemate" else "error",
                                 "title": "Game Over",
                                 "message": (
-                                    "Checkmate detected on the Pi-side resolver. Press Enter in the bridge terminal to capture the next starting position,"
+                                    f"Checkmate detected on the Pi-side resolver. {_wait_action_label(args, capitalized=True)} to capture the next starting position,"
                                     " or switch/reset the game from the GUI."
                                     if result_name == "checkmate"
-                                    else "Stalemate detected on the Pi-side resolver. Press Enter in the bridge terminal to capture the next starting position, or switch/reset the game from the GUI."
+                                    else f"Stalemate detected on the Pi-side resolver. {_wait_action_label(args, capitalized=True)} to capture the next starting position, or switch/reset the game from the GUI."
                                 ),
                                 "sticky": True,
                             },
@@ -2292,15 +3728,26 @@ def _serve_client(
 
             if args.no_stm_send:
                 print("[Bridge] --no-stm-send enabled; skipping STM dispatch.")
+                ready_after = _extract_player_ready_after_step_count(incoming, len(sequence_lines))
+                if ready_after is not None and args.capture_mode != "rolling":
+                    _set_player_ready_indicator(args, True)
+                    print("[Bridge] Player 1 ready indicator ON.")
                 if args.capture_mode == "rolling":
                     reference_path = Path(str(analysis_wrap["after_image"]))
                     reference_holder["path"] = reference_path
                     print(f"[Bridge] Rolling reference advanced without STM send: {reference_path}")
+                    if ready_after is not None:
+                        _set_player_ready_indicator(args, True)
+                        print("[Bridge] Player 1 ready indicator ON.")
             else:
                 print("[Bridge] Sending sequence to STM32...")
                 stm_started_at = time.perf_counter()
-                skip_return_start = args.capture_mode == "rolling"
-                stm_result = _send_moves_to_stm(skip_return_start=skip_return_start)
+                stm_result = _dispatch_stm_sequence_batches(
+                    args=args,
+                    sequence_lines=sequence_lines,
+                    incoming=incoming,
+                    analysis_dir=analysis_dir,
+                )
                 print(f"[Bridge] STM32 dispatch completed in {time.perf_counter() - stm_started_at:.3f}s")
                 print(json.dumps({"bridge_stm_result": stm_result}, indent=2))
                 if analysis_dir is not None:
@@ -2311,6 +3758,7 @@ def _serve_client(
                 if args.capture_mode == "rolling":
                     print("[Bridge] Capturing updated reference after STM32 move...")
                     capture_started_at = time.perf_counter()
+                    game_debug_dir = game_debug_dir_holder["path"]
                     reference_path = _capture_live_reference(
                         controller,
                         reopen_stream=args.reopen_camera_each_capture,
@@ -2319,19 +3767,35 @@ def _serve_client(
                     reference_holder["path"] = reference_path
                     print(f"[Bridge] Updated reference capture completed in {time.perf_counter() - capture_started_at:.3f}s")
                     print(f"[Bridge] Rolling reference refreshed: {reference_path}")
-                    if skip_return_start:
-                        print("[Bridge] Returning STM32 to origin after updated reference capture...")
-                        return_started_at = time.perf_counter()
-                        return_result = _send_moves_to_stm(return_start_only=True)
-                        print(
-                            f"[Bridge] STM32 return-to-origin completed in "
-                            f"{time.perf_counter() - return_started_at:.3f}s"
+                    ready_after = _extract_player_ready_after_step_count(incoming, len(sequence_lines))
+                    if ready_after is not None:
+                        _set_player_ready_indicator(args, True)
+                        print("[Bridge] Player 1 ready indicator ON.")
+                    print("[Bridge] Returning STM32 to origin after updated reference capture...")
+                    return_started_at = time.perf_counter()
+                    return_result = _send_moves_to_stm(return_start_only=True)
+                    print(
+                        f"[Bridge] STM32 return-to-origin completed in "
+                        f"{time.perf_counter() - return_started_at:.3f}s"
+                    )
+                    if analysis_dir is not None:
+                        (analysis_dir / "stm_return_result.json").write_text(
+                            json.dumps(return_result, ensure_ascii=True, indent=2),
+                            encoding="utf-8",
                         )
-                        if analysis_dir is not None:
-                            (analysis_dir / "stm_return_result.json").write_text(
-                                json.dumps(return_result, ensure_ascii=True, indent=2),
-                                encoding="utf-8",
-                            )
+                else:
+                    print("[Bridge] Returning STM32 to origin...")
+                    return_started_at = time.perf_counter()
+                    return_result = _send_moves_to_stm(return_start_only=True)
+                    print(
+                        f"[Bridge] STM32 return-to-origin completed in "
+                        f"{time.perf_counter() - return_started_at:.3f}s"
+                    )
+                    if analysis_dir is not None:
+                        (analysis_dir / "stm_return_result.json").write_text(
+                            json.dumps(return_result, ensure_ascii=True, indent=2),
+                            encoding="utf-8",
+                        )
 
             turn_index += 1
             if args.once:
@@ -2340,6 +3804,18 @@ def _serve_client(
 
 def main() -> int:
     args = _parse_args()
+    panel: GPIOControlPanel | None = None
+    if args.wait_mode == "gpio" or args.status_led_pin is not None:
+        try:
+            panel = GPIOControlPanel(
+                button_pin=args.gpio_pin if args.wait_mode == "gpio" else None,
+                led_pin=args.status_led_pin,
+            )
+        except TriggerError as exc:
+            print(f"[Bridge] Error: {exc}")
+            return 1
+        setattr(args, "_runtime_gpio_panel", panel)
+
     config = load_config(args.config)
     if args.serial_port:
         config.comms.port = args.serial_port
@@ -2353,9 +3829,12 @@ def main() -> int:
         camera_square_orientation=config.analysis.camera_square_orientation,
     )
     game_debug_root = Path(args.analysis_out_dir) if args.analysis_out_dir else ROOT / "debug_output" / "Games"
-    game_debug_dir = _next_game_debug_dir(game_debug_root)
-    runtime_log_path = _install_runtime_log(game_debug_dir)
-    _write_game_session_metadata(game_debug_dir, game=initial_game, args=args)
+    game_debug_dir, runtime_log_path = _create_game_debug_session(
+        game_debug_root,
+        game=initial_game,
+        args=args,
+    )
+    game_debug_dir_holder: dict[str, Path] = {"path": game_debug_dir}
     print(f"[Bridge] Runtime log: {runtime_log_path}")
     print(
         "[Bridge] Analysis thresholds: "
@@ -2367,31 +3846,40 @@ def main() -> int:
     )
     print(f"[Bridge] Stateful resolver initialized: {resolver.debug_state().get('persistent_state')}")
     print(f"[Bridge] Game debug folder: {game_debug_dir}")
+    if args.wait_mode == "gpio":
+        print(f"[Bridge] GPIO button trigger enabled on BCM {args.gpio_pin}")
+    if args.status_led_pin is not None:
+        print(f"[Bridge] Player-ready LED enabled on BCM {args.status_led_pin}")
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
-        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind((args.host, args.port))
-        srv.listen(1)
-        print(f"[Bridge] Listening for Software-GUI on {args.host}:{args.port}")
-        print("[Bridge] Start Software-GUI now; it should connect as TCP client.")
-        conn, addr = srv.accept()
-        print(f"[Bridge] Software-GUI connected from {addr[0]}:{addr[1]}")
-        try:
-            _serve_client(
-                args,
-                conn,
-                controller,
-                initial_game,
-                resolver,
-                config.analysis,
-                game_debug_dir,
-            )
-        except ConnectionError as exc:
-            print(f"[Bridge] Connection closed: {exc}")
-            return 1
-        except Exception as exc:  # noqa: BLE001
-            print(f"[Bridge] Error: {exc}")
-            return 1
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
+            srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            srv.bind((args.host, args.port))
+            srv.listen(1)
+            print(f"[Bridge] Listening for Software-GUI on {args.host}:{args.port}")
+            print("[Bridge] Start Software-GUI now; it should connect as TCP client.")
+            conn, addr = srv.accept()
+            print(f"[Bridge] Software-GUI connected from {addr[0]}:{addr[1]}")
+            try:
+                _serve_client(
+                    args,
+                    conn,
+                    controller,
+                    initial_game,
+                    resolver,
+                    config.analysis,
+                    game_debug_root,
+                    game_debug_dir_holder,
+                )
+            except ConnectionError as exc:
+                print(f"[Bridge] Connection closed: {exc}")
+                return 1
+            except Exception as exc:  # noqa: BLE001
+                print(f"[Bridge] Error: {exc}")
+                return 1
+    finally:
+        if panel is not None:
+            panel.cleanup()
     return 0
 
 

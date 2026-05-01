@@ -28,8 +28,14 @@ from flexyboard_camera.vision.board_detector import (
 from flexyboard_camera.vision.diff_detector import detect_square_changes
 from flexyboard_camera.vision.diff_detector import ContourSquareCandidate, SquareChange
 from flexyboard_camera.vision.move_inference import InferenceInputs, infer_move
+from flexyboard_camera.vision.parcheesi_geometry import (
+    draw_parcheesi_overlay,
+    parcheesi_layout_payload,
+    project_parcheesi_regions,
+)
 from flexyboard_camera.vision.preprocess import preprocess_frame
 from detect_board_geometry import (
+    detect_outer_field_by_black_tape_contours,
     choose_outer_field as choose_outer_field_calibrated,
     load_default_games_saved_calibration,
     predict_chess_from_outer as predict_chess_from_outer_calibration,
@@ -720,8 +726,8 @@ def _write_analysis_summary_text(
 
     src = inferred_move.get("source")
     dst = inferred_move.get("destination")
-    src_text = f"({src.get('x')},{src.get('y')})" if isinstance(src, dict) else "None"
-    dst_text = f"({dst.get('x')},{dst.get('y')})" if isinstance(dst, dict) else "None"
+    src_text = _format_inferred_endpoint_text(src)
+    dst_text = _format_inferred_endpoint_text(dst)
 
     lines.append("")
     lines.append("inferred_move:")
@@ -736,6 +742,363 @@ def _write_analysis_summary_text(
     lines.append("")
 
     out_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _format_inferred_endpoint_text(raw: object) -> str:
+    if not isinstance(raw, dict):
+        return "None"
+    if raw.get("location_id") is not None:
+        return str(raw.get("location_id"))
+    if raw.get("x") is not None and raw.get("y") is not None:
+        return f"({raw.get('x')},{raw.get('y')})"
+    return json.dumps(raw, ensure_ascii=True)
+
+
+def _scale_reference_quad(
+    raw_quad: object,
+    *,
+    stored_size: dict[str, object],
+    target_w: int,
+    target_h: int,
+) -> np.ndarray | None:
+    if not isinstance(raw_quad, list) or len(raw_quad) != 4:
+        return None
+    try:
+        stored_w = max(1.0, float(stored_size.get("width", target_w)))
+        stored_h = max(1.0, float(stored_size.get("height", target_h)))
+        pts = np.float32(
+            [
+                [
+                    float(point[0]) / stored_w * float(target_w),
+                    float(point[1]) / stored_h * float(target_h),
+                ]
+                for point in raw_quad
+            ]
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    return _order_quad(pts)
+
+
+def _load_parcheesi_reference_outer(
+    *,
+    reference_path: Path,
+    image_w: int,
+    image_h: int,
+) -> tuple[np.ndarray | None, str]:
+    if not reference_path.exists():
+        return None, "missing"
+    try:
+        payload = json.loads(reference_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return None, f"invalid:{exc}"
+    if not isinstance(payload, dict) or not isinstance(payload.get("parcheesi_layout"), dict):
+        return None, "unsupported_payload"
+    stored_size = payload.get("image_size_px") if isinstance(payload.get("image_size_px"), dict) else {}
+    outer = _scale_reference_quad(
+        payload.get("outer_sheet_corners_px"),
+        stored_size=stored_size,
+        target_w=image_w,
+        target_h=image_h,
+    )
+    if outer is None:
+        return None, "invalid_outer"
+    return outer, "ok"
+
+
+def _resolve_parcheesi_location_id(location_id: str) -> str:
+    if location_id == "home_center":
+        return "homearea_1"
+    return location_id
+
+
+def _analyze_parcheesi(
+    *,
+    args: argparse.Namespace,
+    before_path: Path,
+    after_path: Path,
+    before_full: np.ndarray,
+    after_full: np.ndarray,
+) -> dict[str, object]:
+    artifact_mode = str(args.artifact_mode).strip().lower()
+    full_artifacts = artifact_mode == "full"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_dir = Path(args.out_dir) if args.out_dir else Path("debug_output") / f"parcheesi_analysis_{timestamp}"
+    _mkdir(out_dir)
+    official_dir = _mkdir(out_dir / "official") if full_artifacts else None
+
+    image_h, image_w = after_full.shape[:2]
+    reference_path = Path(args.geometry_reference)
+    outer_reference = None
+    ref_status = "disabled" if bool(args.disable_geometry_reference) else "missing"
+    geometry_reference_used = False
+    if not bool(args.disable_geometry_reference):
+        outer_reference, ref_status = _load_parcheesi_reference_outer(
+            reference_path=reference_path,
+            image_w=image_w,
+            image_h=image_h,
+        )
+        geometry_reference_used = outer_reference is not None
+
+    before_outer_debug: dict[str, object] | None = None
+    after_outer_debug: dict[str, object] | None = None
+    if outer_reference is not None:
+        before_outer = outer_reference.copy()
+        after_outer = outer_reference.copy()
+        locked_outer = outer_reference.copy()
+        locked_source = f"reference:{reference_path.name}"
+        outer_source_before = "locked_session_geometry"
+        outer_source_after = "locked_session_geometry"
+    else:
+        before_outer, before_outer_debug = detect_outer_field_by_black_tape_contours(before_full)
+        after_outer, after_outer_debug = detect_outer_field_by_black_tape_contours(after_full)
+        if before_outer is None and after_outer is None:
+            raise SystemExit("Failed to detect Parcheesi outer field in both before and after images.")
+        mode = str(args.board_lock_source).strip().lower()
+        if mode == "after" and after_outer is not None:
+            locked_outer = after_outer
+            locked_source = "after_outer"
+        elif mode == "auto" and before_outer is None and after_outer is not None:
+            locked_outer = after_outer
+            locked_source = "auto_after_outer"
+        else:
+            locked_outer = before_outer if before_outer is not None else after_outer
+            locked_source = "before_outer" if before_outer is not None else "before_fallback_after_outer"
+        outer_source_before = str(before_outer_debug.get("method")) if before_outer_debug is not None else "missing"
+        outer_source_after = str(after_outer_debug.get("method")) if after_outer_debug is not None else "missing"
+
+    projected_regions = project_parcheesi_regions(np.asarray(locked_outer, dtype=np.float32))
+    before_gray = cv2.cvtColor(before_full, cv2.COLOR_BGR2GRAY)
+    after_gray = cv2.cvtColor(after_full, cv2.COLOR_BGR2GRAY)
+    abs_diff = cv2.absdiff(before_gray, after_gray)
+    _, diff_thresh = cv2.threshold(abs_diff, int(args.diff_threshold), 255, cv2.THRESH_BINARY)
+
+    changed_regions: list[dict[str, object]] = []
+    all_regions: list[dict[str, object]] = []
+    for region in projected_regions:
+        polygon = np.round(np.asarray(region["polygon_px"], dtype=np.float32)).astype(np.int32)
+        mask = np.zeros(before_gray.shape, dtype=np.uint8)
+        cv2.fillPoly(mask, [polygon], 255)
+        active = mask > 0
+        pixel_count = int(np.count_nonzero(active))
+        if pixel_count <= 0:
+            continue
+        before_mean = float(np.mean(before_gray[active]))
+        after_mean = float(np.mean(after_gray[active]))
+        occupancy_delta = (255.0 - after_mean) - (255.0 - before_mean)
+        pixel_ratio = float(np.count_nonzero(diff_thresh[active])) / float(pixel_count)
+        entry = dict(region)
+        entry.update(
+            {
+                "pixel_ratio": pixel_ratio,
+                "signed_intensity_delta": float(after_mean - before_mean),
+                "occupancy_delta": occupancy_delta,
+                "before_mean": before_mean,
+                "after_mean": after_mean,
+                "changed": bool(pixel_ratio >= float(args.min_changed_ratio) or abs(occupancy_delta) >= 10.0),
+            }
+        )
+        all_regions.append(entry)
+        if entry["changed"]:
+            changed_regions.append(entry)
+
+    changed_regions.sort(
+        key=lambda item: max(float(item.get("pixel_ratio", 0.0)), abs(float(item.get("occupancy_delta", 0.0))) / 40.0),
+        reverse=True,
+    )
+
+    source_region = min(changed_regions, key=lambda item: float(item.get("occupancy_delta", 0.0)), default=None)
+    destination_region = max(changed_regions, key=lambda item: float(item.get("occupancy_delta", 0.0)), default=None)
+    if source_region is not None and destination_region is not None and source_region["location_id"] == destination_region["location_id"]:
+        ordered = sorted(changed_regions, key=lambda item: float(item.get("occupancy_delta", 0.0)))
+        if len(ordered) >= 2:
+            source_region = ordered[0]
+            destination_region = ordered[-1]
+
+    inferred_move: dict[str, object]
+    if source_region is None or destination_region is None or source_region["location_id"] == destination_region["location_id"]:
+        inferred_move = {
+            "game": "parcheesi",
+            "source": None,
+            "destination": None,
+            "moved_piece_type": None,
+            "capture": None,
+            "confidence": 0.0,
+            "timestamp": datetime.now().isoformat(),
+            "metadata": {
+                "reason": "insufficient_changed_regions",
+                "changed_region_count": len(changed_regions),
+                "significant_changed_count": len(changed_regions),
+            },
+        }
+    else:
+        source_location = _resolve_parcheesi_location_id(str(source_region["location_id"]))
+        destination_location = _resolve_parcheesi_location_id(str(destination_region["location_id"]))
+        confidence = min(
+            1.0,
+            (
+                float(source_region.get("pixel_ratio", 0.0))
+                + float(destination_region.get("pixel_ratio", 0.0))
+                + abs(float(source_region.get("occupancy_delta", 0.0))) / 40.0
+                + abs(float(destination_region.get("occupancy_delta", 0.0))) / 40.0
+            )
+            / 2.5,
+        )
+        inferred_move = {
+            "game": "parcheesi",
+            "source": {
+                "location_id": source_location,
+                "region_id": int(source_region["region_id"]),
+                "region_label": str(source_region["region_label"]),
+            },
+            "destination": {
+                "location_id": destination_location,
+                "region_id": int(destination_region["region_id"]),
+                "region_label": str(destination_region["region_label"]),
+            },
+            "moved_piece_type": None,
+            "capture": None,
+            "confidence": confidence,
+            "timestamp": datetime.now().isoformat(),
+            "metadata": {
+                "changed_region_count": len(changed_regions),
+                "significant_changed_count": len(changed_regions),
+                "source_region": {
+                    "location_id": str(source_region["location_id"]),
+                    "region_id": int(source_region["region_id"]),
+                    "pixel_ratio": float(source_region["pixel_ratio"]),
+                    "occupancy_delta": float(source_region["occupancy_delta"]),
+                },
+                "destination_region": {
+                    "location_id": str(destination_region["location_id"]),
+                    "region_id": int(destination_region["region_id"]),
+                    "pixel_ratio": float(destination_region["pixel_ratio"]),
+                    "occupancy_delta": float(destination_region["occupancy_delta"]),
+                },
+            },
+        }
+
+    outputs: dict[str, str] = {}
+    if full_artifacts and official_dir is not None:
+        before_overlay = draw_parcheesi_overlay(
+            before_full,
+            outer_corners_px=np.asarray(locked_outer, dtype=np.float32),
+            projected_regions=projected_regions,
+            show_labels=True,
+            outer_thickness=5,
+            region_thickness=2,
+        )
+        after_overlay = draw_parcheesi_overlay(
+            after_full,
+            outer_corners_px=np.asarray(locked_outer, dtype=np.float32),
+            projected_regions=projected_regions,
+            show_labels=True,
+            outer_thickness=5,
+            region_thickness=2,
+        )
+        for item in changed_regions:
+            poly = np.round(np.asarray(item["polygon_px"], dtype=np.float32)).astype(np.int32)
+            cv2.polylines(after_overlay, [poly], True, (0, 0, 255), 3, cv2.LINE_AA)
+        outputs = {
+            "before_regions_overlay": str(official_dir / "before_regions_overlay.png"),
+            "after_regions_overlay": str(official_dir / "after_regions_overlay.png"),
+            "diff_threshold": str(official_dir / "diff_threshold.png"),
+            "analysis_summary_txt": str(official_dir / "analysis_summary.txt"),
+        }
+        cv2.imwrite(outputs["before_regions_overlay"], before_overlay)
+        cv2.imwrite(outputs["after_regions_overlay"], after_overlay)
+        cv2.imwrite(outputs["diff_threshold"], diff_thresh)
+        _write_analysis_summary_text(
+            out_path=Path(outputs["analysis_summary_txt"]),
+            changed_squares=changed_regions,
+            resolver_changed_squares=None,
+            inferred_move=inferred_move,
+        )
+
+    payload: dict[str, object] = {
+        "before_image": str(before_path),
+        "after_image": str(after_path),
+        "analysis_root_dir": str(out_dir),
+        "artifact_mode": artifact_mode,
+        "official_dir": str(official_dir) if official_dir is not None else None,
+        "algorithm_live_dir": None,
+        "board_size": None,
+        "board_detection_source": "parcheesi_region_projection",
+        "locked_geometry_source": locked_source,
+        "geometry_reference": {
+            "enabled": not bool(args.disable_geometry_reference),
+            "path": str(reference_path),
+            "status": ref_status,
+            "used": geometry_reference_used,
+        },
+        "fast_locked_geometry": {
+            "requested": bool(args.fast_locked_geometry),
+            "used": geometry_reference_used and bool(args.fast_locked_geometry),
+            "reference_status": ref_status,
+        },
+        "algorithm_live_green_source": "black_tape_outer_parcheesi",
+        "algorithm_live_outer_source_before": outer_source_before,
+        "algorithm_live_outer_source_after": outer_source_after,
+        "algorithm_live_inner_source_before": "projected_from_parcheesi_template",
+        "algorithm_live_inner_source_after": "projected_from_parcheesi_template",
+        "algorithm_live_outer_to_inner_calibration": {
+            "source": "stored_parcheesi_region_template",
+            "count": len(projected_regions),
+        },
+        "outer_candidate_mode": args.outer_candidate_mode,
+        "tape_projection_enabled": False,
+        "warp_alignment_requested": args.warp_alignment_mode,
+        "warp_alignment_mode": "parcheesi_region_projection",
+        "board_corner_relative_drift": (
+            _relative_corner_drift(before_outer, after_outer)
+            if outer_reference is None and before_outer is not None and after_outer is not None
+            else 0.0
+        ),
+        "board_corner_mean_distance_px": (
+            _mean_corner_distance_px(before_outer, after_outer)
+            if outer_reference is None and before_outer is not None and after_outer is not None
+            else 0.0
+        ),
+        "shared_after_recommended": False,
+        "shared_after_drift_threshold": 0.06,
+        "before_chessboard_corners_px": None,
+        "after_chessboard_corners_px": None,
+        "outer_sheet_corners_px": np.asarray(locked_outer, dtype=np.float32).tolist(),
+        "chessboard_corners_px": None,
+        "image_size_px": {"width": int(image_w), "height": int(image_h)},
+        "geometry_metrics": {
+            "image_width_px": int(image_w),
+            "image_height_px": int(image_h),
+            "image_area_px2": float(image_w * image_h),
+            "locked_outer_area_px2": _quad_area_px2(np.asarray(locked_outer, dtype=np.float32)),
+        },
+        "pre_detection_crop": {
+            "enabled": False,
+            "source_image_width_px": int(image_w),
+            "source_image_height_px": int(image_h),
+            "before": None,
+            "after": None,
+        },
+        "squares": [],
+        "changed_squares": changed_regions,
+        "changed_square_count": len(changed_regions),
+        "resolver_changed_squares": None,
+        "resolver_changed_square_count": None,
+        "contour_changed_squares": [],
+        "contour_changed_square_count": 0,
+        "changed_regions": changed_regions,
+        "changed_region_count": len(changed_regions),
+        "significant_changed_count": len(changed_regions),
+        "parcheesi_regions": projected_regions,
+        "parcheesi_layout": parcheesi_layout_payload(),
+        "inferred_move": inferred_move,
+        "outputs": outputs,
+        "algorithm_live_geometry_debug": {
+            "before": _strip_numpy_debug(before_outer_debug),
+            "after": _strip_numpy_debug(after_outer_debug),
+        },
+    }
+    return payload
 
 
 def _as_float(raw: object, default: float = 0.0) -> float:
@@ -762,7 +1125,8 @@ def _select_chess_resolver_changed_squares(
     indexed.sort(key=lambda entry: (entry[2], 1 if entry[4] else 0, entry[3]), reverse=True)
     keep: list[tuple[int, dict[str, object], float, float]] = [entry[:4] for entry in indexed[:2]]
     second_ratio = keep[1][2]
-    keep_threshold = max(0.22, second_ratio * 0.60)
+    keep_threshold = max(0.16, second_ratio * 0.45)
+    keep_limit = 6
 
     def _label_rank(item: dict[str, object]) -> str | None:
         label = str(item.get("label", "")).strip().lower()
@@ -827,11 +1191,9 @@ def _select_chess_resolver_changed_squares(
 
     for entry in indexed[2:]:
         _orig_idx, item, ratio, delta, has_contour = entry
-        if not (ratio >= keep_threshold and (delta >= 8.0 or has_contour)):
-            continue
+        structural_match = False
         if allow_castling_extras and _label_rank(item) == castling_rank:
-            keep.append(entry[:4])
-            continue
+            structural_match = True
         if corridor_file is not None:
             item_file = _label_file_index(item)
             item_rank_idx = _label_rank_index(item)
@@ -842,8 +1204,7 @@ def _select_chess_resolver_changed_squares(
                 and corridor_file_max_rank is not None
                 and corridor_file_min_rank <= item_rank_idx <= corridor_file_max_rank
             ):
-                keep.append(entry[:4])
-                continue
+                structural_match = True
         if corridor_rank is not None:
             item_rank = _label_rank(item)
             item_file = _label_file_index(item)
@@ -854,8 +1215,19 @@ def _select_chess_resolver_changed_squares(
                 and corridor_rank_max_file is not None
                 and corridor_rank_min_file <= item_file <= corridor_rank_max_file
             ):
-                keep.append(entry[:4])
-                continue
+                structural_match = True
+
+        quality_match = ratio >= keep_threshold and (
+            delta >= 4.0
+            or has_contour
+            or ratio >= (second_ratio * 0.80)
+        )
+        if not (structural_match or quality_match):
+            continue
+
+        keep.append(entry[:4])
+        if len(keep) >= keep_limit:
+            break
 
     keep.sort(key=lambda entry: entry[0])
     return [item for _orig_idx, item, _ratio, _delta in keep]
@@ -1192,6 +1564,19 @@ def main() -> int:
         raise SystemExit(f"Could not read before image: {before_path}")
     if after_full is None:
         raise SystemExit(f"Could not read after image: {after_path}")
+
+    if str(args.game).strip().lower() == "parcheesi":
+        payload = _analyze_parcheesi(
+            args=args,
+            before_path=before_path,
+            after_path=after_path,
+            before_full=before_full,
+            after_full=after_full,
+        )
+        json_path = Path(args.json_out) if args.json_out else Path(str(payload["analysis_root_dir"])) / "analysis.json"
+        json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        print(json.dumps(payload, indent=2))
+        return 0
 
     full_h, full_w = after_full.shape[:2]
     before_raw = before_full

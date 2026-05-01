@@ -309,6 +309,26 @@ class CheckersState:
                 return True
         return False
 
+    def _has_simple_move_from_p2(self, start: Square) -> bool:
+        piece = self.get(start)
+        if piece not in (Piece.P2_MAN, Piece.P2_KING):
+            return False
+
+        if piece == Piece.P2_MAN:
+            directions = [(-1, -1), (1, -1)]
+        else:
+            directions = [(-1, -1), (1, -1), (-1, 1), (1, 1)]
+
+        for df, dr in directions:
+            end_f = start.file_index + df
+            end_r = start.rank_index + dr
+            if not (0 <= end_f <= 7 and 0 <= end_r <= 7):
+                continue
+            end = Square(end_f, end_r)
+            if self.get(end) == Piece.EMPTY and is_dark_square(end_f, end_r):
+                return True
+        return False
+
     def _has_jump_from_p1(self, start: Square) -> bool:
         piece = self.get(start)
         if piece not in (Piece.P1_MAN, Piece.P1_KING):
@@ -333,3 +353,54 @@ class CheckersState:
             if _is_p2(self.get(mid)) and self.get(end) == Piece.EMPTY and is_dark_square(end_f, end_r):
                 return True
         return False
+
+    def _has_simple_move_from_p1(self, start: Square) -> bool:
+        piece = self.get(start)
+        if piece not in (Piece.P1_MAN, Piece.P1_KING):
+            return False
+
+        if piece == Piece.P1_MAN:
+            directions = [(-1, 1), (1, 1)]
+        else:
+            directions = [(-1, -1), (1, -1), (-1, 1), (1, 1)]
+
+        for df, dr in directions:
+            end_f = start.file_index + df
+            end_r = start.rank_index + dr
+            if not (0 <= end_f <= 7 and 0 <= end_r <= 7):
+                continue
+            end = Square(end_f, end_r)
+            if self.get(end) == Piece.EMPTY and is_dark_square(end_f, end_r):
+                return True
+        return False
+
+    def has_any_moves(self, player_num: int) -> bool:
+        if player_num not in {1, 2}:
+            raise ValueError(f"invalid player number: {player_num}")
+
+        forced = self._forced_p1_continuation if player_num == 1 else self._forced_p2_continuation
+        if forced is not None:
+            return self._has_jump_from_p1(forced) if player_num == 1 else self._has_jump_from(forced)
+
+        any_jump = self._has_any_p1_jump() if player_num == 1 else self._has_any_p2_jump()
+        if any_jump:
+            return True
+
+        for rank in range(8):
+            for file in range(8):
+                sq = Square(file, rank)
+                piece = self.get(sq)
+                if player_num == 1 and piece in (Piece.P1_MAN, Piece.P1_KING):
+                    if self._has_simple_move_from_p1(sq):
+                        return True
+                if player_num == 2 and piece in (Piece.P2_MAN, Piece.P2_KING):
+                    if self._has_simple_move_from_p2(sq):
+                        return True
+        return False
+
+    def winner(self) -> int | None:
+        if not self.has_any_moves(1):
+            return 2
+        if not self.has_any_moves(2):
+            return 1
+        return None

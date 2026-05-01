@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 from dataclasses import dataclass, field
 from datetime import datetime
 import io
@@ -15,6 +16,7 @@ import threading
 import time
 
 import pygame
+import chess
 
 import config
 from ai_player import choose_p2_move, close_engine
@@ -72,6 +74,48 @@ def _piece_name(piece: object) -> str:
     return str(getattr(piece, "name", piece))
 
 
+def _promotion_code(promotion_type: int | None) -> str | None:
+    if promotion_type == chess.QUEEN:
+        return "q"
+    if promotion_type == chess.ROOK:
+        return "r"
+    if promotion_type == chess.BISHOP:
+        return "b"
+    if promotion_type == chess.KNIGHT:
+        return "n"
+    return None
+
+
+def _promotion_label(promotion_type: int) -> str:
+    if promotion_type == chess.QUEEN:
+        return "Queen"
+    if promotion_type == chess.ROOK:
+        return "Rook"
+    if promotion_type == chess.BISHOP:
+        return "Bishop"
+    if promotion_type == chess.KNIGHT:
+        return "Knight"
+    return str(promotion_type)
+
+
+def _format_chess_move_san(
+    state_before: ChessState,
+    start_id: str,
+    end_id: str,
+    promotion_type: int | None = None,
+) -> str:
+    try:
+        start_sq = parse_square(start_id)
+        end_sq = parse_square(end_id)
+        move = state_before._choose_legal_move(start_sq, end_sq, promotion_type=promotion_type)
+        if move is None:
+            return f"{start_id}-{end_id}"
+        board_before = state_before.to_python_board()
+        return board_before.san(move)
+    except Exception:
+        return f"{start_id}-{end_id}"
+
+
 def _stdin_p1_injector(mock: MockTransport) -> None:
     for line in sys.stdin:
         line = line.strip()
@@ -112,11 +156,36 @@ class _ManualFixDrag:
 class _ManualFixSession:
     kind: str
     backup_state: object
+    selected_turn: str
     opened_at: float = field(default_factory=time.perf_counter)
     palette_rects: list[tuple[pygame.Rect, str, object]] = field(default_factory=list)
+    turn_rects: list[tuple[str, pygame.Rect]] = field(default_factory=list)
     done_rect: pygame.Rect = field(default_factory=lambda: pygame.Rect(0, 0, 0, 0))
     cancel_rect: pygame.Rect = field(default_factory=lambda: pygame.Rect(0, 0, 0, 0))
     dragging: _ManualFixDrag | None = None
+
+
+@dataclass
+class _PromotionSelectionSession:
+    side: str
+    start_id: str
+    end_id: str
+    state_before: ChessState
+    p1_msg: P1MoveMessage | None = None
+    manual_green_captures: list[dict[str, object]] | None = None
+    physical_replacement_detected: bool = False
+    buttons: list[tuple[int, pygame.Rect]] = field(default_factory=list)
+
+
+@dataclass
+class _UndoSnapshot:
+    state: object
+    capture_inventory: object
+    waiting_for_p1: bool
+    ai_pending: bool
+    last_move: tuple[str, str] | None
+    latest_manual_actions: list[str]
+    move_history: list[str]
 
 
 class _GeometryPreview:
@@ -143,6 +212,7 @@ class _GeometryCalibration:
         self.title = str(msg.get("title", "Manual Board Geometry"))
         self.summary = str(msg.get("summary", "Click 4 green outer corners, then 4 yellow inner corners."))
         self.source_path = str(msg.get("source_path", ""))
+        self.mode = str(msg.get("mode", "outer_inner"))
         self.outer_points: list[tuple[float, float]] = []
         self.inner_points: list[tuple[float, float]] = []
         self.image_rect = pygame.Rect(0, 0, 0, 0)
@@ -152,12 +222,16 @@ class _GeometryCalibration:
         self.cancel_rect = pygame.Rect(0, 0, 0, 0)
 
     def is_complete(self) -> bool:
+        if self.mode == "outer_only":
+            return len(self.outer_points) == 4
         return len(self.outer_points) == 4 and len(self.inner_points) == 4
 
     def next_instruction(self) -> str:
         order = ["top-left", "top-right", "bottom-right", "bottom-left"]
         if len(self.outer_points) < 4:
             return f"Outer green grid: click {order[len(self.outer_points)]} corner."
+        if self.mode == "outer_only":
+            return "Geometry complete. Click Save to use this grid for the game."
         if len(self.inner_points) < 4:
             return f"Inner yellow grid: click {order[len(self.inner_points)]} corner."
         return "Geometry complete. Click Save to use this grid for the game."
@@ -174,7 +248,7 @@ class _GeometryCalibration:
         y = max(0.0, min(float(ih - 1), float(y)))
         if len(self.outer_points) < 4:
             self.outer_points.append((x, y))
-        elif len(self.inner_points) < 4:
+        elif self.mode != "outer_only" and len(self.inner_points) < 4:
             self.inner_points.append((x, y))
 
     def undo(self) -> None:
@@ -206,14 +280,19 @@ class _QueuedCheckersTurn:
     capture_slots_used: list[str] = field(default_factory=list)
     temporary_relocations: int = 0
     fallback_direct_segments: int = 0
+    player_ready_after_step_count: int | None = None
 
     def append(self, start_id: str, end_id: str, generated: GeneratedSequence) -> None:
+        line_offset = len(self.stm_lines)
         self.steps.append((start_id, end_id))
         self.stm_lines.extend(generated.lines)
         self.manual_actions.extend(generated.manual_actions)
         self.capture_slots_used.extend(generated.capture_slots_used)
         self.temporary_relocations += int(generated.temporary_relocations)
         self.fallback_direct_segments += int(generated.fallback_direct_segments)
+        ready_after = generated.player_ready_after_step_count
+        if ready_after is not None:
+            self.player_ready_after_step_count = line_offset + int(ready_after)
 
     def clear(self) -> None:
         self.steps.clear()
@@ -222,6 +301,7 @@ class _QueuedCheckersTurn:
         self.capture_slots_used.clear()
         self.temporary_relocations = 0
         self.fallback_direct_segments = 0
+        self.player_ready_after_step_count = None
 
 
 def _back_button_rect(ui: object) -> pygame.Rect:
@@ -254,6 +334,11 @@ def _mode_button_rect(ui: object) -> pygame.Rect:
 def _manual_fix_button_rect(ui: object) -> pygame.Rect:
     margin = int(getattr(ui, "margin", 16))
     return pygame.Rect(margin // 2, 58, 126, 36)
+
+
+def _undo_button_rect(ui: object) -> pygame.Rect:
+    mode_rect = _mode_button_rect(ui)
+    return pygame.Rect(mode_rect.x, mode_rect.bottom + 8, mode_rect.width, mode_rect.height)
 
 
 def _draw_mode_button(ui: object, ai_mode: bool, game_kind: str) -> None:
@@ -293,6 +378,20 @@ def _draw_manual_fix_button(ui: object) -> None:
     pygame.draw.rect(ui.screen, border, rect, width=1, border_radius=10)
 
     label = ui.font.render("Fix Manual", True, (248, 245, 238))
+    ui.screen.blit(label, label.get_rect(center=rect.center))
+
+
+def _draw_undo_button(ui: object) -> None:
+    rect = _undo_button_rect(ui)
+    mx, my = pygame.mouse.get_pos()
+    hover = rect.collidepoint(mx, my)
+    bg = (54, 70, 96) if not hover else (68, 86, 116)
+    border = (124, 170, 236)
+
+    pygame.draw.rect(ui.screen, bg, rect, border_radius=10)
+    pygame.draw.rect(ui.screen, border, rect, width=1, border_radius=10)
+
+    label = ui.font.render("Undo", True, (244, 247, 252))
     ui.screen.blit(label, label.get_rect(center=rect.center))
 
 
@@ -363,6 +462,64 @@ def _manual_fix_piece_label(kind: str, piece: object) -> str:
     return _piece_name(piece)
 
 
+def _manual_fix_piece_surface(
+    ui: object,
+    kind: str,
+    piece: object,
+    max_w: int,
+    max_h: int,
+) -> pygame.Surface | None:
+    if max_w <= 0 or max_h <= 0:
+        return None
+
+    if kind == "chess" and isinstance(piece, ChessPiece) and hasattr(ui, "_sprites") and ui._sprites.has(piece):
+        src = ui._sprites.board[piece]
+        scale = min(max_w / src.get_width(), max_h / src.get_height())
+        return pygame.transform.smoothscale(
+            src,
+            (
+                max(1, int(src.get_width() * scale)),
+                max(1, int(src.get_height() * scale)),
+            ),
+        )
+
+    if kind == "checkers" and isinstance(piece, CheckersPiece):
+        surf = pygame.Surface((max_w, max_h), pygame.SRCALPHA)
+        cx, cy = max_w // 2, max_h // 2
+        radius = max(8, min(max_w, max_h) // 2 - 4)
+        if piece in (CheckersPiece.P1_MAN, CheckersPiece.P1_KING):
+            fill = getattr(ui, "P1_KING", (255, 120, 120)) if piece == CheckersPiece.P1_KING else getattr(ui, "P1_COLOR", (220, 60, 60))
+        else:
+            fill = getattr(ui, "P2_KING", (100, 100, 110)) if piece == CheckersPiece.P2_KING else getattr(ui, "P2_COLOR", (40, 40, 40))
+        pygame.draw.circle(surf, fill, (cx, cy), radius)
+        pygame.draw.circle(surf, (0, 0, 0), (cx, cy), radius, width=1)
+        if piece in (CheckersPiece.P1_KING, CheckersPiece.P2_KING):
+            king_font = getattr(ui, "_small_label_font", None) or pygame.font.Font(None, max(14, radius))
+            label = king_font.render("K", True, (255, 255, 255))
+            surf.blit(label, label.get_rect(center=(cx, cy)))
+        return surf
+
+    if kind == "parcheesi" and isinstance(piece, ParcheesiPiece):
+        surf = pygame.Surface((max_w, max_h), pygame.SRCALPHA)
+        cx, cy = max_w // 2, max_h // 2
+        radius = max(8, min(max_w, max_h) // 2 - 4)
+        piece_colors = getattr(ui, "PLAYER_PIECE_COLORS", {})
+        fill = piece_colors.get(piece.to_player_num(), (200, 200, 200))
+        pygame.draw.circle(surf, fill, (cx, cy), radius)
+        pygame.draw.circle(surf, getattr(ui, "LINE", (0, 0, 0)), (cx, cy), radius, width=1)
+        piece_font = getattr(ui, "piece_font", None) or pygame.font.Font(None, max(14, radius))
+        label_color_fn = getattr(ui, "_piece_label_color", None)
+        if callable(label_color_fn):
+            label_color = label_color_fn(piece.to_player_num())
+        else:
+            label_color = (255, 255, 255)
+        label = piece_font.render(str(piece.to_token_num()), True, label_color)
+        surf.blit(label, label.get_rect(center=(cx, cy)))
+        return surf
+
+    return None
+
+
 def _draw_manual_fix_palette_entry(
     ui: object,
     screen: pygame.Surface,
@@ -380,19 +537,9 @@ def _draw_manual_fix_palette_entry(
     pygame.draw.rect(screen, bg, rect, border_radius=9)
     pygame.draw.rect(screen, border, rect, width=1, border_radius=9)
 
-    if kind == "chess" and isinstance(piece, ChessPiece) and hasattr(ui, "_sprites") and ui._sprites.has(piece):
-        src = ui._sprites.board[piece]
-        max_w = max(1, rect.width - 10)
-        max_h = max(1, rect.height - 8)
-        scale = min(max_w / src.get_width(), max_h / src.get_height())
-        scaled = pygame.transform.smoothscale(
-            src,
-            (
-                max(1, int(src.get_width() * scale)),
-                max(1, int(src.get_height() * scale)),
-            ),
-        )
-        screen.blit(scaled, scaled.get_rect(center=rect.center))
+    preview = _manual_fix_piece_surface(ui, kind, piece, max(1, rect.width - 10), max(1, rect.height - 8))
+    if preview is not None:
+        screen.blit(preview, preview.get_rect(center=rect.center))
         return
 
     surf = font.render(label, True, (248, 248, 250))
@@ -406,9 +553,9 @@ def _draw_manual_fix_drag_ghost(
     kind: str,
     drag: _ManualFixDrag,
 ) -> None:
-    if kind == "chess" and isinstance(drag.piece, ChessPiece) and hasattr(ui, "_sprites") and ui._sprites.has(drag.piece):
-        img = ui._sprites.board[drag.piece]
-        screen.blit(img, img.get_rect(center=drag.mouse_pos))
+    preview = _manual_fix_piece_surface(ui, kind, drag.piece, 64, 64)
+    if preview is not None:
+        screen.blit(preview, preview.get_rect(center=drag.mouse_pos))
         return
 
     ghost_rect = pygame.Rect(0, 0, 74, 40)
@@ -419,10 +566,31 @@ def _draw_manual_fix_drag_ghost(
     screen.blit(ghost, ghost.get_rect(center=ghost_rect.center))
 
 
-def _begin_manual_fix(kind: str, state: object) -> _ManualFixSession:
+def _manual_fix_current_turn(kind: str, state: object, waiting_for_p1: bool) -> str:
+    if kind == "chess" and isinstance(state, ChessState):
+        return state.turn_side()
+    if kind == "parcheesi" and isinstance(state, ParcheesiState):
+        return "p1" if state.current_player == 1 else "p2"
+    return "p1" if waiting_for_p1 else "p2"
+
+
+def _apply_manual_fix_turn(kind: str, state: object, turn_side: str) -> None:
+    if kind == "chess" and isinstance(state, ChessState):
+        state.manual_resync_engine(turn_side=turn_side)
+        return
+    if kind == "checkers" and isinstance(state, CheckersState):
+        state.clear_forced_continuations()
+        return
+    if kind == "parcheesi" and isinstance(state, ParcheesiState):
+        state.current_player = 1 if turn_side == "p1" else 2
+        return
+
+
+def _begin_manual_fix(kind: str, state: object, waiting_for_p1: bool) -> _ManualFixSession:
     return _ManualFixSession(
         kind=kind,
         backup_state=state.copy(),
+        selected_turn=_manual_fix_current_turn(kind, state, waiting_for_p1),
     )
 
 
@@ -439,9 +607,9 @@ def _manual_fix_palette_layout(
     )
     top = panel.y + 56
     items = _manual_fix_palette_items(session.kind, state)
-    cols = 2 if session.kind == "parcheesi" else 2
-    button_w = 100 if session.kind == "chess" else 92
-    button_h = 54 if session.kind == "chess" else 38
+    cols = 2
+    button_w = 100
+    button_h = 54
     gap_x = 10
     gap_y = 10
     row_w = cols * button_w + (cols - 1) * gap_x
@@ -510,7 +678,7 @@ def _manual_fix_drop_drag(
         return None
 
     if session.kind == "chess" and isinstance(state, ChessState):
-        turn_side = state.turn_side()
+        turn_side = session.selected_turn
         square = ui.square_at_pixel(*drop_pos)
         if square is None:
             if drag.source_kind == "board" and drag.source_ref is not None:
@@ -699,7 +867,8 @@ def _send_geometry_calibration_result(
     }
     if accepted:
         payload["outer_corners_px"] = [[x, y] for x, y in calibration.outer_points]
-        payload["chessboard_corners_px"] = [[x, y] for x, y in calibration.inner_points]
+        if calibration.mode != "outer_only":
+            payload["chessboard_corners_px"] = [[x, y] for x, y in calibration.inner_points]
     sender(payload)
 
 
@@ -722,6 +891,17 @@ def _send_runtime_control_message(transport: object, payload: dict[str, object])
     except Exception as exc:  # noqa: BLE001
         print(f"Failed to send runtime control message: {exc}", file=sys.stderr)
         return False
+
+
+def _notify_runtime_game_over(transport: object, *, game: str, winner: str) -> bool:
+    return _send_runtime_control_message(
+        transport,
+        {
+            "type": "game_over",
+            "game": game,
+            "winner": winner,
+        },
+    )
 
 
 def _current_status_notice(
@@ -833,6 +1013,105 @@ def _draw_status_notice(
         screen.blit(surf, (x + 12, y + 36 + idx * line_h))
 
 
+def _begin_promotion_selection(
+    *,
+    side: str,
+    start_id: str,
+    end_id: str,
+    state_before: ChessState,
+    p1_msg: P1MoveMessage | None = None,
+    manual_green_captures: list[dict[str, object]] | None = None,
+    physical_replacement_detected: bool = False,
+) -> _PromotionSelectionSession:
+    return _PromotionSelectionSession(
+        side=side,
+        start_id=start_id,
+        end_id=end_id,
+        state_before=state_before.copy(),
+        p1_msg=p1_msg,
+        manual_green_captures=[dict(item) for item in (manual_green_captures or []) if isinstance(item, dict)] or None,
+        physical_replacement_detected=physical_replacement_detected,
+    )
+
+
+def _draw_promotion_selection(ui: object, session: _PromotionSelectionSession) -> None:
+    screen = ui.screen
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 155))
+    screen.blit(overlay, (0, 0))
+
+    panel_w = min(520, screen.get_width() - 80)
+    panel_h = 240
+    panel = pygame.Rect(0, 0, panel_w, panel_h)
+    panel.center = screen.get_rect().center
+    pygame.draw.rect(screen, (34, 36, 42), panel, border_radius=16)
+    pygame.draw.rect(screen, (128, 138, 166), panel, width=1, border_radius=16)
+
+    title = ui.font.render("Choose Promotion Piece", True, (245, 245, 248))
+    screen.blit(title, (panel.x + 20, panel.y + 18))
+
+    actor = "Player 2" if session.side == "p2" else "Player 1"
+    line1 = ui.font.render(f"{actor}: {session.start_id} -> {session.end_id}", True, (215, 218, 224))
+    screen.blit(line1, (panel.x + 20, panel.y + 52))
+
+    if session.side == "p1":
+        detail = (
+            "Physical replacement detected in capture area."
+            if session.physical_replacement_detected
+            else "No physical replacement detected; software promotion only until piece is swapped manually."
+        )
+    else:
+        detail = "The chosen piece will be used for legal state and promotion routing."
+    line2 = ui.font.render(detail, True, (180, 188, 200))
+    screen.blit(line2, (panel.x + 20, panel.y + 78))
+
+    button_labels = [
+        (chess.QUEEN, "Queen"),
+        (chess.ROOK, "Rook"),
+        (chess.BISHOP, "Bishop"),
+        (chess.KNIGHT, "Knight"),
+    ]
+    button_w = 108
+    button_h = 92
+    gap = 12
+    total_w = len(button_labels) * button_w + (len(button_labels) - 1) * gap
+    start_x = panel.x + max(20, (panel.w - total_w) // 2)
+    y = panel.y + 118
+
+    session.buttons = []
+    mouse_pos = pygame.mouse.get_pos()
+    for idx, (promotion_type, label_text) in enumerate(button_labels):
+        rect = pygame.Rect(start_x + idx * (button_w + gap), y, button_w, button_h)
+        hover = rect.collidepoint(*mouse_pos)
+        bg = (72, 76, 90) if not hover else (92, 96, 114)
+        border = (170, 176, 196)
+        pygame.draw.rect(screen, bg, rect, border_radius=12)
+        pygame.draw.rect(screen, border, rect, width=1, border_radius=12)
+        piece_enum: ChessPiece
+        if session.side == "p2":
+            piece_enum = {
+                chess.QUEEN: ChessPiece.P2_QUEEN,
+                chess.ROOK: ChessPiece.P2_ROOK,
+                chess.BISHOP: ChessPiece.P2_BISHOP,
+                chess.KNIGHT: ChessPiece.P2_KNIGHT,
+            }[promotion_type]
+        else:
+            piece_enum = {
+                chess.QUEEN: ChessPiece.P1_QUEEN,
+                chess.ROOK: ChessPiece.P1_ROOK,
+                chess.BISHOP: ChessPiece.P1_BISHOP,
+                chess.KNIGHT: ChessPiece.P1_KNIGHT,
+            }[promotion_type]
+        preview = _manual_fix_piece_surface(ui, "chess", piece_enum, 56, 56)
+        if preview is not None:
+            screen.blit(preview, preview.get_rect(center=(rect.centerx, rect.centery - 8)))
+        label = ui.font.render(label_text, True, (244, 244, 248))
+        hotkey = ui.font.render(str(idx + 1), True, (190, 198, 214))
+        screen.blit(label, label.get_rect(center=(rect.centerx, rect.bottom - 20)))
+        screen.blit(hotkey, hotkey.get_rect(center=(rect.centerx, rect.y + 14)))
+        session.buttons.append((promotion_type, rect))
+
+
 def _run_external_geometry_selector(msg: dict[str, object], transport: object) -> None:
     image_b64 = str(msg.get("image_png_b64", ""))
     if not image_b64:
@@ -859,6 +1138,8 @@ def _run_external_geometry_selector(msg: dict[str, object], transport: object) -
         str(image_path),
         "--source-path",
         str(msg.get("source_path", "")),
+        "--mode",
+        str(msg.get("mode", "outer_inner")),
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -1024,7 +1305,11 @@ def _draw_geometry_calibration(
     screen.blit(title, (panel.x + 18, panel.y + 14))
 
     instruction = calibration.next_instruction()
-    progress = f"Outer: {len(calibration.outer_points)}/4    Inner: {len(calibration.inner_points)}/4"
+    progress = (
+        f"Outer: {len(calibration.outer_points)}/4"
+        if calibration.mode == "outer_only"
+        else f"Outer: {len(calibration.outer_points)}/4    Inner: {len(calibration.inner_points)}/4"
+    )
     text_lines = [calibration.summary, instruction, progress]
     text_y = panel.y + 48
     for line in text_lines:
@@ -1072,7 +1357,8 @@ def _draw_geometry_calibration(
             screen.blit(label, (pt[0] + 7, pt[1] - 8))
 
     draw_points(calibration.outer_points, (40, 230, 95), "G")
-    draw_points(calibration.inner_points, (245, 215, 45), "Y")
+    if calibration.mode != "outer_only":
+        draw_points(calibration.inner_points, (245, 215, 45), "Y")
 
     mx, my = pygame.mouse.get_pos()
     button_specs = [
@@ -1153,8 +1439,26 @@ def _draw_manual_fix_modal(
     title = title_font.render("Manual Fix", True, (248, 248, 250))
     screen.blit(title, (panel.x + 18, panel.y + 14))
     text_y = panel.y + 56
-
     mx, my = pygame.mouse.get_pos()
+
+    turn_label = font.render("Turn:", True, (210, 218, 228))
+    screen.blit(turn_label, (panel.x + 18, text_y))
+    session.turn_rects = []
+    turn_options = [("p1", "P1 Turn"), ("p2", "P2 Turn")]
+    turn_x = panel.x + 64
+    for idx, (value, label) in enumerate(turn_options):
+        rect = pygame.Rect(turn_x + (idx * 74), text_y - 6, 66, 28)
+        session.turn_rects.append((value, rect))
+        selected = session.selected_turn == value
+        hover = rect.collidepoint(mx, my)
+        bg = (52, 94, 74) if selected else ((52, 58, 68) if not hover else (63, 72, 84))
+        border = (140, 225, 170) if selected else (120, 132, 148)
+        pygame.draw.rect(screen, bg, rect, border_radius=8)
+        pygame.draw.rect(screen, border, rect, width=1, border_radius=8)
+        surf = font.render(label, True, (248, 248, 250))
+        screen.blit(surf, surf.get_rect(center=rect.center))
+    text_y += 40
+
     for rect, label, value in _manual_fix_palette_layout(ui, session, state):
         hover = rect.collidepoint(mx, my)
         _draw_manual_fix_palette_entry(ui, screen, font, session.kind, rect, label, value, hover)
@@ -1239,6 +1543,7 @@ def _run_game_loop(kind: str, transport: object) -> None:
     last_move: tuple[str, str] | None = None
     capture_inventory = CaptureInventory(kind)
     latest_manual_actions: list[str] = []
+    move_history: list[str] = []
 
     if kind == "checkers":
         state: object = CheckersState()
@@ -1259,8 +1564,10 @@ def _run_game_loop(kind: str, transport: object) -> None:
     geometry_preview: _GeometryPreview | None = None
     geometry_calibration: _GeometryCalibration | None = None
     manual_fix_session: _ManualFixSession | None = None
+    promotion_session: _PromotionSelectionSession | None = None
     status_notice: _StatusNotice | None = None
     pending_checkers_turn = _QueuedCheckersTurn()
+    undo_stack: list[_UndoSnapshot] = []
 
     def _new_captured_by_p1(state_before: object, state_after: object) -> list[object]:
         before = getattr(state_before, "captured_by_p1", None)
@@ -1275,6 +1582,9 @@ def _run_game_loop(kind: str, transport: object) -> None:
         state_before: object,
         state_after: object,
         msg: P1MoveMessage,
+        *,
+        promotion_type: int | None = None,
+        promotion_replacement_detected: bool = False,
     ) -> tuple[int, int]:
         new_captured = _new_captured_by_p1(state_before, state_after)
         expected_records: list[tuple[str, object]] = [("p2", piece) for piece in new_captured]
@@ -1283,15 +1593,19 @@ def _run_game_loop(kind: str, transport: object) -> None:
             try:
                 start_sq = parse_square(msg.frm)
                 end_sq = parse_square(msg.to)
-                legal_move = state_before._choose_legal_move(start_sq, end_sq)
+                legal_move = state_before._choose_legal_move(
+                    start_sq,
+                    end_sq,
+                    promotion_type=promotion_type,
+                )
             except Exception:  # noqa: BLE001
                 legal_move = None
             if legal_move is not None and legal_move.promotion is not None:
                 promoted_from_piece = state_before.get(start_sq)
-                if promoted_from_piece != ChessPiece.EMPTY:
+                if promotion_replacement_detected and promoted_from_piece != ChessPiece.EMPTY:
                     expected_records.append(("p1", promoted_from_piece))
                 promoted_piece = state_after.get(end_sq) if isinstance(state_after, ChessState) else ChessPiece.EMPTY
-                if promoted_piece != ChessPiece.EMPTY:
+                if promotion_replacement_detected and promoted_piece != ChessPiece.EMPTY:
                     pulled = capture_inventory.take_piece("p1", _piece_name(promoted_piece))
                     if pulled is not None:
                         print(
@@ -1305,6 +1619,12 @@ def _run_game_loop(kind: str, transport: object) -> None:
                             f"[PROMOTION] No reusable {_piece_name(promoted_piece)} found in capture inventory for P1 promotion.",
                             file=sys.stderr,
                         )
+                elif promoted_piece != ChessPiece.EMPTY:
+                    print(
+                        "[PROMOTION] No physical replacement detected; "
+                        f"software promoted to {_piece_name(promoted_piece)} while capture inventory remains unchanged.",
+                        file=sys.stderr,
+                    )
 
         if not expected_records:
             return (0, 0)
@@ -1328,6 +1648,210 @@ def _run_game_loop(kind: str, transport: object) -> None:
             )
             tracked += 1
         return (tracked, len(expected_records))
+
+    def _promotion_candidates_for_move(
+        state_before: ChessState,
+        start_id: str,
+        end_id: str,
+    ) -> list[int]:
+        try:
+            start_sq = parse_square(start_id)
+            end_sq = parse_square(end_id)
+        except ValueError:
+            return []
+        return state_before.promotion_candidates(start_sq, end_sq)
+
+    def _push_undo_snapshot() -> None:
+        undo_stack.append(
+            _UndoSnapshot(
+                state=state.copy(),
+                capture_inventory=copy.deepcopy(capture_inventory),
+                waiting_for_p1=waiting_for_p1,
+                ai_pending=ai_pending,
+                last_move=last_move,
+                latest_manual_actions=latest_manual_actions[:],
+                move_history=move_history[:],
+            )
+        )
+
+    def _restore_undo_snapshot(snapshot: _UndoSnapshot) -> None:
+        nonlocal state, capture_inventory, waiting_for_p1, ai_pending, last_move, latest_manual_actions, move_history, status_notice
+        state = snapshot.state.copy()
+        capture_inventory = copy.deepcopy(snapshot.capture_inventory)
+        waiting_for_p1 = snapshot.waiting_for_p1
+        ai_pending = False
+        last_move = snapshot.last_move
+        latest_manual_actions = snapshot.latest_manual_actions[:]
+        move_history = snapshot.move_history[:]
+        ui.clear_drag()
+        status_notice = _make_status_notice(
+            level="info",
+            title="Undo Applied",
+            message="Software state restored. Press the button when the physical board matches so the Pi can recapture a reference.",
+            sticky=True,
+        )
+
+    def _accept_p1_move(
+        msg: P1MoveMessage,
+        *,
+        promotion_type: int | None = None,
+        promotion_replacement_detected: bool = False,
+    ) -> None:
+        nonlocal state, waiting_for_p1, ai_pending, last_move, latest_manual_actions, status_notice, move_history
+
+        _push_undo_snapshot()
+        state_before = state.copy()
+        if isinstance(state, ChessState):
+            state.apply_move_trusted(msg.frm, msg.to, promotion_type=promotion_type)
+        else:
+            state.apply_move_trusted(msg.frm, msg.to)
+        tracked_manual, expected_manual = _record_manual_green_captures(
+            state_before,
+            state,
+            msg,
+            promotion_type=promotion_type,
+            promotion_replacement_detected=promotion_replacement_detected,
+        )
+        ui.clear_drag()
+
+        latest_manual_actions = []
+        last_move = (msg.frm, msg.to)
+        if expected_manual > 0 and tracked_manual < expected_manual:
+            status_notice = _make_status_notice(
+                level="warning",
+                title="Player 1 Move Accepted",
+                message=(
+                    f"Applied {msg.frm} -> {msg.to}, but only tracked "
+                    f"{tracked_manual}/{expected_manual} manual captured piece(s) in the green area."
+                ),
+                duration_ms=2800,
+            )
+        elif promotion_type is not None and not promotion_replacement_detected:
+            status_notice = _make_status_notice(
+                level="warning",
+                title="Player 1 Promotion Accepted",
+                message=(
+                    f"Applied {msg.frm} -> {msg.to} as {_promotion_label(promotion_type)}, "
+                    "but no physical replacement was detected in the capture area."
+                ),
+                duration_ms=3200,
+            )
+        elif tracked_manual > 0:
+            status_notice = _make_status_notice(
+                level="success",
+                title="Player 1 Move Accepted",
+                message=(
+                    f"Applied {msg.frm} -> {msg.to}. Tracked {tracked_manual} "
+                    "manual captured piece(s) in the green area."
+                ),
+                duration_ms=2200,
+            )
+        else:
+            status_notice = _make_status_notice(
+                level="success",
+                title="Player 1 Move Accepted",
+                message=f"Applied {msg.frm} -> {msg.to}.",
+                duration_ms=1800,
+            )
+        if kind == "chess" and isinstance(state_before, ChessState):
+            san = _format_chess_move_san(state_before, msg.frm, msg.to, promotion_type=promotion_type)
+            move_history.append(f"{len(move_history) + 1}. {san}")
+        print(f"P1 move: {msg.frm} -> {msg.to}", file=sys.stderr)
+        if promotion_type is not None:
+            print(f"[PROMOTION] Selected {_promotion_label(promotion_type)} for P1.", file=sys.stderr)
+            if promotion_replacement_detected:
+                print("[PROMOTION] Physical replacement detected from capture area.", file=sys.stderr)
+            else:
+                print("[PROMOTION] No physical replacement detected; pawn remained on board.", file=sys.stderr)
+        if expected_manual > 0:
+            print(
+                f"[MANUAL_CAPTURE] tracked={tracked_manual}/{expected_manual}",
+                file=sys.stderr,
+            )
+        print(
+            "[INVENTORY] " + ", ".join(capture_inventory.to_summary_strings()) if capture_inventory.to_summary_strings() else "[INVENTORY] <empty>",
+            file=sys.stderr,
+        )
+        if kind == "chess" and hasattr(state, "is_checkmate"):
+            if state.is_checkmate():
+                print(
+                    f"Game over: checkmate. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}",
+                    file=sys.stderr,
+                )
+                _notify_runtime_game_over(
+                    transport,
+                    game=kind,
+                    winner=('P2' if state.turn_side() == 'p1' else 'P1'),
+                )
+                status_notice = _make_status_notice(
+                    level="error",
+                    title="Checkmate",
+                    message=f"Game over. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}. Press R to play again.",
+                    sticky=True,
+                )
+                waiting_for_p1 = True
+                ai_pending = False
+            elif state.is_stalemate():
+                print("Game over: stalemate.", file=sys.stderr)
+                _notify_runtime_game_over(transport, game=kind, winner="draw")
+                status_notice = _make_status_notice(
+                    level="warning",
+                    title="Stalemate",
+                    message="Game over. Stalemate. Press R to play again.",
+                    sticky=True,
+                )
+                waiting_for_p1 = True
+                ai_pending = False
+            elif state.is_check():
+                print(f"Check on {state.turn_side().upper()}.", file=sys.stderr)
+                status_notice = _make_status_notice(
+                    level="warning",
+                    title="Check",
+                    message=f"Check on {state.turn_side().upper()}.",
+                    duration_ms=1800,
+                )
+        if kind == "checkers" and hasattr(state, "p1_must_continue_jump") and state.p1_must_continue_jump():
+            forced = state.p1_forced_square_id() if hasattr(state, "p1_forced_square_id") else None
+            if forced:
+                print(f"Checkers: P1 must continue jump with {forced}", file=sys.stderr)
+            waiting_for_p1 = True
+        elif kind == "checkers" and hasattr(state, "winner"):
+            winner = state.winner()
+            if winner is not None:
+                print(f"Game over: Player {winner} wins.", file=sys.stderr)
+                _notify_runtime_game_over(transport, game=kind, winner=f"P{winner}")
+                status_notice = _make_status_notice(
+                    level="warning",
+                    title=f"Player {winner} Wins",
+                    message=f"Game over. Player {winner} wins. Start a new game when ready.",
+                    sticky=True,
+                )
+                waiting_for_p1 = True
+                ai_pending = False
+            else:
+                waiting_for_p1 = False
+                ai_pending = ai_mode
+        elif kind == "parcheesi":
+            if state.check_win_condition(1):
+                print("Game over: Player 1 wins.", file=sys.stderr)
+                _notify_runtime_game_over(transport, game=kind, winner="P1")
+                status_notice = _make_status_notice(
+                    level="warning",
+                    title="Player 1 Wins",
+                    message="Game over. Player 1 wins. Start a new game when ready.",
+                    sticky=True,
+                )
+                waiting_for_p1 = True
+                ai_pending = False
+            else:
+                waiting_for_p1 = False
+                ai_pending = ai_mode
+        elif kind == "chess" and hasattr(state, "is_checkmate") and (state.is_checkmate() or state.is_stalemate()):
+            waiting_for_p1 = True
+            ai_pending = False
+        else:
+            waiting_for_p1 = False
+            ai_pending = ai_mode
 
     # Add a "Roll Dice" button for Parcheesi.
     roll_dice_button_rect = pygame.Rect(
@@ -1389,6 +1913,11 @@ def _run_game_loop(kind: str, transport: object) -> None:
         if kind == "chess" and hasattr(state, "is_checkmate"):
             if state.is_checkmate():
                 print(f"Game over: checkmate. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}", file=sys.stderr)
+                _notify_runtime_game_over(
+                    transport,
+                    game=kind,
+                    winner=('P2' if state.turn_side() == 'p1' else 'P1'),
+                )
                 status_notice = _make_status_notice(
                     level="error",
                     title="Checkmate",
@@ -1400,6 +1929,7 @@ def _run_game_loop(kind: str, transport: object) -> None:
                 return
             elif state.is_stalemate():
                 print("Game over: stalemate.", file=sys.stderr)
+                _notify_runtime_game_over(transport, game=kind, winner="draw")
                 status_notice = _make_status_notice(
                     level="warning",
                     title="Stalemate",
@@ -1418,9 +1948,31 @@ def _run_game_loop(kind: str, transport: object) -> None:
                     duration_ms=1800,
                 )
 
+        if kind == "checkers" and hasattr(state, "winner"):
+            winner = state.winner()
+            if winner is not None:
+                print(f"Game over: Player {winner} wins.", file=sys.stderr)
+                _notify_runtime_game_over(transport, game=kind, winner=f"P{winner}")
+                status_notice = _make_status_notice(
+                    level="warning",
+                    title=f"Player {winner} Wins",
+                    message=f"Game over. Player {winner} wins. Start a new game when ready.",
+                    sticky=True,
+                )
+                waiting_for_p1 = True
+                ai_pending = False
+                return
+
         if kind == "parcheesi":
             if state.check_win_condition(2):
                 print("Game over: Player 2 wins.", file=sys.stderr)
+                _notify_runtime_game_over(transport, game=kind, winner="P2")
+                status_notice = _make_status_notice(
+                    level="warning",
+                    title="Player 2 Wins",
+                    message="Game over. Player 2 wins. Start a new game when ready.",
+                    sticky=True,
+                )
                 waiting_for_p1 = True
                 ai_pending = False
             elif state.rolls_remaining and state.get_possible_moves(2):
@@ -1442,12 +1994,22 @@ def _run_game_loop(kind: str, transport: object) -> None:
             duration_ms=1800,
         )
 
-    def _apply_and_dispatch_p2_move(start_id: str, end_id: str) -> None:
-        nonlocal waiting_for_p1, ai_pending, last_move, latest_manual_actions, status_notice
+    def _apply_and_dispatch_p2_move(
+        start_id: str,
+        end_id: str,
+        promotion_type: int | None = None,
+    ) -> None:
+        nonlocal state, waiting_for_p1, ai_pending, last_move, latest_manual_actions, status_notice, move_history
 
+        _push_undo_snapshot()
         state_before = state.copy()
-        err = state.try_apply_p2_move(start_id, end_id)
+        if isinstance(state, ChessState):
+            err = state.try_apply_p2_move(start_id, end_id, promotion_type=promotion_type)
+        else:
+            err = state.try_apply_p2_move(start_id, end_id)
         if err is not None:
+            if undo_stack:
+                undo_stack.pop()
             print("Illegal P2 move:", err, file=sys.stderr)
             return
 
@@ -1456,13 +2018,38 @@ def _run_game_loop(kind: str, transport: object) -> None:
         print(f"P2 move: {start_id} -> {end_id}", file=sys.stderr)
 
         planner_started_at = time.perf_counter()
-        generated = generate_p2_sequence(
-            kind,
-            state_before,
-            start_id,
-            end_id,
-            capture_inventory=capture_inventory,
-        )
+        try:
+            generated = generate_p2_sequence(
+                kind,
+                state_before,
+                start_id,
+                end_id,
+                promotion_type=promotion_type,
+                capture_inventory=capture_inventory,
+            )
+        except Exception as exc:
+            state = state_before
+            if undo_stack:
+                undo_stack.pop()
+            print(f"Motion planner failed for P2 move {start_id} -> {end_id}: {exc}", file=sys.stderr)
+            status_notice = _make_status_notice(
+                level="error",
+                title="P2 Move Planning Failed",
+                message=str(exc),
+                sticky=True,
+            )
+            waiting_for_p1 = True
+            ai_pending = False
+            last_move = None
+            latest_manual_actions = []
+            return
+        last_move = (start_id, end_id)
+        if kind == "chess" and isinstance(state_before, ChessState):
+            san = _format_chess_move_san(state_before, start_id, end_id, promotion_type=promotion_type)
+            if move_history:
+                move_history[-1] = f"{move_history[-1]}   {san}"
+            else:
+                move_history.append(f"1... {san}")
         print(
             "Motion planner completed:"
             f" {time.perf_counter() - planner_started_at:.3f}s"
@@ -1504,6 +2091,7 @@ def _run_game_loop(kind: str, transport: object) -> None:
                 stm_sequence=pending_checkers_turn.stm_lines[:],
                 manual_actions=(pending_checkers_turn.manual_actions[:] if pending_checkers_turn.manual_actions else None),
                 turn_steps=turn_steps,
+                player_ready_after_step_count=pending_checkers_turn.player_ready_after_step_count,
             )
             _dispatch_p2_turn(
                 msg,
@@ -1519,8 +2107,10 @@ def _run_game_loop(kind: str, transport: object) -> None:
             frm=start_id,
             to=end_id,
             game=kind,
+            promotion=_promotion_code(promotion_type),
             stm_sequence=generated.lines,
             manual_actions=(generated.manual_actions[:] if generated.manual_actions else None),
+            player_ready_after_step_count=generated.player_ready_after_step_count,
         )
         _dispatch_p2_turn(
             msg,
@@ -1551,6 +2141,52 @@ def _run_game_loop(kind: str, transport: object) -> None:
             if consumed_by_preview:
                 continue
 
+            if promotion_session is not None:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    if promotion_session.side == "p2":
+                        promotion_session = None
+                        ui.clear_drag()
+                        status_notice = _make_status_notice(
+                            level="info",
+                            title="Promotion Selection Canceled",
+                            message="Choose the move again to continue.",
+                            duration_ms=1800,
+                        )
+                    continue
+
+                selected_promotion: int | None = None
+                if event.type == pygame.KEYDOWN and event.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
+                    selected_promotion = [
+                        chess.QUEEN,
+                        chess.ROOK,
+                        chess.BISHOP,
+                        chess.KNIGHT,
+                    ][event.key - pygame.K_1]
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    for promotion_type, rect in promotion_session.buttons:
+                        if rect.collidepoint(*event.pos):
+                            selected_promotion = promotion_type
+                            break
+
+                if selected_promotion is not None:
+                    session = promotion_session
+                    promotion_session = None
+                    if session.side == "p2":
+                        _apply_and_dispatch_p2_move(
+                            session.start_id,
+                            session.end_id,
+                            promotion_type=selected_promotion,
+                        )
+                    elif session.p1_msg is not None:
+                        _accept_p1_move(
+                            session.p1_msg,
+                            promotion_type=selected_promotion,
+                            promotion_replacement_detected=session.physical_replacement_detected,
+                        )
+                    continue
+
+                continue
+
             if manual_fix_session is not None:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     state = manual_fix_session.backup_state.copy()
@@ -1575,62 +2211,84 @@ def _run_game_loop(kind: str, transport: object) -> None:
                     continue
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if manual_fix_session.done_rect.collidepoint(*event.pos):
-                        duration_s = time.perf_counter() - manual_fix_session.opened_at
-                        refresh_requested = _send_runtime_control_message(
-                            transport,
-                            {"type": "refresh_reference", "reason": "manual_fix_commit"},
-                        )
-                        print(f"Manual fix committed after {duration_s:.3f}s", file=sys.stderr)
-                        status_notice = _make_status_notice(
-                            level="success",
-                            title="Manual Fix Applied",
-                            message=(
-                                "Kept the manual software-state corrections and requested a fresh reference capture from the Pi."
-                                if refresh_requested
-                                else "Kept the manual software-state corrections."
-                            ),
-                            duration_ms=2200,
-                        )
-                        manual_fix_session = None
-                        continue
-                    if manual_fix_session.cancel_rect.collidepoint(*event.pos):
+                    if _back_button_rect(ui).collidepoint(*event.pos):
                         state = manual_fix_session.backup_state.copy()
                         ui.clear_drag()
                         duration_s = time.perf_counter() - manual_fix_session.opened_at
-                        print(f"Manual fix canceled after {duration_s:.3f}s", file=sys.stderr)
-                        status_notice = _make_status_notice(
-                            level="info",
-                            title="Manual Fix Canceled",
-                            message="Restored the software state to the snapshot from when manual fix opened.",
-                            duration_ms=2200,
-                        )
+                        print(f"Manual fix canceled after {duration_s:.3f}s via Back", file=sys.stderr)
                         manual_fix_session = None
-                        continue
-
-                    for rect, label, value in _manual_fix_palette_layout(ui, manual_fix_session, state):
+                        return
+                    for turn_value, rect in manual_fix_session.turn_rects:
                         if rect.collidepoint(*event.pos):
-                            manual_fix_session.dragging = _ManualFixDrag(
-                                source_kind="palette",
-                                source_ref=None,
-                                piece=value,
-                                label=label,
-                                mouse_pos=event.pos,
-                                origin_pos=event.pos,
-                            )
+                            manual_fix_session.selected_turn = turn_value
+                            _apply_manual_fix_turn(kind, state, turn_value)
+                            print(f"Manual fix turn set to {turn_value.upper()}", file=sys.stderr)
                             break
                     else:
-                        picked = _manual_fix_pick_from_board(kind, state, ui, event.pos)
-                        if picked is not None:
-                            source_ref, piece, origin = picked
-                            manual_fix_session.dragging = _ManualFixDrag(
-                                source_kind="board",
-                                source_ref=source_ref,
-                                piece=piece,
-                                label=_manual_fix_piece_label(kind, piece),
-                                mouse_pos=event.pos,
-                                origin_pos=origin,
+                        if manual_fix_session.done_rect.collidepoint(*event.pos):
+                            duration_s = time.perf_counter() - manual_fix_session.opened_at
+                            _apply_manual_fix_turn(kind, state, manual_fix_session.selected_turn)
+                            waiting_for_p1 = manual_fix_session.selected_turn == "p1"
+                            ai_pending = (not waiting_for_p1) and ai_mode
+                            refresh_requested = _send_runtime_control_message(
+                                transport,
+                                {"type": "refresh_reference", "reason": "manual_fix_commit"},
                             )
+                            print(
+                                f"Manual fix committed after {duration_s:.3f}s"
+                                f" (turn={manual_fix_session.selected_turn.upper()})",
+                                file=sys.stderr,
+                            )
+                            status_notice = _make_status_notice(
+                                level="success",
+                                title="Manual Fix Applied",
+                                message=(
+                                    f"Kept the manual software-state corrections, set turn to {manual_fix_session.selected_turn.upper()},"
+                                    " and requested a fresh reference capture from the Pi."
+                                    if refresh_requested
+                                    else f"Kept the manual software-state corrections and set turn to {manual_fix_session.selected_turn.upper()}."
+                                ),
+                                duration_ms=2200,
+                            )
+                            manual_fix_session = None
+                            continue
+                        if manual_fix_session.cancel_rect.collidepoint(*event.pos):
+                            state = manual_fix_session.backup_state.copy()
+                            ui.clear_drag()
+                            duration_s = time.perf_counter() - manual_fix_session.opened_at
+                            print(f"Manual fix canceled after {duration_s:.3f}s", file=sys.stderr)
+                            status_notice = _make_status_notice(
+                                level="info",
+                                title="Manual Fix Canceled",
+                                message="Restored the software state to the snapshot from when manual fix opened.",
+                                duration_ms=2200,
+                            )
+                            manual_fix_session = None
+                            continue
+
+                        for rect, label, value in _manual_fix_palette_layout(ui, manual_fix_session, state):
+                            if rect.collidepoint(*event.pos):
+                                manual_fix_session.dragging = _ManualFixDrag(
+                                    source_kind="palette",
+                                    source_ref=None,
+                                    piece=value,
+                                    label=label,
+                                    mouse_pos=event.pos,
+                                    origin_pos=event.pos,
+                                )
+                                break
+                        else:
+                            picked = _manual_fix_pick_from_board(kind, state, ui, event.pos)
+                            if picked is not None:
+                                source_ref, piece, origin = picked
+                                manual_fix_session.dragging = _ManualFixDrag(
+                                    source_kind="board",
+                                    source_ref=source_ref,
+                                    piece=piece,
+                                    label=_manual_fix_piece_label(kind, piece),
+                                    mouse_pos=event.pos,
+                                    origin_pos=origin,
+                                )
                     continue
 
                 if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -1669,7 +2327,7 @@ def _run_game_loop(kind: str, transport: object) -> None:
 
                 if _manual_fix_button_rect(ui).collidepoint(*event.pos):
                     ui.clear_drag()
-                    manual_fix_session = _begin_manual_fix(kind, state)
+                    manual_fix_session = _begin_manual_fix(kind, state, waiting_for_p1)
                     print(f"Manual fix opened for {kind}", file=sys.stderr)
                     status_notice = _make_status_notice(
                         level="warning",
@@ -1677,6 +2335,35 @@ def _run_game_loop(kind: str, transport: object) -> None:
                         message="Editing the software state directly. Click Done to keep or Cancel to restore.",
                         sticky=True,
                     )
+                    continue
+
+                if _undo_button_rect(ui).collidepoint(*event.pos):
+                    if not undo_stack:
+                        status_notice = _make_status_notice(
+                            level="info",
+                            title="Nothing To Undo",
+                            message="No software moves are available to undo.",
+                            duration_ms=1600,
+                        )
+                        continue
+                    snapshot = undo_stack.pop()
+                    _restore_undo_snapshot(snapshot)
+                    pending_checkers_turn.clear()
+                    refresh_requested = _send_runtime_control_message(
+                        transport,
+                        {
+                            "type": "refresh_reference",
+                            "reason": "undo_sync",
+                            "wait_for_trigger": True,
+                        },
+                    )
+                    if not refresh_requested:
+                        status_notice = _make_status_notice(
+                            level="warning",
+                            title="Undo Applied",
+                            message="Software state restored, but Pi reference refresh could not be requested.",
+                            sticky=True,
+                        )
                     continue
                 
                 if kind == "parcheesi" and roll_dice_button_rect.collidepoint(*event.pos):
@@ -1709,6 +2396,8 @@ def _run_game_loop(kind: str, transport: object) -> None:
                 capture_inventory.clear()
                 pending_checkers_turn.clear()
                 latest_manual_actions = []
+                move_history = []
+                undo_stack = []
                 ui.clear_drag()
                 waiting_for_p1 = True
                 ai_pending = False
@@ -1733,123 +2422,65 @@ def _run_game_loop(kind: str, transport: object) -> None:
                 drop = ui.handle_event(event, state, p2_turn=True)
                 if drop:
                     start_id, end_id = drop
+                    if kind == "chess" and isinstance(state, ChessState):
+                        promotion_candidates = _promotion_candidates_for_move(state, start_id, end_id)
+                        if promotion_candidates:
+                            promotion_session = _begin_promotion_selection(
+                                side="p2",
+                                start_id=start_id,
+                                end_id=end_id,
+                                state_before=state,
+                            )
+                            status_notice = _make_status_notice(
+                                level="warning",
+                                title="Choose Promotion",
+                                message=f"Select the piece for {start_id} -> {end_id}.",
+                                sticky=True,
+                            )
+                            continue
                     _apply_and_dispatch_p2_move(start_id, end_id)
 
         geometry_modal_active = geometry_preview is not None or geometry_calibration is not None
         manual_fix_active = manual_fix_session is not None
+        promotion_modal_active = promotion_session is not None
 
-        if waiting_for_p1 and not geometry_modal_active and not manual_fix_active:
+        if waiting_for_p1 and not geometry_modal_active and not manual_fix_active and not promotion_modal_active:
             msg = transport.poll_p1_move()
             if msg is not None:
                 state_before = state.copy()
-                state.apply_move_trusted(msg.frm, msg.to)
-                tracked_manual, expected_manual = _record_manual_green_captures(
-                    state_before,
-                    state,
-                    msg,
-                )
-                ui.clear_drag()
-                
-                # Capture inventory logic needs to be adapted for Parcheesi
-                # if kind == "chess":
-                #     new_captured = state.captured_by_p1[len(state_before.captured_by_p1):]
-                #     for piece in new_captured:
-                #         capture_inventory.add_captured_piece("p2", piece.name)
-                # elif kind == "checkers":
-                #     new_captured = state.captured_by_p1[len(state_before.captured_by_p1):]
-                #     for piece in new_captured:
-                #         capture_inventory.add_captured_piece("p2", piece.name)
-                # elif kind == "parcheesi":
-                #     new_captured = state.captured_by_p1[len(state_before.captured_by_p1):]
-                #     for piece in new_captured:
-                #         capture_inventory.add_captured_piece("p2", piece.name)
-                latest_manual_actions = []
-                last_move = (msg.frm, msg.to)
-                if expected_manual > 0 and tracked_manual < expected_manual:
-                    status_notice = _make_status_notice(
-                        level="warning",
-                        title="Player 1 Move Accepted",
-                        message=(
-                            f"Applied {msg.frm} -> {msg.to}, but only tracked "
-                            f"{tracked_manual}/{expected_manual} manual captured piece(s) in the green area."
-                        ),
-                        duration_ms=2800,
-                    )
-                elif tracked_manual > 0:
-                    status_notice = _make_status_notice(
-                        level="success",
-                        title="Player 1 Move Accepted",
-                        message=(
-                            f"Applied {msg.frm} -> {msg.to}. Tracked {tracked_manual} "
-                            "manual captured piece(s) in the green area."
-                        ),
-                        duration_ms=2200,
-                    )
-                else:
-                    status_notice = _make_status_notice(
-                        level="success",
-                        title="Player 1 Move Accepted",
-                        message=f"Applied {msg.frm} -> {msg.to}.",
-                        duration_ms=1800,
-                    )
-                print(f"P1 move: {msg.frm} -> {msg.to}", file=sys.stderr)
-                if expected_manual > 0:
-                    print(
-                        f"[MANUAL_CAPTURE] tracked={tracked_manual}/{expected_manual}",
-                        file=sys.stderr,
-                    )
-                print(
-                    "[INVENTORY] " + ", ".join(capture_inventory.to_summary_strings()) if capture_inventory.to_summary_strings() else "[INVENTORY] <empty>",
-                    file=sys.stderr,
-                )
-                if kind == "chess" and hasattr(state, "is_checkmate"):
-                    if state.is_checkmate():
-                        print(
-                            f"Game over: checkmate. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}",
-                            file=sys.stderr,
+                if kind == "chess" and isinstance(state_before, ChessState):
+                    promotion_candidates = _promotion_candidates_for_move(state_before, msg.frm, msg.to)
+                    if promotion_candidates:
+                        start_sq = parse_square(msg.frm)
+                        end_sq = parse_square(msg.to)
+                        preview_move = state_before._choose_legal_move(
+                            start_sq,
+                            end_sq,
+                            promotion_type=promotion_candidates[0],
                         )
-                        status_notice = _make_status_notice(
-                            level="error",
-                            title="Checkmate",
-                            message=f"Game over. Winner: {'P2' if state.turn_side() == 'p1' else 'P1'}. Press R to play again.",
-                            sticky=True,
+                        board_before = state_before.to_python_board()
+                        capture_count = int(board_before.is_capture(preview_move)) if preview_move is not None else 0
+                        replacement_detected = len(msg.manual_green_captures or []) > capture_count
+                        promotion_session = _begin_promotion_selection(
+                            side="p1",
+                            start_id=msg.frm,
+                            end_id=msg.to,
+                            state_before=state_before,
+                            p1_msg=msg,
+                            manual_green_captures=msg.manual_green_captures,
+                            physical_replacement_detected=replacement_detected,
                         )
-                        waiting_for_p1 = True
-                        ai_pending = False
-                    elif state.is_stalemate():
-                        print("Game over: stalemate.", file=sys.stderr)
                         status_notice = _make_status_notice(
                             level="warning",
-                            title="Stalemate",
-                            message="Game over. Stalemate. Press R to play again.",
+                            title="Choose Promotion",
+                            message=f"Select the piece for {msg.frm} -> {msg.to}.",
                             sticky=True,
                         )
-                        waiting_for_p1 = True
-                        ai_pending = False
-                    elif state.is_check():
-                        print(f"Check on {state.turn_side().upper()}.", file=sys.stderr)
-                        status_notice = _make_status_notice(
-                            level="warning",
-                            title="Check",
-                            message=f"Check on {state.turn_side().upper()}.",
-                            duration_ms=1800,
-                        )
-                if kind == "checkers" and hasattr(state, "p1_must_continue_jump") and state.p1_must_continue_jump():
-                    forced = state.p1_forced_square_id() if hasattr(state, "p1_forced_square_id") else None
-                    if forced:
-                        print(f"Checkers: P1 must continue jump with {forced}", file=sys.stderr)
-                    waiting_for_p1 = True
-                elif kind == "parcheesi":
-                    waiting_for_p1 = False
-                    ai_pending = ai_mode
-                elif kind == "chess" and hasattr(state, "is_checkmate") and (state.is_checkmate() or state.is_stalemate()):
-                    waiting_for_p1 = True
-                    ai_pending = False
-                else:
-                    waiting_for_p1 = False
-                    ai_pending = ai_mode
+                        continue
 
-        if not geometry_modal_active and not manual_fix_active and (not waiting_for_p1) and ai_mode and ai_pending:
+                _accept_p1_move(msg)
+
+        if not geometry_modal_active and not manual_fix_active and not promotion_modal_active and (not waiting_for_p1) and ai_mode and ai_pending:
             chosen = choose_p2_move(kind, state)
             ai_pending = False
             if chosen is None:
@@ -1858,10 +2489,23 @@ def _run_game_loop(kind: str, transport: object) -> None:
             else:
                 _apply_and_dispatch_p2_move(chosen.start_id, chosen.end_id)
 
-        ui.draw(state, p2_turn=not waiting_for_p1, last_move=last_move)
+        if kind == "chess":
+            ui.draw(
+                state,
+                p2_turn=not waiting_for_p1,
+                last_move=last_move,
+                move_history=move_history,
+            )
+        else:
+            ui.draw(
+                state,
+                p2_turn=not waiting_for_p1,
+                last_move=last_move,
+            )
         _draw_back_button(ui)
         # _draw_capture_inventory_overlay(ui, capture_inventory.to_summary_strings(), latest_manual_actions)
         _draw_manual_fix_button(ui)
+        _draw_undo_button(ui)
         _draw_mode_button(ui, ai_mode, kind)
         _draw_status_notice(
             ui.screen,
@@ -1883,6 +2527,8 @@ def _run_game_loop(kind: str, transport: object) -> None:
             _draw_geometry_calibration(ui.screen, ui.font, geometry_calibration)
         if manual_fix_session is not None:
             _draw_manual_fix_modal(ui, state, manual_fix_session)
+        if promotion_session is not None:
+            _draw_promotion_selection(ui, promotion_session)
         pygame.display.flip()
         ui.tick(60)
 

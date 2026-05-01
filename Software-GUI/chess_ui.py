@@ -43,13 +43,20 @@ class ChessUI:
         self.sidebar_gap = 16
         content_w = max(1, width - 2 * self.margin)
         self.sidebar_w = min(240, max(140, width // 4))
-        board_zone_w = max(1, content_w - self.sidebar_w - self.sidebar_gap)
+        desired_moves_panel_w = min(220, max(160, width // 5))
+        min_board_zone_w = 8 * 56
+        move_panel_extra_w = desired_moves_panel_w + self.sidebar_gap
+        self.show_moves_panel = (content_w - self.sidebar_w - self.sidebar_gap - move_panel_extra_w) >= min_board_zone_w
+        self.moves_panel_w = desired_moves_panel_w if self.show_moves_panel else 0
+        left_reserved_w = self.moves_panel_w + (self.sidebar_gap if self.show_moves_panel else 0)
+        board_zone_w = max(1, content_w - left_reserved_w - self.sidebar_w - self.sidebar_gap)
         inner_h = max(1, height - self.header_height - self.footer_height - self.margin)
         self.cell = max(1, min(board_zone_w, inner_h) // 8)
         self.board_px = self.cell * 8
         self.origin_y = self.header_height + max(0, (inner_h - self.board_px) // 2)
-        self.origin_x = self.margin + max(0, (board_zone_w - self.board_px) // 2)
-        self.sidebar_x = self.margin + board_zone_w + self.sidebar_gap
+        self.origin_x = self.margin + left_reserved_w + max(0, (board_zone_w - self.board_px) // 2)
+        self.sidebar_x = self.origin_x + self.board_px + self.sidebar_gap
+        self.moves_panel_x = self.margin
 
         self.drag: Optional[DragState] = None
         self.drag_mouse: Tuple[int, int] = (0, 0)
@@ -174,14 +181,50 @@ class ChessUI:
         y += rows * step + (4 if rows else 0) + 18
         return y
 
+    def _draw_move_sidebar(self, move_history: List[str]) -> None:
+        if not self.show_moves_panel:
+            return
+        top = self.header_height
+        h = self.screen.get_height() - self.header_height - self.margin
+        panel = pygame.Rect(self.moves_panel_x, top - 6, self.moves_panel_w, h + 12)
+        pygame.draw.rect(self.screen, self.PANEL_BG, panel)
+        pygame.draw.rect(self.screen, self.PANEL_STROKE, panel, width=1)
+
+        x = self.moves_panel_x + 12
+        y = top + 4
+        title = self.font.render("Moves", True, (235, 235, 240))
+        self.screen.blit(title, (x, y))
+        y += title.get_height() + 14
+
+        line_h = self.font.get_linesize() + 4
+        bottom_limit = top + h - 12
+        visible_rows = max(1, (bottom_limit - y) // line_h)
+        shown = move_history[-visible_rows:] if move_history else []
+        if not shown:
+            empty = self.font.render("No moves yet.", True, (150, 150, 158))
+            self.screen.blit(empty, (x, y))
+            return
+
+        for line in shown:
+            surf = self.font.render(line, True, (220, 220, 226))
+            self.screen.blit(surf, (x, y))
+            y += line_h
+
     def _draw_highlight_square(self, sq: Square, rgba: tuple[int, int, int, int]) -> None:
         rect = self.cell_rect(sq)
         overlay = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
         overlay.fill(rgba)
         self.screen.blit(overlay, rect.topleft)
 
-    def draw(self, state: ChessState, p2_turn: bool, last_move: Optional[Tuple[str, str]] = None) -> None:
+    def draw(
+        self,
+        state: ChessState,
+        p2_turn: bool,
+        last_move: Optional[Tuple[str, str]] = None,
+        move_history: Optional[List[str]] = None,
+    ) -> None:
         self.screen.fill(self.BG)
+        self._draw_move_sidebar(move_history or [])
         self._draw_capture_sidebar(state)
         self._draw_labels()
 

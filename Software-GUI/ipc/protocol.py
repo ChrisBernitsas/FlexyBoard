@@ -37,20 +37,26 @@ class P2MoveMessage:
     frm: str
     to: str
     game: str | None = None
+    promotion: str | None = None
     stm_sequence: list[str] | None = None
     manual_actions: list[str] | None = None
     turn_steps: list[dict[str, str]] | None = None
+    player_ready_after_step_count: int | None = None
 
     def to_obj(self) -> dict[str, Any]:
         obj: dict[str, Any] = {"type": "p2_move", "from": self.frm, "to": self.to}
         if self.game:
             obj["game"] = self.game
+        if self.promotion:
+            obj["promotion"] = self.promotion
         if self.stm_sequence is not None:
             obj["stm_sequence"] = list(self.stm_sequence)
         if self.manual_actions is not None:
             obj["manual_actions"] = list(self.manual_actions)
         if self.turn_steps is not None:
             obj["turn_steps"] = [dict(step) for step in self.turn_steps]
+        if self.player_ready_after_step_count is not None:
+            obj["player_ready_after_step_count"] = int(self.player_ready_after_step_count)
         return obj
 
 

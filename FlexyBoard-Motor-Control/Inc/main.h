@@ -162,20 +162,30 @@ typedef struct
  * ramp down from XY_START_DELAY_CYCLES to the cruise period.
  */
 #define MOTION_TIMER_HZ       1000000U
-#define STEP_PULSE_HIGH_US    10U
+#define STEP_PULSE_HIGH_US    20U    // 10 us pulse width = 0.010 ms high time
 
-#define X_STEP_DELAY_CYCLES   800
-#define Y_STEP_DELAY_CYCLES   800
-#define XY_START_DELAY_CYCLES 1200
+#define X_STEP_DELAY_CYCLES   800U   // 1000 us = 1.0 ms per X step period
+#define Y_STEP_DELAY_CYCLES   800U   // 1000 us = 1.0 ms per Y step period
+#define XY_START_DELAY_CYCLES 1200U   // 1800 us = 1.8 ms ramp-start step period
 
-#define XY_RAMP_STEPS         64U //64
-#define STEP_DELAY_CYCLES_Z   3600
+#define XY_RAMP_STEPS         64U
+#define STEP_DELAY_CYCLES_Z   3600U   // 3600 us = 3.6 ms per Z step period
 
-/* Short-move special handling is currently disabled while we validate the
- * simpler constant-delay profile.
+/* Short XY moves can run on a slower cruise period for better piece placement.
+ * With the current corner calibration, one square is about 192-193 steps on
+ * each axis, so 400 steps covers roughly <= 2 squares of travel.
  */
-#define XY_SHORT_MOVE_THRESHOLD_STEPS 240U
-#define XY_SHORT_MOVE_DELAY_CYCLES    2400
+#define XY_SHORT_MOVE_ENABLE          0U
+#define XY_SHORT_MOVE_THRESHOLD_STEPS 400U  // about 2 squares with the current board calibration
+#define XY_SHORT_MOVE_DELAY_CYCLES    2400  // 2400 us = 2.4 ms per XY step period on short moves
+
+/* Extra commanded travel for negative logical Y moves.
+ * This is a temporary compensation for systematic under-travel in the
+ * negative-Y direction. Set to 0U to disable.
+ *
+ * With the current board calibration, 20 steps is about 0.10 square.
+ */
+#define Y_NEGATIVE_DIRECTION_COMP_STEPS 0U //20
 
 /* Busy-wait settle delays.
  * CORE_CLOCK_HZ is 16 MHz and delay_cycles() is a simple NOP loop, so
@@ -184,12 +194,25 @@ typedef struct
  * We only keep short settles where they matter mechanically:
  * - before pickup, so the head settles over the piece
  * - after an intermediate MOVEHELD stage in a chained same-piece sequence
+ * - after each successful motion command, so the next command does not start
+ *   immediately after a direction change or arrival
  */
-#define Z_PRE_PICKUP_PAUSE_CYCLES    160000 // 160000 40ms
-#define MOVEHELD_SETTLE_CYCLES       640000 // 640000 160ms
-#define Z_POST_RELEASE_PAUSE_CYCLES  0 // 20ms
+#define Z_PRE_PICKUP_PAUSE_CYCLES    500000 //640000  ->160 // about 125 ms busy-wait
+#define Z_PRE_RELEASE_PAUSE_CYCLES   320000 //640000 ->160 // about 80 ms busy-wait before Z release
+#define MOVEHELD_SETTLE_CYCLES       800000 //1280000  // about 200 ms busy-wait after MOVEHELD direction changes
+#define Z_POST_RELEASE_PAUSE_CYCLES  0 //640000 // after finishes moving a piece// about 80 ms busy-wait
+#define COMMAND_END_SETTLE_CYCLES    0U    //global  // about 750 ms busy-wait after each successful motion command
 #define MOVEHELD_REGRIP_STEPS        0U
-#define RETURN_START_SEAT_STEPS      20U
+/* End-of-release overshoot correction.
+ * Applies only on the final carried-piece release move:
+ * - +X      -> add CORRECTION_STEPS_POS_X on X
+ * - -Y      -> add CORRECTION_STEPS_NEG_Y on Y
+ * - +X,-Y   -> apply both
+ * - +Y only / -X only -> no correction
+ */
+#define CORRECTION_STEPS_POS_X       30U
+#define CORRECTION_STEPS_NEG_Y       15U
+#define RETURN_START_SEAT_STEPS      35U
 
 /* Z actuation profile for pickup/release around a piece move.
  * TODO: flip *_DIR values if your physical Z direction is reversed.
@@ -200,8 +223,8 @@ typedef struct
  *   MOVEHELD_STEPS dx dy       -> move while keeping piece attached
  *   RELEASE_STEPS dx dy        -> move to destination and disengage Z
  */
-#define Z_PICKUP_STEPS        25
-#define Z_RELEASE_STEPS       25
+#define Z_PICKUP_STEPS        27
+#define Z_RELEASE_STEPS       27
 #define Z_PICKUP_DIR          1U
 #define Z_RELEASE_DIR         0U
 
